@@ -45,10 +45,72 @@ It is the foundation of [RagLeap](https://ragleap.com), a hosted AI business man
 | 🔌 **Bring your own AI key** | OpenAI, Gemini, Anthropic, or any OpenAI-compatible endpoint |
 | 🌐 **Web chat widget** | Embed a chat widget on any website |
 | 🐳 **Docker-based setup** | One-command local deployment |
+## Architecture
+
+RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
+
+```
+                    +---------------------------------------------------------+
+                    |              RagLeap (Hosted Platform)                    |
+                    |                                                            |
+                    |  [locked] Manager AI - private executive assistant        |
+                    |  [locked] AI Employees - role-based persistent memory     |
+                    |  [locked] Voice AI - real phone calls via Twilio          |
+                    |  [locked] WhatsApp / Telegram / Discord bots              |
+                    |  [locked] n8n Workflow Automation                         |
+                    |  [locked] Persistent Memory (cross-channel, cross-session)|
+                    |  [locked] 222+ Language auto-detection, all channels      |
+                    |  [locked] Multi-tenant Billing, Teams & Permissions       |
+                    |  [locked] Audit History / Compliance logging              |
+                    |  [locked] Embed Widget Control Center (white-label)       |
+                    |  [locked] Managed hosting, backups, SLA, support          |
+                    |                                                            |
+                    |                 built on top of                          |
+                    +---------------------------------------------------------+
+                                              |
+                    +-----------------------------------------------------+
+                    |            RagLeap Core (this repo, open)            |
+                    |                                                       |
+                    |   +-----------------+                                 |
+                    |   |   Web Chat UI    |                                 |
+                    |   +--------+---------+                                 |
+                    |            |                                           |
+                    |   +--------v---------+                                 |
+                    |   |   Chat API       |                                 |
+                    |   +--------+---------+                                 |
+                    |            |                                           |
+                    |  +----------+----------+                               |
+                    |  |          |          |                               |
+                    | +v--------+ +v-------+ +v----------+                   |
+                    | |Document | |  RAG   | |AI Provider|                   |
+                    | |Ingest   | |Retrieve| |  Adapter  |                   |
+                    | +----+----+ +---+----+ +-----+-----+                   |
+                    |      |          |            |                         |
+                    |  +----v----------v------------v---+                    |
+                    |  |  PostgreSQL + pgvector          |                    |
+                    |  +---------------------------------+                    |
+                    +-------------------------------------------------------+
+```
+
+**[locked]** = commercial/hosted-only feature, not included in this repository. See below for the full breakdown.
 
 ## What's in the hosted version (ragleap.com)
 
-The hosted RagLeap product builds on this same core with commercial features not included here: Voice AI (real phone calls via Twilio), WhatsApp/Telegram/Discord bots, AI Employees (role-based persistent memory), Manager AI (the executive-assistant layer), n8n workflow automation, multi-tenant billing, and managed hosting with support and SLAs.
+RagLeap Core covers document upload, retrieval, and web chat. The hosted platform builds a full AI business manager on top of it:
+
+| Area | What it adds |
+|---|---|
+| **Manager AI** | A private executive assistant for the owner — sees documents, analytics, team permissions, and database connections; can send emails, generate reports, and manage settings by conversation, reachable via Web, WhatsApp, Telegram, or phone call |
+| **AI Employees** | Specialized AI roles seeded per workspace, each with its own permanent memory, so support and sales conversations draw on different context automatically |
+| **Voice AI** | Real inbound phone calls via Twilio — speech-to-text, RAG-grounded response, text-to-speech, with owner vs. customer call routing |
+| **Multi-channel bots** | WhatsApp (Twilio or Gupshup), Telegram, and Discord bots, all backed by the same document knowledge base |
+| **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
+| **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
+| **222+ Languages** | Auto-detected per user, applied consistently across every channel |
+| **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
+| **Audit History** | Full log of configuration changes — who changed what, and when |
+| **Embed Control Center** | White-label widget builder — Bubble, Fixed Panel, or Full Page embeds for any website |
+| **Managed hosting** | Backups, uptime SLA, and support — zero infrastructure to maintain |
 
 This is the standard **open-core model** — the same approach used by projects like n8n, Supabase, and Cal.com: the engine is free and open, the managed/extended product is commercial.
 
@@ -66,28 +128,6 @@ docker compose up -d
 
 Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or Anthropic.
 
-## Architecture
-```
-                ┌─────────────────┐
-                │   Web Chat UI    │
-                └────────┬─────────┘
-                         │
-                ┌────────▼─────────┐
-                │   Chat API       │
-                └────────┬─────────┘
-                         │
-          ┌──────────────┼──────────────┐
-          │              │              │
- ┌────────▼───────┐ ┌────▼─────┐ ┌─────▼──────┐
- │ Document        │ │ RAG      │ │ AI Provider │
- │ Ingestion       │ │ Retrieval│ │ Adapter     │
- └────────┬────────┘ └────┬─────┘ └─────┬──────┘
-          │               │              │
- ┌────────▼───────────────▼──────────────▼──────┐
- │        PostgreSQL + pgvector (embeddings)     │
- └────────────────────────────────────────────────┘
-
-```
 ## Roadmap
 
 - [x] Public repository created
