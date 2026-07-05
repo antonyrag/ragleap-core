@@ -105,11 +105,19 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Voice AI** | Real inbound phone calls via Twilio — speech-to-text, RAG-grounded response, text-to-speech, with owner vs. customer call routing |
 | **Multi-channel bots** | WhatsApp (Twilio or Gupshup), Telegram, and Discord bots, all backed by the same document knowledge base |
 | **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
+| **Advanced AI Settings** | Model selection (Gemini/OpenAI/Claude), temperature tuning, bring-your-own-key per provider, and automatic failover across a fallback key pool |
+| **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
 | **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
 | **222+ Languages** | Auto-detected per user, applied consistently across every channel |
+| **Neo4j Knowledge Graph** | Hybrid graph + vector retrieval for richer, more connected answers (available in both hosted and self-hosted deployments) |
+| **Integrations & Database Connectors** | Connect existing business tools and external databases, with AI-suggested automations per channel and developer-level custom automations |
+| **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
 | **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
 | **Audit History** | Full log of configuration changes — who changed what, and when |
 | **Embed Control Center** | White-label widget builder — Bubble, Fixed Panel, or Full Page embeds for any website |
+| **Data Visibility Controls** | Per-document and per-database Public/Private settings — control exactly what customer-facing bots see vs. what's reserved for Manager AI only |
+| **Observability & Hallucination Detection** | Built-in monitoring layer that audits AI responses for accuracy and flags potential hallucinations |
+| **Cloud or Self-Hosted deployment** | Run the full platform as managed cloud (subscription) or self-hosted on your own server (one-time license) |
 | **Managed hosting** | Backups, uptime SLA, and support — zero infrastructure to maintain |
 
 This is the standard **open-core model** — the same approach used by projects like n8n, Supabase, and Cal.com: the engine is free and open, the managed/extended product is commercial.
