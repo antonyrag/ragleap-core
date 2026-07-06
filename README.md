@@ -109,7 +109,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
 | **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
 | **222+ Languages** | Auto-detected per user, applied consistently across every channel |
-| **Neo4j Knowledge Graph** | Hybrid graph + vector retrieval for richer, more connected answers (available in both hosted and self-hosted deployments) |
+| **Neo4j Knowledge Graph** | Hybrid graph + vector retrieval for richer, more connected answers — available on the hosted platform |
 | **Integrations & Database Connectors** | Connect existing business tools and external databases, with AI-suggested automations per channel and developer-level custom automations |
 | **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
 | **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
