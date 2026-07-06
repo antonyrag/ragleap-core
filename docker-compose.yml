@@ -1,0 +1,22 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ragleap_core_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ragleap
+      POSTGRES_PASSWORD: ragleap
+      POSTGRES_DB: ragleap_core
+    ports:
+      - "5433:5432"
+    volumes:
+      - ragleap_core_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ragleap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ragleap_core_data:
