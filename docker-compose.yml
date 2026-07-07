@@ -1,7 +1,6 @@
 services:
   db:
     image: pgvector/pgvector:pg16
-    container_name: ragleap_core_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ragleap
@@ -20,7 +19,6 @@ services:
 
   app:
     build: .
-    container_name: ragleap_core_app
     restart: unless-stopped
     depends_on:
       db:

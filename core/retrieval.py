@@ -57,7 +57,7 @@ class VectorRetrievalService:
                 document_id,
                 document_name,
                 chunk_index,
-                1 - (embedding <=> %s::vector) / 2 AS similarity_score
+                1 - (embedding::halfvec(3072) <=> %s::halfvec(3072)) / 2 AS similarity_score
             FROM chunks
         """
         params = [literal]
@@ -66,7 +66,7 @@ class VectorRetrievalService:
             sql += " WHERE document_id = %s"
             params.append(document_id)
 
-        sql += " ORDER BY embedding <=> %s::vector LIMIT %s"
+        sql += " ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s"
         params.extend([literal, top_k])
 
         try:
