@@ -18,5 +18,19 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    container_name: ragleap_core_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+    ports:
+      - "8000:8000"
+
 volumes:
   ragleap_core_data:
