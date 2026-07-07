@@ -165,6 +165,40 @@ docker compose up --build -d
 
 Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or Anthropic.
 
+## Supported LLM Providers (BYOK)
+
+RagLeap Core is bring-your-own-key only there is no system-provided key for any provider. Set `LLM_PROVIDER` in `.env` to choose which one to use for the generation (chat) step. Embeddings currently always use Gemini (`gemini-embedding-001`), regardless of `LLM_PROVIDER`.
+
+| `LLM_PROVIDER` value | Required env vars | Notes |
+|---|---|---|
+| `gemini` (default) | `GEMINI_API_KEY` | Get a key at aistudio.google.com/apikey |
+| `anthropic` | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` (optional) | Get a key at console.anthropic.com |
+| `openai` | `OPENAI_API_KEY`, `OPENAI_MODEL` | |
+| `mistral` | `MISTRAL_API_KEY`, `MISTRAL_MODEL` | |
+| `groq` | `GROQ_API_KEY`, `GROQ_MODEL` | Free tier available |
+| `together` | `TOGETHER_API_KEY`, `TOGETHER_MODEL` | |
+| `openrouter` | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | |
+| `ollama` | `OLLAMA_MODEL` (no API key needed) | Self-hosted; requires Ollama running locally |
+| `deepseek` | `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` | |
+| `xai` | `XAI_API_KEY`, `XAI_MODEL` | |
+| `cohere` | `COHERE_API_KEY`, `COHERE_MODEL` | |
+| `perplexity` | `PERPLEXITY_API_KEY`, `PERPLEXITY_MODEL` | |
+| `qwen` | `QWEN_API_KEY`, `QWEN_MODEL` | |
+| `moonshot` | `MOONSHOT_API_KEY`, `MOONSHOT_MODEL` | |
+| `zhipu` | `ZHIPU_API_KEY`, `ZHIPU_MODEL` | |
+| `yi` | `YI_API_KEY`, `YI_MODEL` | |
+| `baidu` | `BAIDU_API_KEY`, `BAIDU_MODEL` | |
+| `minimax` | `MINIMAX_API_KEY`, `MINIMAX_MODEL` | |
+| `custom` | `CUSTOM_API_KEY`, `CUSTOM_MODEL`, `CUSTOM_BASE_URL` | Any OpenAI-compatible endpoint |
+
+Example, switching to Groq in `.env`:
+
+```
+LLM_PROVIDER=groq
+GROQ_API_KEY=your-groq-key
+GROQ_MODEL=llama-3.3-70b-versatile
+```
+
 ## Roadmap
 
 - [x] Public repository created
