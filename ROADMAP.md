@@ -2,33 +2,37 @@
 
 This roadmap tracks the honest, current state of the open-core extraction — what exists, what's in progress, and what's planned.
 
-## Phase 1 — Foundation (current)
+## Phase 1 — Foundation ✅ Complete
 
 - [x] Public repository created
 - [x] README, LICENSE, initial project structure
-- [ ] CONTRIBUTING.md
-- [ ] CODE_OF_CONDUCT.md
-- [ ] Issue and PR templates
+- [x] CONTRIBUTING.md
+- [x] CODE_OF_CONDUCT.md
+- [x] Issue and PR templates
 
-## Phase 2 — Core Extraction
+## Phase 2 — Core Extraction ✅ Complete
 
-RagLeap's production RAG engine currently lives inside a larger private Django application. This phase extracts a clean, standalone version.
+RagLeap's production RAG engine originally lived inside a larger private Django application. This phase extracted a clean, standalone version and verified it works end-to-end, including on a genuinely fresh clone.
 
-- [ ] Identify and consolidate the core retrieval/orchestration logic (removing duplicate/legacy implementations)
-- [ ] Remove dependencies on private billing, multi-tenancy, and licensing code
-- [ ] Rewrite as a standalone module with its own minimal configuration
-- [ ] Document ingestion pipeline (PDF, TXT, DOCX, URL)
-- [ ] Vector storage and retrieval via PostgreSQL + pgvector
+- [x] Identify and consolidate the core retrieval/orchestration logic (removed duplicate/legacy implementations)
+- [x] Remove dependencies on private billing, multi-tenancy, and licensing code
+- [x] Rewrite as a standalone module with its own minimal configuration
+- [x] Vector storage and retrieval via PostgreSQL + pgvector
+- [x] FastAPI web layer (`/upload`, `/chat` endpoints)
+- [x] Full app Docker container (app + db via `docker compose up --build`)
+- [x] Fresh-clone test — verified working from a clean `git clone` with no manual patches
+- [ ] Document ingestion beyond plain `.txt` (PDF, DOCX)
 
-## Phase 3 — Standalone Deployment
+## Phase 3 — Standalone Deployment Polish
 
-- [ ] Working `docker compose up` with no external dependencies
-- [ ] Bring-your-own-API-key support (OpenAI, Gemini, Anthropic, custom OpenAI-compatible endpoint)
-- [ ] Basic web chat widget
-- [ ] Setup documentation and troubleshooting guide
+- [x] Working `docker compose up --build` with no external dependencies
+- [ ] Bring-your-own-API-key support for additional providers (OpenAI, Anthropic) — Gemini-only currently, by design
+- [ ] Input validation and improved error handling
+- [ ] Final Quickstart accuracy pass
 
 ## Phase 4 — Community
 
+- [ ] Public launch (Hacker News / Product Hunt) — deferred until Phase 2/3 polish is fully done
 - [ ] Open contributions with labeled good-first-issues
 - [ ] Community Discord
 - [ ] Plugin/extension system for custom document loaders or AI providers

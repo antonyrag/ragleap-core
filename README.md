@@ -153,14 +153,14 @@ This is the standard **open-core model** — the same approach used by projects 
 
 ## Quickstart
 
-> ⚠️ **Status: early core extraction.** This repository is in active development as we extract and clean up the core engine from RagLeap's production codebase. The commands below reflect the intended setup; if something doesn't work yet, check [open issues](../../issues) or the [Roadmap](#roadmap) below.
+> ✅ **Status: core pipeline verified working.** Ingest -> embed -> retrieve -> generate runs end-to-end via Docker Compose, including a clean fresh-clone test. See the [Roadmap](#roadmap) for what's next (PDF/DOCX support, alternative BYOK providers).
 
 ```bash
 git clone https://github.com/antonyrag/ragleap-core.git
 cd ragleap-core
 cp .env.example .env
-# add your AI provider key to .env
-docker compose up -d
+# add your Gemini API key to .env
+docker compose up --build -d
 ```
 
 Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or Anthropic.
