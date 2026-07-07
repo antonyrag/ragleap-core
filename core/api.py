@@ -4,7 +4,6 @@ Minimal HTTP interface over the existing CLI pipeline (core.ingest / core.chat).
 """
 import os
 import shutil
-import tempfile
 import logging
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
