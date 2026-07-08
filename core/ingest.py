@@ -35,44 +35,57 @@ def ingest_document(filename: str, text: str) -> dict:
     document_id = str(uuid.uuid4())
 
     conn = _get_connection()
-    cur = conn.cursor()
-
-    cur.execute(
-        "INSERT INTO documents (id, filename) VALUES (%s, %s)",
-        (document_id, filename),
-    )
-
-    stored = 0
-    for chunk in chunks:
-        embedding = embedder.embed_text(chunk["text"])
-        if embedding is None:
-            logger.warning(f"Skipping chunk {chunk['chunk_index']} — embedding failed")
-            continue
-
-        embedding_literal = "[" + ",".join(str(float(x)) for x in embedding) + "]"
+    try:
+        cur = conn.cursor()
 
         cur.execute(
-            """
-            INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding)
-            VALUES (%s, %s, %s, %s, %s, %s::vector)
-            """,
-            (
-                document_id,
-                filename,
-                chunk["chunk_index"],
-                chunk["text"],
-                chunk["token_count"],
-                embedding_literal,
-            ),
+            "INSERT INTO documents (id, filename) VALUES (%s, %s)",
+            (document_id, filename),
         )
-        stored += 1
 
-    conn.commit()
-    cur.close()
-    conn.close()
+        stored = 0
+        for chunk in chunks:
+            embedding = embedder.embed_text(chunk["text"])
+            if embedding is None:
+                logger.warning(f"Skipping chunk {chunk['chunk_index']} — embedding failed")
+                continue
 
-    logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
-    return {"document_id": document_id, "chunks_stored": stored}
+            embedding_literal = "[" + ",".join(str(float(x)) for x in embedding) + "]"
+
+            cur.execute(
+                """
+                INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding)
+                VALUES (%s, %s, %s, %s, %s, %s::vector)
+                """,
+                (
+                    document_id,
+                    filename,
+                    chunk["chunk_index"],
+                    chunk["text"],
+                    chunk["token_count"],
+                    embedding_literal,
+                ),
+            )
+            stored += 1
+
+        if stored == 0:
+            conn.rollback()
+            raise ValueError(
+                f"All {len(chunks)} chunk(s) failed to embed — nothing was stored. "
+                "Check your GEMINI_API_KEY and network connectivity."
+            )
+
+        conn.commit()
+        cur.close()
+
+        logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
+        return {"document_id": document_id, "chunks_stored": stored}
+
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

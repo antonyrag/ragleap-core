@@ -23,6 +23,8 @@ app = FastAPI(
 )
 
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
+MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
+MAX_QUESTION_LENGTH = 2000
 
 
 class ChatRequest(BaseModel):
@@ -72,6 +74,15 @@ async def upload_document(file: UploadFile = File(...)):
         )
     try:
         raw_bytes = await file.read()
+
+        if len(raw_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        if len(raw_bytes) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large ({len(raw_bytes) / 1024 / 1024:.1f} MB). Max size is {MAX_FILE_SIZE_BYTES / 1024 / 1024:.0f} MB.",
+            )
+
         text = extract_text(file.filename, raw_bytes)
         result = ingest_document(file.filename, text)
         logger.info("Ingested %s -> %s", file.filename, result)
@@ -92,6 +103,11 @@ async def upload_document(file: UploadFile = File(...)):
 def chat(question: str):
     if not question or not question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    if len(question) > MAX_QUESTION_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Question too long ({len(question)} chars). Max is {MAX_QUESTION_LENGTH} chars.",
+        )
     try:
         result = ask(question)
         return {
