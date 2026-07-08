@@ -225,3 +225,16 @@ RagLeap Core is early — the honest state right now is that we're actively extr
 ## License
 
 MIT © 2026 RagLeap
+
+## Troubleshooting
+
+**"could not translate host name 'db'" error after a failed `docker compose up`:**
+If your first `docker compose up` attempt fails (e.g. a port conflict on 5433 or 8000), a retry can sometimes leave the database container attached to a stale, orphaned Docker network. Fix:
+```bash
+docker compose down
+docker network prune -f
+docker compose up --build -d
+```
+
+**Port 5433 or 8000 already in use:**
+Another instance of this project (or something else) is using the port. Either stop it, or change the host-side port mapping in `docker-compose.yml` (the `"5433:5432"` and `"8000:8000"` lines) to something free.
