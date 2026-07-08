@@ -21,14 +21,15 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [x] FastAPI web layer (`/upload`, `/chat` endpoints)
 - [x] Full app Docker container (app + db via `docker compose up --build`)
 - [x] Fresh-clone test — verified working from a clean `git clone` with no manual patches
-- [ ] Document ingestion beyond plain `.txt` (PDF, DOCX)
+- [x] Document ingestion beyond plain `.txt` (PDF, DOCX) — verified on fresh clone
 
-## Phase 3 — Standalone Deployment Polish
+## Phase 3 — Standalone Deployment Polish ✅ Complete
 
 - [x] Working `docker compose up --build` with no external dependencies
-- [ ] Bring-your-own-API-key support for additional providers (OpenAI, Anthropic) — Gemini-only currently, by design
-- [ ] Input validation and improved error handling
-- [ ] Final Quickstart accuracy pass
+- [x] Bring-your-own-API-key support for generation across 19 providers (OpenAI, Anthropic, Mistral, Groq, and more) — Gemini and Groq verified live end-to-end; embeddings remain Gemini-only by design (dimension constraints)
+- [x] Input validation and improved error handling (file size limits, empty-input guards, question length limits, DB rollback/cleanup on ingestion failure)
+- [x] Final Quickstart accuracy pass
+- [x] Troubleshooting documentation for common Docker networking issues
 
 ## Phase 4 — Community
 
