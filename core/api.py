@@ -10,6 +10,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from core.ingest import ingest_document
+from core.parsers import extract_text
 from core.chat import ask
 
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +22,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
-ALLOWED_EXTENSIONS = {".txt"}
+ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
 
 
 class ChatRequest(BaseModel):
@@ -71,7 +72,7 @@ async def upload_document(file: UploadFile = File(...)):
         )
     try:
         raw_bytes = await file.read()
-        text = raw_bytes.decode("utf-8")
+        text = extract_text(file.filename, raw_bytes)
         result = ingest_document(file.filename, text)
         logger.info("Ingested %s -> %s", file.filename, result)
         return {

@@ -6,3 +6,5 @@ uvicorn>=0.29
 python-multipart>=0.0.9
 openai>=1.30
 anthropic>=0.30
+pypdf>=4.0
+python-docx>=1.1
