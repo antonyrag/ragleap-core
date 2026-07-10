@@ -56,12 +56,14 @@ jobs:
           curl -sf http://localhost:8000/health | grep -q '"status":"ok"'
 
       - name: Smoke test - upload and chat (skipped if no CI API key)
-        if: ${{ secrets.GEMINI_API_KEY_CI != '' }}
+        env:
+          HAS_CI_KEY: ${{ secrets.GEMINI_API_KEY_CI }}
+        if: ${{ env.HAS_CI_KEY != '' }}
         run: |
           echo "RagLeap Core supports WhatsApp, Telegram, Discord, and voice calls." > /tmp/test_doc.txt
-          curl -sf -X POST -F "file=@/tmp/test_doc.txt" http://localhost:8000/upload
+          curl -v -X POST -F "file=@/tmp/test_doc.txt" http://localhost:8000/upload
           echo ""
-          curl -sf -X POST "http://localhost:8000/chat?question=What+channels+are+supported"
+          curl -v -X POST "http://localhost:8000/chat?question=What+channels+are+supported"
 
       - name: Dump logs on failure
         if: failure()
