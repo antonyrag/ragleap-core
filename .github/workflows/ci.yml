@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  compile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile check
+        run: |
+          python -m py_compile core/*.py
+
+  docker-build-and-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create .env for CI
+        run: |
+          cat > .env << 'ENVEOF'
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY_CI }}
+          GEMINI_EMBEDDING_MODEL=models/gemini-embedding-001
+          EMBEDDING_DIMENSIONS=3072
+          GEMINI_CHAT_MODEL=gemini-2.5-flash
+          DATABASE_URL=postgresql://ragleap:ragleap@db:5432/ragleap_core
+          LLM_PROVIDER=gemini
+          ENVEOF
+
+      - name: Build and start stack
+        run: docker compose up --build -d
+
+      - name: Wait for services to be healthy
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              echo "App is healthy"
+              exit 0
+            fi
+            echo "Waiting for app... ($i/30)"
+            sleep 2
+          done
+          echo "App failed to become healthy in time"
+          docker compose logs
+          exit 1
+
+      - name: Smoke test - health check
+        run: |
+          curl -sf http://localhost:8000/health | grep -q '"status":"ok"'
+
+      - name: Smoke test - upload and chat (skipped if no CI API key)
+        if: ${{ secrets.GEMINI_API_KEY_CI != '' }}
+        run: |
+          echo "RagLeap Core supports WhatsApp, Telegram, Discord, and voice calls." > /tmp/test_doc.txt
+          curl -sf -X POST -F "file=@/tmp/test_doc.txt" http://localhost:8000/upload
+          echo ""
+          curl -sf -X POST "http://localhost:8000/chat?question=What+channels+are+supported"
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
