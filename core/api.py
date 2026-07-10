@@ -6,7 +6,7 @@ import os
 import shutil
 import logging
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from core.ingest import ingest_document
@@ -118,3 +118,38 @@ def chat(question: str):
     except Exception as exc:
         logger.exception("Chat failed for question: %s", question)
         raise HTTPException(status_code=500, detail=f"Chat failed: {exc}") from exc
+
+
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    """
+    Twilio-compatible WhatsApp webhook. Twilio sends form-encoded POST data
+    (not JSON), with fields like 'Body' (message text) and 'From'
+    (sender's phone, prefixed 'whatsapp:').
+    """
+    from channels.whatsapp.router import handle_incoming_message, _verify_twilio_signature
+
+    form = await request.form()
+    params = dict(form)
+
+    incoming_msg = params.get("Body", "")
+    from_phone = params.get("From", "")
+    if from_phone.startswith("whatsapp:"):
+        from_phone = from_phone.replace("whatsapp:", "")
+
+    if not incoming_msg or not from_phone:
+        raise HTTPException(status_code=400, detail="Missing Body or From field.")
+
+    signature = request.headers.get("x-twilio-signature", "")
+    if signature:
+        url = str(request.url)
+        if not _verify_twilio_signature(url, params, signature):
+            logger.warning("WhatsApp webhook: invalid Twilio signature")
+            raise HTTPException(status_code=403, detail="Invalid signature.")
+
+    logger.info(f"WhatsApp webhook: message from {from_phone}: {incoming_msg[:50]}")
+    handle_incoming_message(from_phone, incoming_msg)
+
+    # Twilio expects a TwiML (XML) response, even if empty — we already
+    # sent the reply via the Twilio API directly in handle_incoming_message.
+    return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>', media_type="application/xml")
