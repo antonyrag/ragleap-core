@@ -153,3 +153,31 @@ async def whatsapp_webhook(request: Request):
     # Twilio expects a TwiML (XML) response, even if empty — we already
     # sent the reply via the Twilio API directly in handle_incoming_message.
     return Response(content='<?xml version="1.0" encoding="UTF-8"?><Response></Response>', media_type="application/xml")
+
+
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    """
+    Telegram webhook. Telegram sends JSON payloads with an 'update' object
+    containing 'message' -> 'chat' -> 'id' and 'message' -> 'text'.
+    """
+    from channels.telegram.router import handle_incoming_message, _verify_webhook_secret
+
+    secret = request.headers.get("x-telegram-bot-api-secret-token", "")
+    if not _verify_webhook_secret(secret):
+        logger.warning("Telegram webhook: invalid secret token")
+        raise HTTPException(status_code=403, detail="Invalid secret token.")
+
+    update = await request.json()
+    message = update.get("message", {})
+    chat_id = message.get("chat", {}).get("id")
+    text = message.get("text", "")
+
+    if not chat_id:
+        # Not a text message we handle (could be a different update type) — acknowledge anyway.
+        return {"ok": True}
+
+    logger.info(f"Telegram webhook: message from chat {chat_id}: {text[:50]}")
+    handle_incoming_message(chat_id, text)
+
+    return {"ok": True}
