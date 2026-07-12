@@ -30,5 +30,19 @@ services:
     ports:
       - "8000:8000"
 
+  voice:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+    ports:
+      - "8766:8765"
+    command: ["python3", "-m", "channels.voice.server"]
+
 volumes:
   ragleap_core_data:
