@@ -207,6 +207,36 @@ GROQ_API_KEY=your-groq-key
 GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
+## Voice Channel (Twilio)
+
+RagLeap Core includes a real-time voice channel: Twilio Media Streams connects
+via WebSocket, your speech is transcribed with OpenAI Whisper, answered by the
+core RAG pipeline, and spoken back with OpenAI TTS. The voice-activity
+detection and echo-suppression logic is carried over from a production
+system tuned against real call traffic.
+
+Runs as a separate service on port 8765 (see `docker-compose.yml`), since
+Twilio's real-time audio protocol needs a raw WebSocket server, not an
+HTTP route.
+
+**Setup:**
+1. Set `OPENAI_API_KEY` in `.env` (used for both Whisper STT and TTS in v1)
+2. Optionally set `VOICE_BOT_NAME`, `VOICE_GREETING`, `VOICE_TTS_VOICE`
+3. Point a Twilio phone number's `<Connect><Stream>` TwiML at
+   `wss://your-domain.com:8765`
+
+**Honest status:** the WebSocket server, Twilio event protocol handling, and
+error handling are verified working. The full Whisper/TTS round-trip has
+not yet been live-tested end-to-end (requires OpenAI API credits). If you
+try it and hit issues, please open one — this is exactly the kind of
+real-world testing this project needs.
+
+**Known limitations, carried over from production and not yet fixed here:**
+- Only OpenAI Whisper (STT) and OpenAI TTS are supported in v1 — Deepgram
+  and ElevenLabs (multi-language support) are good-first-issue candidates
+- Non-English TTS quality varies since OpenAI's TTS voices are English-tuned
+- Typical round-trip latency in production was 6-8 seconds
+
 ## Roadmap
 
 - [x] Public repository created

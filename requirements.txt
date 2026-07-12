@@ -10,3 +10,5 @@ pypdf>=4.0
 python-docx>=1.1
 requests>=2.31
 cryptography>=42.0
+websockets>=12.0
+audioop-lts>=0.2; python_version >= "3.13"
