@@ -181,3 +181,38 @@ async def telegram_webhook(request: Request):
     handle_incoming_message(chat_id, text)
 
     return {"ok": True}
+
+
+@app.post("/webhook/discord")
+async def discord_webhook(request: Request):
+    """
+    Discord webhook. Handles both the PING verification challenge Discord
+    sends when registering the endpoint, and real MESSAGE_CREATE-style
+    interaction payloads.
+    """
+    from channels.discord.router import handle_incoming_message, verify_discord_signature
+
+    signature = request.headers.get("x-signature-ed25519", "")
+    timestamp = request.headers.get("x-signature-timestamp", "")
+    body = await request.body()
+
+    if not verify_discord_signature(signature, timestamp, body):
+        logger.warning("Discord webhook: invalid signature")
+        raise HTTPException(status_code=401, detail="Invalid request signature.")
+
+    data = await request.json()
+
+    # Discord's PING verification challenge — must respond with type: 1
+    if data.get("type") == 1:
+        return {"type": 1}
+
+    channel_id = data.get("channel_id")
+    content = data.get("content", "") or (data.get("data", {}) or {}).get("content", "")
+
+    if not channel_id or not content:
+        return {"ok": True}
+
+    logger.info(f"Discord webhook: message from channel {channel_id}: {content[:50]}")
+    handle_incoming_message(channel_id, content)
+
+    return {"ok": True}
