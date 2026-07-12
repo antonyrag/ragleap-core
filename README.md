@@ -6,7 +6,7 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 
 [Quickstart](#quickstart) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com)
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-early--core-orange)
+![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-core%20%2B%203%20channels%20live-brightgreen)
 
 ---
 
@@ -43,7 +43,7 @@ Open-source AI agent projects like OpenClaw took off for a specific reason: peop
 
 RagLeap Core is a document-grounded chat engine. Upload your documents, ask questions, get cited answers — self-hosted, on your own infrastructure, with your own API key.
 
-It is the foundation of [RagLeap](https://ragleap.com), a hosted AI business manager that adds Voice calling, WhatsApp/Telegram/Discord bots, a persistent memory system, and an executive-assistant layer on top of this same core engine.
+WhatsApp, Telegram, and Discord bots are included in this repo too — single-tenant, .env-configured channel adapters that answer from the same document knowledge base. It is the foundation of [RagLeap](https://ragleap.com), a hosted AI business manager that adds Voice calling, multi-tenancy, a persistent memory system, and an executive-assistant layer on top of this same core engine.
 
 **If RagLeap (hosted) is the business, RagLeap Core is the engine room.**
 
@@ -60,7 +60,8 @@ It is the foundation of [RagLeap](https://ragleap.com), a hosted AI business man
 | It's not... | It is... |
 |---|---|
 | A hosted product | Self-hosted software you run yourself |
-| A multi-channel bot platform (WhatsApp/Voice/Discord) | A single-channel chat engine — those live in the hosted version |
+| Multi-tenant, with persistent cross-session memory | Single-tenant — one bot, one document set, per deployment |
+| A platform with Voice calling built in | WhatsApp/Telegram/Discord included; Voice lives in the hosted version |
 | A no-code SaaS dashboard | A codebase you deploy and configure |
 | Feature-complete with the hosted version | The foundational subset — see [Roadmap](#roadmap) |
 
@@ -85,7 +86,6 @@ RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it
                     |  [locked] Manager AI - private executive assistant        |
                     |  [locked] AI Employees - role-based persistent memory     |
                     |  [locked] Voice AI - real phone calls via Twilio          |
-                    |  [locked] WhatsApp / Telegram / Discord bots              |
                     |  [locked] n8n Workflow Automation                         |
                     |  [locked] Persistent Memory (cross-channel, cross-session)|
                     |  [locked] 222+ Language auto-detection, all channels      |
@@ -107,6 +107,10 @@ RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it
                     |   +--------v---------+                                 |
                     |   |   Chat API       |                                 |
                     |   +--------+---------+                                 |
+                    |            |                                           |
+                    |   +--------v------------------------------+           |
+                    |   | WhatsApp | Telegram | Discord adapters |           |
+                    |   +--------+------------------------------+           |
                     |            |                                           |
                     |  +----------+----------+                               |
                     |  |          |          |                               |
@@ -132,7 +136,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Manager AI** | A private executive assistant for the owner — sees documents, analytics, team permissions, and database connections; can send emails, generate reports, and manage settings by conversation, reachable via Web, WhatsApp, Telegram, or phone call |
 | **AI Employees** | Specialized AI roles seeded per workspace, each with its own permanent memory, so support and sales conversations draw on different context automatically |
 | **Voice AI** | Real inbound phone calls via Twilio — speech-to-text, RAG-grounded response, text-to-speech, with owner vs. customer call routing |
-| **Multi-channel bots** | WhatsApp (Twilio or Gupshup), Telegram, and Discord bots, all backed by the same document knowledge base |
+| **Multi-channel bots (multi-tenant)** | WhatsApp (Twilio or Gupshup), Telegram, and Discord — single-tenant versions are in this repo; the hosted version adds multi-tenancy, per-workspace routing, and shared config across channels |
 | **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
 | **Advanced AI Settings** | Model selection (Gemini/OpenAI/Claude), temperature tuning, bring-your-own-key per provider, and automatic failover across a fallback key pool |
 | **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
@@ -164,6 +168,10 @@ docker compose up --build -d
 ```
 
 Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or Anthropic.
+
+**Try it in 30 seconds** — with the stack running, see [examples/](examples/) for two verified, runnable scripts:
+- `examples/01_ingest_and_query.py` — upload a document and ask a question via the API
+- `examples/02_test_channel_directly.py` — test the WhatsApp/Telegram/Discord answering logic without real bot credentials
 
 ## Supported LLM Providers (BYOK)
 
