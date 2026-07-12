@@ -80,52 +80,82 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
 
 ```
-                    +---------------------------------------------------------+
-                    |              RagLeap (Hosted Platform)                    |
-                    |                                                            |
-                    |  [locked] Manager AI - private executive assistant        |
-                    |  [locked] AI Employees - role-based persistent memory     |
-                    |  [locked] Voice AI - real phone calls via Twilio          |
-                    |  [locked] n8n Workflow Automation                         |
-                    |  [locked] Persistent Memory (cross-channel, cross-session)|
-                    |  [locked] 222+ Language auto-detection, all channels      |
-                    |  [locked] Multi-tenant Billing, Teams & Permissions       |
-                    |  [locked] Audit History / Compliance logging              |
-                    |  [locked] Embed Widget Control Center (white-label)       |
-                    |  [locked] Managed hosting, backups, SLA, support          |
-                    |                                                            |
-                    |                 built on top of                          |
-                    +---------------------------------------------------------+
-                                              |
-                    +-----------------------------------------------------+
-                    |            RagLeap Core (this repo, open)            |
-                    |                                                       |
-                    |   +-----------------+                                 |
-                    |   |   Web Chat UI    |                                 |
-                    |   +--------+---------+                                 |
-                    |            |                                           |
-                    |   +--------v---------+                                 |
-                    |   |   Chat API       |                                 |
-                    |   +--------+---------+                                 |
-                    |            |                                           |
-                    |   +--------v------------------------------+           |
-                    |   | WhatsApp | Telegram | Discord adapters |           |
-                    |   +--------+------------------------------+           |
-                    |            |                                           |
-                    |  +----------+----------+                               |
-                    |  |          |          |                               |
-                    | +v--------+ +v-------+ +v----------+                   |
-                    | |Document | |  RAG   | |AI Provider|                   |
-                    | |Ingest   | |Retrieve| |  Adapter  |                   |
-                    | +----+----+ +---+----+ +-----+-----+                   |
-                    |      |          |            |                         |
-                    |  +----v----------v------------v---+                    |
-                    |  |  PostgreSQL + pgvector          |                    |
-                    |  +---------------------------------+                    |
-                    +-------------------------------------------------------+
++-------------------------------------------------------------+
+|                  RagLeap (Hosted Platform)                   |
+|                                                                |
+|  [locked] Manager AI — private executive assistant           |
+|  [locked] AI Employees — role-based persistent memory        |
+|  [locked] n8n Workflow Automation                            |
+|  [locked] Persistent Memory (cross-channel, cross-session)   |
+|  [locked] 222+ Language auto-detection, all channels         |
+|  [locked] Multi-tenant Billing, Teams & Permissions           |
+|  [locked] Audit History / Compliance logging                 |
+|  [locked] Embed Widget Control Center (white-label)           |
+|  [locked] Managed hosting, backups, SLA, support              |
+|                                                                |
+|                       built on top of                        |
++-------------------------------------------------------------+
+                          |
++-------------------------------------------------------------+
+|              RagLeap Core (this repo, open)                  |
+|                                                                |
+|                      +----------------+                       |
+|                      |  Web Chat UI   |                       |
+|                      +-------+--------+                       |
+|                              |                                |
+|                      +-------v--------+                       |
+|                      |   Chat API     |                       |
+|                      +-------+--------+                       |
+|                              |                                |
+|        +---------------------+---------------------+          |
+|        |          |          |          |                    |
+|  +-----v----+ +---v-----+ +--v------+ +-v-------+             |
+|  | WhatsApp | |Telegram | | Discord | |  Voice  |             |
+|  +----------+ +---------+ +---------+ +---------+             |
+|        |          |          |          |                    |
+|        +---------------------+---------------------+          |
+|                              |                                |
+|        +---------------------+---------------------+          |
+|        |                     |                     |          |
+|  +-----v-----+        +------v------+       +------v------+   |
+|  |  Document |        |     RAG     |       | AI Provider |   |
+|  |  Ingest   |        |   Retrieve  |       |   Adapter   |   |
+|  +-----+-----+        +------+------+       +------+------+   |
+|        |                     |                     |          |
+|        +---------------------+---------------------+          |
+|                              |                                |
+|                  +-----------v-----------+                    |
+|                  |  PostgreSQL + pgvector |                    |
+|                  +------------------------+                    |
++-------------------------------------------------------------+
 ```
 
 **[locked]** = commercial/hosted-only feature, not included in this repository. See below for the full breakdown.
+
+### Repo structure
+
+```
+ragleap-core/
+├── core/                  # RAG engine — chunking, embedding, retrieval, generation
+│   ├── chunker.py
+│   ├── embedding.py       # Gemini embeddings (gemini-embedding-001, 3072-dim)
+│   ├── retrieval.py       # pgvector cosine search
+│   ├── generation.py      # 19-provider BYOK generation (Gemini, OpenAI, Anthropic, etc.)
+│   ├── ingest.py          # chunk -> embed -> store pipeline
+│   ├── parsers.py         # PDF/DOCX/TXT text extraction
+│   └── api.py             # FastAPI app — /health, /upload, /chat, /webhook/*
+├── channels/              # Messaging + voice channel adapters
+│   ├── whatsapp/          # Twilio + Gupshup
+│   ├── telegram/
+│   ├── discord/
+│   └── voice/             # Twilio Media Streams, WebSocket server
+├── db/
+│   └── schema.sql         # documents + chunks tables, pgvector index
+├── examples/              # Runnable example scripts
+├── .github/workflows/     # CI: compile check, Docker build, smoke tests
+├── docker-compose.yml     # app + db + voice services
+└── Dockerfile
+```
 
 ## What's in the hosted version (ragleap.com)
 
