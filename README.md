@@ -294,7 +294,9 @@ See [ROADMAP.md](ROADMAP.md) for more detail.
 
 ## Contributing
 
-RagLeap Core is early — the honest state right now is that we're actively extracting and cleaning the engine from a larger production codebase before it's ready for external contributions. Watch this repo or check [ROADMAP.md](ROADMAP.md) for when specific areas open up for contributions. See [CONTRIBUTING.md](CONTRIBUTING.md) once available.
+RagLeap Core is working, tested, and open for contributions now. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started, and check the [good first issue](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) label for scoped tasks.
+
+**Student, professor, or looking for a capstone/thesis project?** See [STUDENT_PROJECTS.md](STUDENT_PROJECTS.md) for scoped project ideas at starter, semester, and research-grade levels.
 
 ## Community
 
