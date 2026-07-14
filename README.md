@@ -189,6 +189,18 @@ This is the standard **open-core model** — the same approach used by projects 
 
 > ✅ **Status: core pipeline verified working.** Ingest -> embed -> retrieve -> generate runs end-to-end via Docker Compose, including a clean fresh-clone test. See the [Roadmap](#roadmap) for what's next (PDF/DOCX support, alternative BYOK providers).
 
+**Fastest way to try it** — one command checks Docker, clones the repo, and sets up `.env` for you:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install.sh | bash
+```
+
+(Windows users: run this in Git Bash, not Command Prompt or PowerShell.)
+
+The script will pause after cloning and ask you to add your Gemini API key to `.env` — get a free one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), then re-run the same command.
+
+**Or, the manual way** — better if you want to read the code before running anything:
+
 ```bash
 git clone https://github.com/antonyrag/ragleap-core.git
 cd ragleap-core
