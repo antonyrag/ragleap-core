@@ -1,6 +1,6 @@
 """
 Document Ingestion Pipeline for RagLeap Core
-Wires together: chunking -> embedding -> database storage.
+Wires together: chunking -> embedding -> database storage -> knowledge graph.
 """
 import os
 import logging
@@ -8,6 +8,7 @@ import uuid
 
 from core.chunker import TextChunker
 from core.embedding import EmbeddingService
+from core.graph import graph_service
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,13 @@ def ingest_document(filename: str, text: str) -> dict:
         cur.close()
 
         logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
+
+        # Knowledge graph write is best-effort — never blocks or rolls back ingestion
+        try:
+            graph_service.upsert_document_graph(document_id, filename, chunks)
+        except Exception as e:
+            logger.warning(f"Graph upsert failed for '{filename}' (non-fatal): {e}")
+
         return {"document_id": document_id, "chunks_stored": stored}
 
     except Exception:

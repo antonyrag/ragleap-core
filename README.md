@@ -75,6 +75,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | 🔌 **Bring your own AI key** | OpenAI, Gemini, Anthropic, or any OpenAI-compatible endpoint |
 | 🌐 **Web chat widget** | Embed a chat widget on any website |
 | 🐳 **Docker-based setup** | One-command local deployment |
+| 🕸️ **Knowledge Graph (Neo4j)** | Entity extraction and graph-boosted retrieval alongside vector search |
 ## Architecture
 
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
@@ -126,6 +127,11 @@ RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it
 |                              |                                |
 |                  +-----------v-----------+                    |
 |                  |  PostgreSQL + pgvector |                    |
+|                  +-----------+-----------+                    |
+|                              |                                |
+|                  +-----------v-----------+                    |
+|                  |    Neo4j (Knowledge   |                    |
+|                  |         Graph)         |                    |
 |                  +------------------------+                    |
 +-------------------------------------------------------------+
 ```
@@ -172,7 +178,6 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
 | **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
 | **222+ Languages** | Auto-detected per user, applied consistently across every channel |
-| **Neo4j Knowledge Graph** | Hybrid graph + vector retrieval for richer, more connected answers — available on the hosted platform |
 | **Integrations & Database Connectors** | Connect existing business tools and external databases, with AI-suggested automations per channel and developer-level custom automations |
 | **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
 | **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
@@ -278,6 +283,42 @@ real-world testing this project needs.
   and ElevenLabs (multi-language support) are good-first-issue candidates
 - Non-English TTS quality varies since OpenAI's TTS voices are English-tuned
 - Typical round-trip latency in production was 6-8 seconds
+
+## Knowledge Graph (Neo4j)
+
+RagLeap Core builds a lightweight entity co-occurrence graph alongside its
+vector index. When you ingest a document, entities (product names, acronyms,
+proper nouns) are extracted and linked in Neo4j. When you ask a question,
+the same extraction runs on your query, and any documents linked to matching
+entities get a similarity boost in retrieval — on top of, not instead of,
+normal pgvector search.
+
+Runs as a fourth Docker Compose service on ports `7475`/`7688` (remapped
+from Neo4j's defaults to avoid colliding with another Neo4j instance on the
+same host). If Neo4j is unreachable or `NEO4J_PASSWORD` is unset, the graph
+degrades gracefully — retrieval falls back to pure vector search, ingestion
+is unaffected.
+
+**Setup:**
+1. Set `NEO4J_URI`, `NEO4J_USER`, and `NEO4J_PASSWORD` in `.env` (matching
+   the `NEO4J_AUTH` value in `docker-compose.yml`)
+2. Optionally set `DOMAIN_TERMS` — a comma-separated list of domain-specific
+   terms to boost during extraction (e.g. `DOMAIN_TERMS=API,SDK,RAG`)
+
+**Honest status:** entity extraction, document graph writes, entity-based
+document lookup, and graph-boosted chat retrieval are all verified working
+end-to-end, including in CI (fresh build, real ingest, real query, real
+graph lookup). The graph boost is currently a simple additive score bump,
+not a full weighted re-ranker — a richer hybrid ranking system is a good
+next step for anyone who wants to dig in.
+
+**Known limitations:**
+- Entity extraction is regex-based (CamelCase, acronyms, capitalized
+  phrases, plus optional domain terms) — not a trained NER model, so it
+  will miss some entities and occasionally include noise
+- `search_related_entities()` (multi-hop graph traversal) is implemented
+  but not yet wired into the retrieval pipeline — good-first-issue
+  candidate for anyone wanting a project
 
 ## Roadmap
 

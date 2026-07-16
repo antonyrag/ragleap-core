@@ -44,5 +44,23 @@ services:
       - "8766:8765"
     command: ["python3", "-m", "channels.voice.server"]
 
+  neo4j:
+    image: neo4j:5-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/ragleapgraph
+      NEO4J_PLUGINS: '[]'
+    ports:
+      - "7475:7474"
+      - "7688:7687"
+    volumes:
+      - ragleap_core_neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
 volumes:
   ragleap_core_data:
+  ragleap_core_neo4j_data:

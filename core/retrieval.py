@@ -2,10 +2,13 @@
 Vector Retrieval Service for RagLeap Core
 Adapted from RagLeap's production pgvector cosine-distance search —
 rewritten as plain SQL (psycopg2), no Django ORM, no multi-tenancy.
+Optionally boosted by the knowledge graph when available.
 """
 import os
 import logging
 from typing import List, Dict, Optional
+
+from core.graph import graph_service
 
 logger = logging.getLogger(__name__)
 
@@ -97,3 +100,40 @@ class VectorRetrievalService:
         except Exception as e:
             logger.error(f"Vector search error: {e}", exc_info=True)
             raise
+
+    def search_similar_chunks_with_graph(
+        self,
+        query_text: str,
+        query_embedding: List[float],
+        top_k: int = 5,
+        document_id: Optional[str] = None,
+        graph_boost: float = 0.15,
+    ) -> List[Dict]:
+        """
+        Vector search, then boost chunks whose document is linked via the
+        knowledge graph to entities mentioned in the query. Falls back to
+        pure vector search if the graph is unavailable or finds nothing.
+        """
+        candidates = self.search_similar_chunks(
+            query_embedding, top_k=top_k * 3, document_id=document_id
+        )
+        if not candidates:
+            return []
+
+        try:
+            entities = graph_service.extract_query_entities(query_text)
+            linked_doc_ids = set()
+            if entities:
+                linked_docs = graph_service.find_documents_by_entities(entities)
+                linked_doc_ids = {d["document_id"] for d in linked_docs} if linked_docs else set()
+        except Exception as e:
+            logger.warning(f"Graph lookup failed during retrieval (non-fatal): {e}")
+            linked_doc_ids = set()
+
+        for chunk in candidates:
+            if chunk["document_id"] in linked_doc_ids:
+                chunk["similarity_score"] = min(1.0, chunk["similarity_score"] + graph_boost)
+                chunk["graph_boosted"] = True
+
+        candidates.sort(key=lambda c: c["similarity_score"], reverse=True)
+        return candidates[:top_k]
