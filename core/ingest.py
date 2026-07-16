@@ -1,6 +1,7 @@
 """
 Document Ingestion Pipeline for RagLeap Core
-Wires together: chunking -> embedding -> database storage -> knowledge graph.
+Wires together: chunking -> embedding -> database storage -> knowledge graph
+-> language detection.
 """
 import os
 import logging
@@ -9,6 +10,7 @@ import uuid
 from core.chunker import TextChunker
 from core.embedding import EmbeddingService
 from core.graph import graph_service
+from core.language import language_detector
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +55,16 @@ def ingest_document(filename: str, text: str) -> dict:
 
             embedding_literal = "[" + ",".join(str(float(x)) for x in embedding) + "]"
 
+            try:
+                detected_language, language_confidence = language_detector.detect_language(chunk["text"])
+            except Exception as e:
+                logger.warning(f"Language detection failed for chunk {chunk['chunk_index']} (non-fatal): {e}")
+                detected_language, language_confidence = None, None
+
             cur.execute(
                 """
-                INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding)
-                VALUES (%s, %s, %s, %s, %s, %s::vector)
+                INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding, detected_language, language_confidence)
+                VALUES (%s, %s, %s, %s, %s, %s::vector, %s, %s)
                 """,
                 (
                     document_id,
@@ -65,6 +73,8 @@ def ingest_document(filename: str, text: str) -> dict:
                     chunk["text"],
                     chunk["token_count"],
                     embedding_literal,
+                    detected_language,
+                    language_confidence,
                 ),
             )
             stored += 1

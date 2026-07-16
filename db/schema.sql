@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS chunks (
     text TEXT NOT NULL,
     token_count INTEGER,
     embedding vector(3072),
+    detected_language TEXT,
+    language_confidence REAL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
