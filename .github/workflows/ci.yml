@@ -1,11 +1,9 @@
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-
 jobs:
   compile-check:
     runs-on: ubuntu-latest
@@ -17,12 +15,10 @@ jobs:
       - name: Compile check
         run: |
           python -m py_compile core/*.py
-
   docker-build-and-smoke-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Create .env for CI
         run: |
           cat > .env << 'ENVEOF'
@@ -32,11 +28,12 @@ jobs:
           GEMINI_CHAT_MODEL=gemini-2.5-flash
           DATABASE_URL=postgresql://ragleap:ragleap@db:5432/ragleap_core
           LLM_PROVIDER=gemini
+          NEO4J_URI=bolt://neo4j:7687
+          NEO4J_USER=neo4j
+          NEO4J_PASSWORD=ragleapgraph
           ENVEOF
-
       - name: Build and start stack
         run: docker compose up --build -d
-
       - name: Wait for services to be healthy
         run: |
           for i in {1..30}; do
@@ -50,11 +47,9 @@ jobs:
           echo "App failed to become healthy in time"
           docker compose logs
           exit 1
-
       - name: Smoke test - health check
         run: |
           curl -sf http://localhost:8000/health | grep -q '"status":"ok"'
-
       - name: Smoke test - upload and chat (skipped if no CI API key)
         env:
           HAS_CI_KEY: ${{ secrets.GEMINI_API_KEY_CI }}
@@ -64,11 +59,22 @@ jobs:
           curl -v -X POST -F "file=@/tmp/test_doc.txt" http://localhost:8000/upload
           echo ""
           curl -v -X POST "http://localhost:8000/chat?question=What+channels+are+supported"
-
+      - name: Smoke test - knowledge graph (skipped if no CI API key)
+        env:
+          HAS_CI_KEY: ${{ secrets.GEMINI_API_KEY_CI }}
+        if: ${{ env.HAS_CI_KEY != '' }}
+        run: |
+          docker compose exec -T app python3 -c "
+          from core.graph import graph_service
+          assert graph_service.driver is not None, 'Neo4j driver did not initialize'
+          assert graph_service.health_check(), 'Neo4j health check failed'
+          docs = graph_service.find_documents_by_entities(['RagLeap'])
+          assert docs, f'Expected a document linked to entity RagLeap, got: {docs}'
+          print('Knowledge graph smoke test passed:', docs)
+          "
       - name: Dump logs on failure
         if: failure()
         run: docker compose logs
-
       - name: Tear down
         if: always()
         run: docker compose down -v
