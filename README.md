@@ -76,6 +76,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | 🌐 **Web chat widget** | Embed a chat widget on any website |
 | 🐳 **Docker-based setup** | One-command local deployment |
 | 🕸️ **Knowledge Graph (Neo4j)** | Entity extraction and graph-boosted retrieval alongside vector search |
+| 🌍 **Language detection** | Auto-detects document and query language, applied across every channel |
 ## Architecture
 
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
@@ -88,7 +89,6 @@ RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it
 |  [locked] AI Employees — role-based persistent memory        |
 |  [locked] n8n Workflow Automation                            |
 |  [locked] Persistent Memory (cross-channel, cross-session)   |
-|  [locked] 222+ Language auto-detection, all channels         |
 |  [locked] Multi-tenant Billing, Teams & Permissions           |
 |  [locked] Audit History / Compliance logging                 |
 |  [locked] Embed Widget Control Center (white-label)           |
@@ -177,7 +177,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Advanced AI Settings** | Model selection (Gemini/OpenAI/Claude), temperature tuning, bring-your-own-key per provider, and automatic failover across a fallback key pool |
 | **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
 | **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
-| **222+ Languages** | Auto-detected per user, applied consistently across every channel |
+| **222+ Languages** | This repo includes language detection (langdetect, ~55 languages) across all channels; the hosted platform extends this to 222+ languages with per-user persisted preferences |
 | **Integrations & Database Connectors** | Connect existing business tools and external databases, with AI-suggested automations per channel and developer-level custom automations |
 | **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
 | **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
@@ -319,6 +319,39 @@ next step for anyone who wants to dig in.
 - `search_related_entities()` (multi-hop graph traversal) is implemented
   but not yet wired into the retrieval pipeline — good-first-issue
   candidate for anyone wanting a project
+
+## Language Detection
+
+RagLeap Core auto-detects language during document ingestion (per chunk)
+and during chat (per query), using the `langdetect` library plus
+script-based heuristics for CJK, Hangul, and Kana text. Since every
+channel (WhatsApp, Telegram, Discord, Voice, and the API directly)
+routes through the same core chat pipeline, detection applies
+consistently everywhere without per-channel wiring.
+
+**Setup:** works out of the box with no configuration. Optionally set
+`DEFAULT_LANGUAGE` (fallback when detection fails or text is too short),
+`LANGUAGE_DETECTION_CONFIDENCE_THRESHOLD` (default `0.7`), and
+`LANGUAGE_DETECTION_SUPPORTED_LANGUAGES` (comma-separated allowlist,
+blank = unrestricted).
+
+**Honest status:** verified working end-to-end — document-level
+detection tested at high confidence (0.9999) on a real mixed-language
+document, and query-level detection confirmed working via both the API
+and CLI.
+
+**Known limitations:**
+- `langdetect` covers roughly 55 languages — noticeably fewer than the
+  hosted platform's 222+, which layers additional detection and
+  per-user language preferences on top
+- Short queries in closely-related languages can be misdetected (in
+  testing, a short French query was detected as Italian) — this is an
+  inherent limitation of statistical detection on short text, not
+  specific to this port. A good-first-issue candidate for anyone
+  wanting to improve short-query accuracy
+- Detection is one-way only: RagLeap Core detects the query's language
+  and surfaces it, but does not yet steer the AI's response language
+  to match — that's a reasonable next step for a contributor
 
 ## Roadmap
 
