@@ -47,6 +47,23 @@ jobs:
           echo "App failed to become healthy in time"
           docker compose logs
           exit 1
+      - name: Wait for Neo4j to actually accept connections
+        run: |
+          for i in {1..30}; do
+            if docker compose exec -T app python3 -c "
+          from core.graph import graph_service
+          import sys
+          sys.exit(0 if graph_service.health_check() else 1)
+          " 2>/dev/null; then
+              echo "Neo4j is ready"
+              exit 0
+            fi
+            echo "Waiting for Neo4j... ($i/30)"
+            sleep 2
+          done
+          echo "Neo4j failed to become ready in time"
+          docker compose logs neo4j
+          exit 1
       - name: Smoke test - health check
         run: |
           curl -sf http://localhost:8000/health | grep -q '"status":"ok"'
