@@ -50,11 +50,7 @@ jobs:
       - name: Wait for Neo4j to actually accept connections
         run: |
           for i in {1..30}; do
-            if docker compose exec -T app python3 -c "
-          from core.graph import graph_service
-          import sys
-          sys.exit(0 if graph_service.health_check() else 1)
-          " 2>/dev/null; then
+            if docker compose exec -T app python3 -c "from core.graph import graph_service; import sys; sys.exit(0 if graph_service.health_check() else 1)" 2>/dev/null; then
               echo "Neo4j is ready"
               exit 0
             fi
