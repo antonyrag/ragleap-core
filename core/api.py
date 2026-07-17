@@ -7,11 +7,12 @@ import shutil
 import logging
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from core.ingest import ingest_document
 from core.parsers import extract_text
-from core.chat import ask
+from core.chat import ask, ask_stream
 from core.integrations import service as integrations_service
 
 logging.basicConfig(level=logging.INFO)
@@ -95,8 +96,7 @@ async def upload_document(file: UploadFile = File(...)):
         await file.close()
 
 
-@app.post("/chat")
-def chat(question: str):
+def _validate_question(question: str):
     if not question or not question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
     if len(question) > MAX_QUESTION_LENGTH:
@@ -104,16 +104,73 @@ def chat(question: str):
             status_code=400,
             detail=f"Question too long ({len(question)} chars). Max is {MAX_QUESTION_LENGTH} chars.",
         )
+
+
+@app.post("/chat")
+def chat(
+    question: str,
+    top_k: int = 5,
+    temperature: float | None = None,
+    system_prompt: str | None = None,
+    max_tokens: int | None = None,
+    hybrid: bool = True,
+):
+    """
+    Ask a question grounded in previously ingested documents.
+
+    top_k: number of chunks to retrieve and ground the answer in.
+    temperature: LLM sampling temperature (lower = more deterministic/faithful
+        to context; default comes from DEFAULT_TEMPERATURE in .env, 0.3).
+    system_prompt: override the default grounded-QA instructions.
+    max_tokens: override the default max output length.
+    hybrid: use dense+sparse fused retrieval (default True) vs. dense-only.
+    """
+    _validate_question(question)
     try:
-        result = ask(question)
+        result = ask(
+            question, top_k=top_k, temperature=temperature,
+            system_prompt=system_prompt, max_tokens=max_tokens, hybrid=hybrid,
+        )
         return {
             "answer": result["answer"],
             "sources": result.get("sources", []),
             "chunks_used": result.get("chunks_used", 0),
+            "detected_language": result.get("detected_language"),
         }
     except Exception as exc:
         logger.exception("Chat failed for question: %s", question)
         raise HTTPException(status_code=500, detail=f"Chat failed: {exc}") from exc
+
+
+@app.post("/chat/stream")
+def chat_stream(
+    question: str,
+    top_k: int = 5,
+    temperature: float | None = None,
+    system_prompt: str | None = None,
+    max_tokens: int | None = None,
+    hybrid: bool = True,
+):
+    """
+    Same as /chat, but streams the answer text back as it's generated
+    (text/plain, chunked transfer) instead of waiting for the full
+    response. Sources/chunks_used/detected_language aren't available in
+    a streaming response — use /chat if you need those.
+    """
+    _validate_question(question)
+
+    def _generate():
+        try:
+            for piece in ask_stream(
+                question, top_k=top_k, temperature=temperature,
+                system_prompt=system_prompt, max_tokens=max_tokens, hybrid=hybrid,
+            ):
+                yield piece
+        except Exception as exc:
+            logger.exception("Streaming chat failed for question: %s", question)
+            yield f"\n[Error: {exc}]"
+
+    return StreamingResponse(_generate(), media_type="text/plain")
 
 
 @app.post("/webhook/whatsapp")

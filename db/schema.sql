@@ -29,6 +29,14 @@ CREATE TABLE IF NOT EXISTS chunks (
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx
     ON chunks USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
 
+-- Full-text search support for hybrid (dense + sparse) retrieval.
+-- Generated column stays in sync automatically on insert/update.
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS text_search_vector tsvector
+    GENERATED ALWAYS AS (to_tsvector('english', text)) STORED;
+
+CREATE INDEX IF NOT EXISTS chunks_text_search_idx
+    ON chunks USING GIN (text_search_vector);
+
 -- Integrations: external data sources (databases, CRMs, SaaS APIs) that can
 -- sync per-user context into RAG responses. Single-tenant — no workspace scoping.
 CREATE TABLE IF NOT EXISTS data_sources (

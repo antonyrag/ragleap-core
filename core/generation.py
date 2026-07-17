@@ -8,15 +8,19 @@ OpenAI-compatible providers (via openai SDK + custom base_url): everyone else.
 """
 import os
 import logging
-from typing import List, Dict
+from typing import List, Dict, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini").lower()
 GEMINI_CHAT_MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
 
-# Base URLs for OpenAI-compatible providers. gemini and anthropic use their
-# own native SDKs and don't need a base_url override here.
+# Default temperature for grounded RAG answers — low by design (favors
+# faithfulness to retrieved context over creative variation). Override
+# per-call or via DEFAULT_TEMPERATURE in .env.
+DEFAULT_TEMPERATURE = float(os.environ.get("DEFAULT_TEMPERATURE", "0.3"))
+MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "1024"))
+
 PROVIDER_BASE_URLS = {
     "openai":     "https://api.openai.com/v1",
     "mistral":    "https://api.mistral.ai/v1",
@@ -45,7 +49,8 @@ Always be concise and cite which document your answer came from when possible.""
 class GenerationService:
     """
     Generates a grounded answer using the configured LLM_PROVIDER,
-    given a query and retrieved chunks.
+    given a query and retrieved chunks. Supports per-call temperature
+    override and streaming.
     """
 
     def __init__(self):
@@ -96,7 +101,6 @@ class GenerationService:
             )
 
     def _build_context(self, chunks: List[Dict]) -> str:
-        """Format retrieved chunks into a context block with source labels."""
         if not chunks:
             return "No relevant context was found."
         parts = []
@@ -106,14 +110,10 @@ class GenerationService:
             parts.append(f"[Source {i}: {doc_name}]\n{text}")
         return "\n\n".join(parts)
 
-    def generate_answer(self, query: str, chunks: List[Dict]) -> Dict:
-        """
-        Generate an answer to `query` grounded in the given `chunks`.
-        Returns a dict: {"answer": str, "sources": List[str]}
-        """
+    def _build_prompt(self, query: str, chunks: List[Dict], system_prompt: Optional[str] = None) -> str:
         context = self._build_context(chunks)
-        sources = list({c.get("document_name", "unknown") for c in chunks})
-        prompt = f"""{SYSTEM_PROMPT}
+        instructions = system_prompt or SYSTEM_PROMPT
+        return f"""{instructions}
 
 Context:
 {context}
@@ -121,13 +121,36 @@ Context:
 Question: {query}
 Answer:"""
 
+    def generate_answer(
+        self,
+        query: str,
+        chunks: List[Dict],
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+    ) -> Dict:
+        """
+        Generate an answer to `query` grounded in the given `chunks`.
+        Returns a dict: {"answer": str, "sources": List[str]}
+
+        temperature: overrides DEFAULT_TEMPERATURE for this call only.
+        system_prompt: overrides the default grounded-QA instructions —
+            use this to build your own agent behavior on top of RagLeap's
+            retrieval, without forking the library.
+        max_tokens: overrides MAX_OUTPUT_TOKENS for this call only.
+        """
+        temp = DEFAULT_TEMPERATURE if temperature is None else temperature
+        max_tok = MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
+        sources = list({c.get("document_name", "unknown") for c in chunks})
+        prompt = self._build_prompt(query, chunks, system_prompt)
+
         try:
             if self.provider == "gemini":
-                answer_text = self._call_gemini(prompt)
+                answer_text = self._call_gemini(prompt, temp, max_tok)
             elif self.provider == "anthropic":
-                answer_text = self._call_anthropic(prompt)
+                answer_text = self._call_anthropic(prompt, temp, max_tok)
             else:
-                answer_text = self._call_openai_compatible(prompt)
+                answer_text = self._call_openai_compatible(prompt, temp, max_tok)
 
             return {"answer": answer_text, "sources": sources}
 
@@ -138,27 +161,110 @@ Answer:"""
                 "sources": [],
             }
 
-    def _call_gemini(self, prompt: str) -> str:
+    def generate_answer_stream(
+        self,
+        query: str,
+        chunks: List[Dict],
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+    ) -> Iterator[str]:
+        """
+        Same as generate_answer(), but yields answer text incrementally
+        as it's generated, instead of waiting for the full response.
+        Sources aren't yielded (caller already has `chunks` to derive
+        them from, same as generate_answer() does).
+        """
+        temp = DEFAULT_TEMPERATURE if temperature is None else temperature
+        max_tok = MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
+        prompt = self._build_prompt(query, chunks, system_prompt)
+
+        try:
+            if self.provider == "gemini":
+                yield from self._stream_gemini(prompt, temp, max_tok)
+            elif self.provider == "anthropic":
+                yield from self._stream_anthropic(prompt, temp, max_tok)
+            else:
+                yield from self._stream_openai_compatible(prompt, temp, max_tok)
+        except Exception as e:
+            logger.error(f"Streaming generation failed ({self.provider}): {e}")
+            yield f"Sorry, I couldn't generate an answer due to an error: {e}"
+
+    def _call_gemini(self, prompt: str, temperature: float, max_tokens: int) -> str:
         import google.genai as genai
+        from google.genai import types
         client = genai.Client(api_key=self.api_key)
-        response = client.models.generate_content(model=self.model, contents=prompt)
+        response = client.models.generate_content(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            ),
+        )
         return response.text.strip() if response.text else "No answer generated."
 
-    def _call_anthropic(self, prompt: str) -> str:
+    def _stream_gemini(self, prompt: str, temperature: float, max_tokens: int) -> Iterator[str]:
+        import google.genai as genai
+        from google.genai import types
+        client = genai.Client(api_key=self.api_key)
+        stream = client.models.generate_content_stream(
+            model=self.model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            ),
+        )
+        for chunk in stream:
+            if chunk.text:
+                yield chunk.text
+
+    def _call_anthropic(self, prompt: str, temperature: float, max_tokens: int) -> str:
         import anthropic
         client = anthropic.Anthropic(api_key=self.api_key)
         response = client.messages.create(
             model=self.model,
-            max_tokens=1024,
+            max_tokens=max_tokens,
+            temperature=temperature,
             messages=[{"role": "user", "content": prompt}],
         )
         return response.content[0].text.strip() if response.content else "No answer generated."
 
-    def _call_openai_compatible(self, prompt: str) -> str:
+    def _stream_anthropic(self, prompt: str, temperature: float, max_tokens: int) -> Iterator[str]:
+        import anthropic
+        client = anthropic.Anthropic(api_key=self.api_key)
+        with client.messages.stream(
+            model=self.model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[{"role": "user", "content": prompt}],
+        ) as stream:
+            for text in stream.text_stream:
+                yield text
+
+    def _call_openai_compatible(self, prompt: str, temperature: float, max_tokens: int) -> str:
         import openai
         client = openai.OpenAI(api_key=self.api_key or "not-needed", base_url=self.base_url)
         response = client.chat.completions.create(
             model=self.model,
             messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
         return response.choices[0].message.content.strip() if response.choices else "No answer generated."
+
+    def _stream_openai_compatible(self, prompt: str, temperature: float, max_tokens: int) -> Iterator[str]:
+        import openai
+        client = openai.OpenAI(api_key=self.api_key or "not-needed", base_url=self.base_url)
+        stream = client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta.content if chunk.choices else None
+            if delta:
+                yield delta
