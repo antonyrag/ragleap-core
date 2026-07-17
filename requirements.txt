@@ -14,3 +14,14 @@ websockets>=12.0
 audioop-lts>=0.2; python_version >= "3.13"
 neo4j>=5.0
 langdetect>=1.0.9
+
+# Integrations (all optional — connectors degrade gracefully if a specific
+# SDK isn't installed; only install the ones for the sources you use)
+pymysql>=1.1.0
+psycopg2-binary>=2.9.0
+pymongo>=4.6.0
+simple-salesforce>=1.12.0
+hubspot-api-client>=8.2.0
+ShopifyAPI>=12.5.0
+gspread>=6.0.0
+stripe>=8.0.0
