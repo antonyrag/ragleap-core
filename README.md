@@ -6,9 +6,11 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 
 [Quickstart](#quickstart) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com)
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-core%20%2B%203%20channels%20live-brightgreen)
+![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-core%20%2B%204%20channels%20%2B%20KG%20%2B%20multilingual%20%2B%20integrations-brightgreen)
 
 ---
+
+> **Not to be confused with `install.ragleap.com`** — that's a separate, paid, license-gated self-hosted product (Free tier with a license key, up to Enterprise). `ragleap-core` (this repo) is MIT-licensed, completely free, and never requires a license key. If you cloned this repo, you're in the right place for a genuinely free, open-source RAG engine.
 
 ## If a RAG chatbot answers questions, RagLeap runs your business
 
