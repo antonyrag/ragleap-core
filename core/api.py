@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from core.ingest import ingest_document
 from core.parsers import extract_text
 from core.chat import ask
+from core.integrations import service as integrations_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
@@ -42,21 +43,16 @@ class UploadResponse(BaseModel):
     chunks_stored: int
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-    question: str
-
-
-class ChatResponse(BaseModel):
-    answer: str
-    sources: list[str]
-    chunks_used: int
-
-
-class UploadResponse(BaseModel):
-    document_id: str
-    chunks_stored: int
+class DataSourceCreateRequest(BaseModel):
+    name: str
+    source_type: str
+    connection_string: str | None = None
+    api_endpoint: str | None = None
+    api_key: str | None = None
+    api_headers: dict = {}
+    query_template: str | None = None
+    field_mappings: dict = {}
+    user_identifier_field: str = "user_id"
 
 
 @app.get("/health")
@@ -216,3 +212,50 @@ async def discord_webhook(request: Request):
     handle_incoming_message(channel_id, content)
 
     return {"ok": True}
+
+
+# ============================================================================
+# INTEGRATIONS — external data sources (databases, CRMs, SaaS APIs)
+# ============================================================================
+
+@app.post("/integrations")
+def create_integration(req: DataSourceCreateRequest):
+    try:
+        result = integrations_service.create_data_source(
+            name=req.name,
+            source_type=req.source_type,
+            connection_string=req.connection_string,
+            api_endpoint=req.api_endpoint,
+            api_key=req.api_key,
+            api_headers=req.api_headers,
+            query_template=req.query_template,
+            field_mappings=req.field_mappings,
+            user_identifier_field=req.user_identifier_field,
+        )
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Failed to create integration")
+        raise HTTPException(status_code=500, detail=f"Failed to create integration: {exc}") from exc
+
+
+@app.get("/integrations")
+def list_integrations():
+    return {"data_sources": integrations_service.list_data_sources()}
+
+
+@app.post("/integrations/{data_source_id}/test")
+def test_integration(data_source_id: str):
+    result = integrations_service.test_data_source(data_source_id)
+    if not result.get("success") and result.get("error") == "Data source not found":
+        raise HTTPException(status_code=404, detail="Data source not found")
+    return result
+
+
+@app.post("/integrations/{data_source_id}/sync")
+def sync_integration(data_source_id: str):
+    result = integrations_service.sync_data_source(data_source_id)
+    if not result.get("success") and result.get("error") == "Data source not found":
+        raise HTTPException(status_code=404, detail="Data source not found")
+    return result
