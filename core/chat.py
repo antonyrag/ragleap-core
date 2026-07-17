@@ -129,6 +129,7 @@ if __name__ == "__main__":
         result = ask(question)
         print(f"\nQuestion: {question}")
         print(f"Detected language: {result.get('detected_language')}")
+        print(f"Provider used: {result.get('provider_used')}")
         print(f"Answer: {result['answer']}")
         print(f"Sources: {result['sources']}")
         print(f"Chunks used: {result['chunks_used']}")

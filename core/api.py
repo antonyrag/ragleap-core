@@ -136,6 +136,7 @@ def chat(
             "sources": result.get("sources", []),
             "chunks_used": result.get("chunks_used", 0),
             "detected_language": result.get("detected_language"),
+            "provider_used": result.get("provider_used"),
         }
     except Exception as exc:
         logger.exception("Chat failed for question: %s", question)
