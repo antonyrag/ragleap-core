@@ -26,3 +26,7 @@ Thumbs.db
 # Logs
 *.log
 .env
+
+# Package build artifacts
+dist/
+build/
