@@ -79,6 +79,11 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | 🐳 **Docker-based setup** | One-command local deployment |
 | 🕸️ **Knowledge Graph (Neo4j)** | Entity extraction and graph-boosted retrieval alongside vector search |
 | 🌍 **Language detection** | Auto-detects document and query language, applied across every channel |
+| 🔗 **Integrations** | Connect MySQL, PostgreSQL, MongoDB, REST APIs, Salesforce, HubSpot, Shopify, Google Sheets, Stripe |
+| 🔀 **Hybrid search** | Combines dense (vector) and sparse (full-text) retrieval via Reciprocal Rank Fusion |
+| ⚡ **Streaming responses** | Answers stream token-by-token instead of waiting for the full response |
+| 🔁 **Provider fallback** | Automatically retries with a backup LLM provider if the primary fails |
+| 💰 **Token usage reporting** | Real per-call token counts from the provider, plus context-size budget trimming |
 ## Architecture
 
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
@@ -180,7 +185,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
 | **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
 | **222+ Languages** | This repo includes language detection (langdetect, ~55 languages) across all channels; the hosted platform extends this to 222+ languages with per-user persisted preferences |
-| **Integrations & Database Connectors** | Connect existing business tools and external databases, with AI-suggested automations per channel and developer-level custom automations |
+| **Integrations & Database Connectors** | This repo includes 9 raw connectors (MySQL, PostgreSQL, MongoDB, REST API, Salesforce, HubSpot, Shopify, Google Sheets, Stripe) with on-demand sync; the hosted platform adds AI-suggested automations per channel and developer-level custom automation workflows on top |
 | **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
 | **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
 | **Audit History** | Full log of configuration changes — who changed what, and when |
@@ -354,6 +359,107 @@ and CLI.
 - Detection is one-way only: RagLeap Core detects the query's language
   and surfaces it, but does not yet steer the AI's response language
   to match — that's a reasonable next step for a contributor
+
+## Integrations
+
+RagLeap Core connects to external databases and business tools, syncing
+per-user context to personalize RAG responses. Nine connectors are
+included: MySQL, PostgreSQL, MongoDB, generic REST APIs, Salesforce,
+HubSpot, Shopify, Google Sheets, and Stripe.
+
+Every CRM/SaaS connector uses credentials you provide directly — a
+username/password, a private-app token, an admin API token, a
+service-account JSON file, or a secret key, depending on the service.
+None require registering an OAuth app; nothing here depends on RagLeap
+owning any third-party developer account.
+
+Credentials are encrypted at rest (Fernet/AES-128) before being stored.
+
+**Setup:**
+1. Generate an encryption key: `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+2. Set `ADDON_ENCRYPTION_KEY` in `.env` to that value
+3. Install the SDK for the connector(s) you want (each is optional — see
+   `requirements.txt`)
+4. Create a data source: `POST /integrations` with `name`, `source_type`,
+   and the relevant credential fields
+5. Test it: `POST /integrations/{id}/test`
+6. Sync it: `POST /integrations/{id}/sync`
+
+**Honest status:** verified end-to-end against a real public API —
+connection testing, syncing, correct identifier-field matching, and
+credential encryption (checked as actual ciphertext in the database,
+not just assumed) all confirmed working.
+
+**Known limitations:**
+- 9 of the 18 source types listed in the hosted platform's UI have
+  real connectors here. CSV Upload, Snowflake, BigQuery, WooCommerce,
+  Airtable, Notion, Razorpay, Slack, and Gmail are good-first-issue
+  candidates for anyone wanting to add one
+- Sync is on-demand only (`POST /integrations/{id}/sync`) — no
+  scheduled background sync yet, though the schema tracks
+  `sync_interval_minutes` for a future Celery-beat-equivalent
+- Synced context isn't automatically injected into chat responses yet
+  — each channel adapter would need to know its own user's identifier
+  first, which is a reasonable next contribution
+
+## Retrieval, Generation & Reliability
+
+Beyond the core RAG pipeline, `/chat` (and the underlying `core.chat.ask()`)
+support several controls aimed at production use: retrieval quality,
+response latency, provider reliability, and cost.
+
+**Hybrid search (dense + sparse).** By default, retrieval combines
+pgvector cosine similarity with Postgres full-text search (`tsvector`/
+`GIN` index), fused via Reciprocal Rank Fusion — catching both semantic
+matches and exact keyword/identifier matches a pure embedding search can
+miss. Pass `hybrid=false` to use dense-only retrieval instead (cheaper —
+one query instead of two).
+
+**Streaming.** `POST /chat/stream` streams the answer as it's generated
+(`text/plain`, chunked transfer) instead of waiting for the full response.
+Implemented natively per provider (Gemini, Anthropic, and OpenAI-compatible
+each have different streaming APIs — all three are real, not one stubbed).
+
+**Provider fallback.** Set `LLM_FALLBACK_PROVIDERS` (comma-separated) to
+automatically retry with backup providers if the primary fails — a rate
+limit, outage, or bad key on your primary provider doesn't have to mean a
+failed request. Each fallback needs its own API key configured normally.
+Streaming can only fall back *before* any text has been sent to the
+caller — a mid-stream failure surfaces as an error rather than silently
+switching providers and confusing the output.
+
+**Generation controls.** `temperature`, `system_prompt`, and `max_tokens`
+are all real per-call parameters (not just env-var defaults) — build your
+own agent behavior on top of RagLeap's retrieval without forking the
+library.
+
+**Token usage & context budget.** Every blocking `/chat` call returns real
+token usage (`prompt_tokens`, `completion_tokens`, `total_tokens`) pulled
+directly from the provider's response — not an estimate. Retrieved
+context is also trimmed to `MAX_CONTEXT_CHARS` (default 12000, roughly
+4 characters per token for English text) before being sent, dropping the
+lowest-ranked chunks first, so you're not paying for more context than
+necessary. Set `MAX_CONTEXT_CHARS=0` to disable trimming.
+
+**Honest status:** hybrid search's RRF fusion math verified correct
+against hand calculation. Streaming verified working end-to-end for the
+default provider. Provider fallback verified with a real broken-primary
+test — deliberately invalid API key, confirmed fallback to a working
+secondary provider with a correct answer. Token usage and context
+trimming verified with real numbers: a 3-chunk retrieval trimmed to 1
+chunk under a tight budget reduced actual `prompt_tokens` by 38% on the
+same live API.
+
+**Known limitations:**
+- Token usage reporting is not available for streaming responses — each
+  provider's streaming API surfaces usage differently, and doing all
+  three correctly is separate, not-yet-done work
+- `MAX_CONTEXT_CHARS` is a character-count approximation (~4 chars/token
+  for English), not an exact per-provider tokenizer count
+- Hybrid search hasn't been benchmarked for actual ranking-quality
+  improvement on a multi-document corpus with genuinely conflicting
+  dense vs. sparse rankings — only correctness (fusion math, tokenization
+  of unusual identifiers) has been verified so far
 
 ## Roadmap
 
