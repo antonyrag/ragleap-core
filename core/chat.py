@@ -133,3 +133,5 @@ if __name__ == "__main__":
         print(f"Answer: {result['answer']}")
         print(f"Sources: {result['sources']}")
         print(f"Chunks used: {result['chunks_used']}")
+        print(f"Chunks sent to LLM: {result.get('chunks_sent')}")
+        print(f"Token usage: {result.get('usage')}")

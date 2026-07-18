@@ -10,7 +10,7 @@ OpenAI-compatible providers (via openai SDK + custom base_url): everyone else.
 """
 import os
 import logging
-from typing import List, Dict, Iterator, Optional
+from typing import List, Dict, Iterator, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +20,17 @@ GEMINI_CHAT_MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
 DEFAULT_TEMPERATURE = float(os.environ.get("DEFAULT_TEMPERATURE", "0.3"))
 MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "1024"))
 
-# Comma-separated list of provider names to try, in order, if the primary
-# LLM_PROVIDER fails (rate limit, outage, bad key, etc). Each fallback
-# provider needs its own API key configured the same way the primary
-# would (e.g. ANTHROPIC_API_KEY, GROQ_API_KEY). A fallback provider
-# without a configured key is skipped with a warning, not a hard error —
-# it's a backup, not a requirement.
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
 ]
+
+# Rough context-size budget for retrieved chunks, in characters (not exact
+# tokens — a real per-provider tokenizer call would add latency and cost
+# per request just to measure cost, which is counterproductive). ~4 chars
+# per token is a widely-used English-text approximation. When the combined
+# retrieved context exceeds this, lowest-ranked chunks are dropped first.
+# Set to 0 to disable trimming entirely.
+MAX_CONTEXT_CHARS = int(os.environ.get("MAX_CONTEXT_CHARS", "12000"))
 
 PROVIDER_BASE_URLS = {
     "openai":     "https://api.openai.com/v1",
@@ -58,12 +60,8 @@ Always be concise and cite which document your answer came from when possible.""
 def _resolve_provider_config(provider: str, required: bool = True) -> Optional[Dict]:
     """
     Resolve a provider name into {provider, api_key, model, base_url}.
-    If required=True (used for the primary provider), raises ValueError
-    on missing config, matching the original constructor behavior.
-    If required=False (used for fallback providers), returns None and
-    logs a warning instead of raising, so a misconfigured fallback
-    doesn't break startup or crash a request that would have otherwise
-    succeeded on the primary provider.
+    required=True (primary provider) raises ValueError on missing config.
+    required=False (fallback providers) returns None and logs a warning.
     """
     provider = provider.lower()
 
@@ -121,24 +119,52 @@ class GenerationService:
     """
     Generates a grounded answer using the configured LLM_PROVIDER,
     given a query and retrieved chunks. Supports per-call temperature/
-    system_prompt/max_tokens overrides, streaming, and an optional
-    fallback chain across providers (LLM_FALLBACK_PROVIDERS).
+    system_prompt/max_tokens overrides, streaming, a fallback chain
+    across providers, context-size trimming, and real token usage
+    reporting (for blocking calls).
     """
 
     def __init__(self):
         self.primary_config = _resolve_provider_config(LLM_PROVIDER, required=True)
-        self.provider = self.primary_config["provider"]  # kept for backward compat / introspection
+        self.provider = self.primary_config["provider"]
 
     def _fallback_chain(self) -> List[Dict]:
-        """Primary config first, then any successfully-resolved fallback configs."""
         chain = [self.primary_config]
         for name in LLM_FALLBACK_PROVIDERS:
             if name == self.primary_config["provider"]:
-                continue  # no point retrying the same provider that just failed
+                continue
             config = _resolve_provider_config(name, required=False)
             if config:
                 chain.append(config)
         return chain
+
+    def _trim_chunks_to_budget(self, chunks: List[Dict]) -> List[Dict]:
+        """
+        Drop lowest-ranked chunks (chunks are expected to already be
+        sorted by relevance) once the cumulative character count of
+        retrieved text exceeds MAX_CONTEXT_CHARS. Set MAX_CONTEXT_CHARS=0
+        to disable.
+        """
+        if MAX_CONTEXT_CHARS <= 0 or not chunks:
+            return chunks
+
+        kept = []
+        running_total = 0
+        for chunk in chunks:
+            chunk_len = len(chunk.get("text", ""))
+            if running_total + chunk_len > MAX_CONTEXT_CHARS and kept:
+                # Keep at least one chunk even if it alone exceeds budget —
+                # an answer with some context beats no context at all.
+                break
+            kept.append(chunk)
+            running_total += chunk_len
+
+        if len(kept) < len(chunks):
+            logger.info(
+                f"Trimmed context: {len(chunks)} -> {len(kept)} chunks "
+                f"({running_total} chars, budget {MAX_CONTEXT_CHARS})"
+            )
+        return kept
 
     def _build_context(self, chunks: List[Dict]) -> str:
         if not chunks:
@@ -161,7 +187,10 @@ Context:
 Question: {query}
 Answer:"""
 
-    def _call_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> str:
+    def _call_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> Tuple[str, Optional[Dict]]:
+        """Returns (answer_text, usage_dict_or_None). usage_dict has
+        prompt_tokens/completion_tokens/total_tokens when the provider
+        reports them."""
         provider = config["provider"]
         if provider == "gemini":
             return self._call_gemini(prompt, temperature, max_tokens, config["api_key"], config["model"])
@@ -193,25 +222,38 @@ Answer:"""
     ) -> Dict:
         """
         Generate an answer to `query` grounded in the given `chunks`.
-        Returns a dict: {"answer": str, "sources": List[str], "provider_used": str}
+        Returns: {"answer": str, "sources": List[str], "provider_used": str,
+                  "usage": {"prompt_tokens": int, "completion_tokens": int,
+                            "total_tokens": int} or None,
+                  "chunks_sent": int}
 
-        If LLM_FALLBACK_PROVIDERS is configured, tries each in order
-        after the primary provider fails, before giving up.
+        Retrieved chunks are trimmed to MAX_CONTEXT_CHARS before building
+        the prompt (see _trim_chunks_to_budget) — chunks_sent reports how
+        many actually made it into the prompt, which may be fewer than
+        len(chunks) if trimming occurred.
         """
         temp = DEFAULT_TEMPERATURE if temperature is None else temperature
         max_tok = MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
-        sources = list({c.get("document_name", "unknown") for c in chunks})
-        prompt = self._build_prompt(query, chunks, system_prompt)
+
+        trimmed_chunks = self._trim_chunks_to_budget(chunks)
+        sources = list({c.get("document_name", "unknown") for c in trimmed_chunks})
+        prompt = self._build_prompt(query, trimmed_chunks, system_prompt)
 
         chain = self._fallback_chain()
         last_error = None
 
         for i, config in enumerate(chain):
             try:
-                answer_text = self._call_provider(config, prompt, temp, max_tok)
+                answer_text, usage = self._call_provider(config, prompt, temp, max_tok)
                 if i > 0:
                     logger.info(f"Answer generated via fallback provider '{config['provider']}' (primary failed)")
-                return {"answer": answer_text, "sources": sources, "provider_used": config["provider"]}
+                return {
+                    "answer": answer_text,
+                    "sources": sources,
+                    "provider_used": config["provider"],
+                    "usage": usage,
+                    "chunks_sent": len(trimmed_chunks),
+                }
             except Exception as e:
                 last_error = e
                 logger.warning(f"Provider '{config['provider']}' failed: {e}")
@@ -222,6 +264,8 @@ Answer:"""
             "answer": f"Sorry, I couldn't generate an answer — all configured providers failed. Last error: {last_error}",
             "sources": [],
             "provider_used": None,
+            "usage": None,
+            "chunks_sent": 0,
         }
 
     def generate_answer_stream(
@@ -234,15 +278,16 @@ Answer:"""
     ) -> Iterator[str]:
         """
         Same as generate_answer(), but yields answer text incrementally.
-        Fallback works the same way, but since streaming has already
-        started sending text to the caller once a provider begins
-        responding, a mid-stream failure can't cleanly fall back —
-        only a failure BEFORE any text is yielded triggers the next
-        provider in the chain.
+        Chunks are trimmed to MAX_CONTEXT_CHARS the same way. Usage
+        reporting is not available for streaming responses (each
+        provider's streaming API handles usage differently — accurately
+        supporting all three would need separate work; not done here).
         """
         temp = DEFAULT_TEMPERATURE if temperature is None else temperature
         max_tok = MAX_OUTPUT_TOKENS if max_tokens is None else max_tokens
-        prompt = self._build_prompt(query, chunks, system_prompt)
+
+        trimmed_chunks = self._trim_chunks_to_budget(chunks)
+        prompt = self._build_prompt(query, trimmed_chunks, system_prompt)
 
         chain = self._fallback_chain()
         last_error = None
@@ -260,9 +305,6 @@ Answer:"""
                 last_error = e
                 logger.warning(f"Provider '{config['provider']}' failed during streaming: {e}")
                 if yielded_anything:
-                    # Already sent partial output to the caller — can't silently
-                    # switch providers mid-stream without confusing/duplicating
-                    # output, so surface the failure instead of retrying.
                     yield f"\n[Error: generation interrupted — {e}]"
                     return
                 continue
@@ -270,7 +312,7 @@ Answer:"""
         logger.error(f"All providers in the fallback chain failed during streaming. Last error: {last_error}")
         yield f"Sorry, I couldn't generate an answer — all configured providers failed. Last error: {last_error}"
 
-    def _call_gemini(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> str:
+    def _call_gemini(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Tuple[str, Optional[Dict]]:
         import google.genai as genai
         from google.genai import types
         client = genai.Client(api_key=api_key)
@@ -282,7 +324,16 @@ Answer:"""
                 max_output_tokens=max_tokens,
             ),
         )
-        return response.text.strip() if response.text else "No answer generated."
+        text = response.text.strip() if response.text else "No answer generated."
+        usage = None
+        if getattr(response, "usage_metadata", None):
+            um = response.usage_metadata
+            usage = {
+                "prompt_tokens": um.prompt_token_count,
+                "completion_tokens": um.candidates_token_count,
+                "total_tokens": um.total_token_count,
+            }
+        return text, usage
 
     def _stream_gemini(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Iterator[str]:
         import google.genai as genai
@@ -300,7 +351,7 @@ Answer:"""
             if chunk.text:
                 yield chunk.text
 
-    def _call_anthropic(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> str:
+    def _call_anthropic(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Tuple[str, Optional[Dict]]:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
@@ -309,7 +360,15 @@ Answer:"""
             temperature=temperature,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text.strip() if response.content else "No answer generated."
+        text = response.content[0].text.strip() if response.content else "No answer generated."
+        usage = None
+        if getattr(response, "usage", None):
+            usage = {
+                "prompt_tokens": response.usage.input_tokens,
+                "completion_tokens": response.usage.output_tokens,
+                "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+            }
+        return text, usage
 
     def _stream_anthropic(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Iterator[str]:
         import anthropic
@@ -323,7 +382,7 @@ Answer:"""
             for text in stream.text_stream:
                 yield text
 
-    def _call_openai_compatible(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, base_url: str) -> str:
+    def _call_openai_compatible(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, base_url: str) -> Tuple[str, Optional[Dict]]:
         import openai
         client = openai.OpenAI(api_key=api_key or "not-needed", base_url=base_url)
         response = client.chat.completions.create(
@@ -332,7 +391,15 @@ Answer:"""
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return response.choices[0].message.content.strip() if response.choices else "No answer generated."
+        text = response.choices[0].message.content.strip() if response.choices else "No answer generated."
+        usage = None
+        if getattr(response, "usage", None):
+            usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+            }
+        return text, usage
 
     def _stream_openai_compatible(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, base_url: str) -> Iterator[str]:
         import openai
