@@ -1,11 +1,11 @@
 """
 ragleap-rag: a fast, honest, self-hosted RAG engine.
 
-    from ragleap import RagLeap, ProviderConfig
+    from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
 
     rag = RagLeap(
         database_url="postgresql://user:pass@localhost/mydb",
-        embedder_api_key="...",       # Gemini API key (embeddings)
+        embedder=EmbeddingConfig(provider="gemini", api_key="..."),
         primary=ProviderConfig(provider="gemini", api_key="..."),
     )
     rag.init_schema()                  # one-time, idempotent
@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from typing import Dict, Iterator, List, Optional
 
 from ragleap.chunker import TextChunker
-from ragleap.embedding import EmbeddingService
+from ragleap.embedding import EmbeddingService, EmbeddingConfig
 from ragleap.retrieval import VectorRetrievalService
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.parsers import extract_text
@@ -30,8 +30,8 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.1.0"
-__all__ = ["RagLeap", "ProviderConfig", "IngestResult"]
+__version__ = "0.2.0"
+__all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
 @dataclass
@@ -52,9 +52,8 @@ class RagLeap:
         self,
         database_url: str,
         primary: ProviderConfig,
-        embedder_api_key: Optional[str] = None,
+        embedder: EmbeddingConfig,
         fallbacks: Optional[List[ProviderConfig]] = None,
-        embedding_dimensions: int = 3072,
         default_temperature: float = 0.3,
         default_max_tokens: int = 1024,
         max_context_chars: int = 12000,
@@ -62,11 +61,11 @@ class RagLeap:
         chunk_overlap: Optional[int] = None,
     ):
         self.database_url = database_url
-        self.embedding_dimensions = embedding_dimensions
+        self.embedding_dimensions = embedder.dimensions
 
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-        self._embedder = EmbeddingService(api_key=embedder_api_key, dimensions=embedding_dimensions)
-        self._retriever = VectorRetrievalService(database_url=database_url, embedding_dimensions=embedding_dimensions)
+        self._embedder = EmbeddingService(embedder)
+        self._retriever = VectorRetrievalService(database_url=database_url, embedding_dimensions=embedder.dimensions)
         self._generator = GenerationService(
             primary=primary,
             fallbacks=fallbacks,

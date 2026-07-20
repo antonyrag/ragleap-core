@@ -1,34 +1,72 @@
 """
 Embedding for ragleap-rag.
-Uses Google Gemini embeddings (gemini-embedding-001, 3072 dimensions).
-Bring-your-own-key: pass api_key explicitly, or set GEMINI_API_KEY in
-the environment as a convenience fallback (useful for scripts/notebooks,
-but explicit is preferred for library usage inside a larger app).
+Bring-your-own-key: supports Gemini and OpenAI embedding providers.
+Configure explicitly via EmbeddingConfig, or let it fall back to
+environment variables for convenience (useful for scripts/notebooks).
 """
 import os
 import logging
+from dataclasses import dataclass
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "models/gemini-embedding-001"
-DEFAULT_DIMENSIONS = 3072
+DEFAULT_MODELS = {
+    "gemini": "models/gemini-embedding-001",
+    "openai": "text-embedding-3-small",
+}
+DEFAULT_DIMENSIONS = {
+    "gemini": 3072,
+    "openai": 1536,
+}
 
 
-class EmbeddingService:
-    """Generates vector embeddings using Google Gemini."""
+@dataclass
+class EmbeddingConfig:
+    """Explicit embedding provider configuration. Use this for library
+    integration rather than relying on environment variables."""
+    provider: str
+    api_key: Optional[str] = None
+    model: Optional[str] = None
+    dimensions: Optional[int] = None
 
-    def __init__(self, api_key: Optional[str] = None, model: str = None, dimensions: int = None):
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        self.model = model or os.environ.get("GEMINI_EMBEDDING_MODEL", DEFAULT_MODEL)
-        self.dimensions = dimensions or int(os.environ.get("EMBEDDING_DIMENSIONS", str(DEFAULT_DIMENSIONS)))
+    def __post_init__(self):
+        self.provider = self.provider.lower()
+
+        if self.provider == "gemini":
+            self.api_key = self.api_key or os.environ.get("GEMINI_API_KEY")
+            self.model = self.model or os.environ.get("GEMINI_EMBEDDING_MODEL", DEFAULT_MODELS["gemini"])
+            self.dimensions = self.dimensions or int(
+                os.environ.get("EMBEDDING_DIMENSIONS", str(DEFAULT_DIMENSIONS["gemini"]))
+            )
+        elif self.provider == "openai":
+            self.api_key = self.api_key or os.environ.get("OPENAI_API_KEY")
+            self.model = self.model or os.environ.get("OPENAI_EMBEDDING_MODEL", DEFAULT_MODELS["openai"])
+            self.dimensions = self.dimensions or int(
+                os.environ.get("EMBEDDING_DIMENSIONS", str(DEFAULT_DIMENSIONS["openai"]))
+            )
+        else:
+            raise ValueError(
+                f"Unknown embedding provider '{self.provider}'. Supported: gemini, openai."
+            )
 
         if not self.api_key:
             raise ValueError(
-                "No Gemini API key provided. Pass api_key= to EmbeddingService(), "
-                "or set GEMINI_API_KEY in your environment. Get a free key at "
-                "https://aistudio.google.com/apikey — there is no system-provided key."
+                f"No API key for embedding provider '{self.provider}'. Pass api_key= "
+                f"explicitly to EmbeddingConfig(), or set "
+                f"{'GEMINI_API_KEY' if self.provider == 'gemini' else 'OPENAI_API_KEY'} "
+                f"in your environment."
             )
+
+
+class EmbeddingService:
+    """Generates vector embeddings using the configured provider."""
+
+    def __init__(self, config: EmbeddingConfig):
+        self.config = config
+        # Convenience passthrough attrs (some callers may read these directly)
+        self.model = config.model
+        self.dimensions = config.dimensions
 
     def embed_text(self, text: str) -> Optional[List[float]]:
         """Generate an embedding vector for a single piece of text."""
@@ -37,12 +75,12 @@ class EmbeddingService:
             return None
 
         try:
-            import google.genai as genai
-            client = genai.Client(api_key=self.api_key)
-            response = client.models.embed_content(model=self.model, contents=text)
-            return response.embeddings[0].values
+            if self.config.provider == "gemini":
+                return self._embed_gemini(text)
+            elif self.config.provider == "openai":
+                return self._embed_openai(text)
         except Exception as e:
-            logger.error(f"Embedding generation failed: {e}")
+            logger.error(f"Embedding generation failed ({self.config.provider}): {e}")
             return None
 
     def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]:
@@ -51,10 +89,38 @@ class EmbeddingService:
             return []
 
         try:
-            import google.genai as genai
-            client = genai.Client(api_key=self.api_key)
-            response = client.models.embed_content(model=self.model, contents=texts)
-            return [e.values for e in response.embeddings]
+            if self.config.provider == "gemini":
+                return self._embed_batch_gemini(texts)
+            elif self.config.provider == "openai":
+                return self._embed_batch_openai(texts)
         except Exception as e:
-            logger.error(f"Batch embedding generation failed: {e}")
+            logger.error(f"Batch embedding generation failed ({self.config.provider}): {e}")
             return [None] * len(texts)
+
+    def _embed_gemini(self, text: str) -> Optional[List[float]]:
+        import google.genai as genai
+        client = genai.Client(api_key=self.config.api_key)
+        response = client.models.embed_content(model=self.config.model, contents=text)
+        return response.embeddings[0].values
+
+    def _embed_batch_gemini(self, texts: List[str]) -> List[Optional[List[float]]]:
+        import google.genai as genai
+        client = genai.Client(api_key=self.config.api_key)
+        response = client.models.embed_content(model=self.config.model, contents=texts)
+        return [e.values for e in response.embeddings]
+
+    def _embed_openai(self, text: str) -> Optional[List[float]]:
+        import openai
+        client = openai.OpenAI(api_key=self.config.api_key)
+        response = client.embeddings.create(
+            model=self.config.model, input=text, dimensions=self.config.dimensions
+        )
+        return response.data[0].embedding
+
+    def _embed_batch_openai(self, texts: List[str]) -> List[Optional[List[float]]]:
+        import openai
+        client = openai.OpenAI(api_key=self.config.api_key)
+        response = client.embeddings.create(
+            model=self.config.model, input=texts, dimensions=self.config.dimensions
+        )
+        return [d.embedding for d in response.data]
