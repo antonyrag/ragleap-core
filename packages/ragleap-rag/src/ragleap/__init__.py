@@ -26,11 +26,12 @@ from ragleap.embedding import EmbeddingService, EmbeddingConfig
 from ragleap.retrieval import VectorRetrievalService
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.parsers import extract_text
+from ragleap.memory import ConversationMemory
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -66,6 +67,7 @@ class RagLeap:
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._embedder = EmbeddingService(embedder)
         self._retriever = VectorRetrievalService(database_url=database_url, embedding_dimensions=embedder.dimensions)
+        self._memory = ConversationMemory(database_url=database_url)
         self._generator = GenerationService(
             primary=primary,
             fallbacks=fallbacks,
@@ -142,9 +144,13 @@ class RagLeap:
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         hybrid: bool = True,
+        session_id: Optional[str] = None,
     ) -> Dict:
         """
         Answer a question grounded in previously ingested documents.
+        Pass session_id to enable persistent, multi-turn conversation
+        memory (Postgres-backed) — prior turns in that session are
+        injected as context. Omit it for a fully stateless call.
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": dict|None, "chunks_sent": int}
         """
@@ -158,9 +164,18 @@ class RagLeap:
         else:
             chunks = self._retriever.search_similar_chunks(query_embedding, top_k=top_k)
 
-        return self._generator.generate_answer(
-            query, chunks, temperature=temperature, system_prompt=system_prompt, max_tokens=max_tokens
+        history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
+
+        result = self._generator.generate_answer(
+            query, chunks, temperature=temperature, system_prompt=system_prompt,
+            max_tokens=max_tokens, history_prefix=history_prefix,
         )
+
+        if session_id:
+            self._memory.add_message(session_id, "user", query)
+            self._memory.add_message(session_id, "assistant", result["answer"])
+
+        return result
 
     def ask_stream(
         self,
@@ -170,8 +185,11 @@ class RagLeap:
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         hybrid: bool = True,
+        session_id: Optional[str] = None,
     ) -> Iterator[str]:
-        """Same as ask(), but yields the answer incrementally as it's generated."""
+        """Same as ask(), but yields the answer incrementally as it's
+        generated. If session_id is set, the full assembled answer is
+        stored to memory once streaming completes."""
         query_embedding = self._embedder.embed_text(query)
         if query_embedding is None:
             yield "Sorry, I couldn't process your question (embedding failed)."
@@ -182,6 +200,24 @@ class RagLeap:
         else:
             chunks = self._retriever.search_similar_chunks(query_embedding, top_k=top_k)
 
-        yield from self._generator.generate_answer_stream(
-            query, chunks, temperature=temperature, system_prompt=system_prompt, max_tokens=max_tokens
-        )
+        history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
+
+        pieces = []
+        for piece in self._generator.generate_answer_stream(
+            query, chunks, temperature=temperature, system_prompt=system_prompt,
+            max_tokens=max_tokens, history_prefix=history_prefix,
+        ):
+            pieces.append(piece)
+            yield piece
+
+        if session_id:
+            self._memory.add_message(session_id, "user", query)
+            self._memory.add_message(session_id, "assistant", "".join(pieces))
+
+    def get_history(self, session_id: str) -> List[Dict]:
+        """Return the stored conversation history for a session, oldest first."""
+        return self._memory.get_history(session_id)
+
+    def clear_session(self, session_id: str) -> None:
+        """Delete a session and its full message history."""
+        self._memory.clear_session(session_id)

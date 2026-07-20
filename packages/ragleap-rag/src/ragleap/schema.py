@@ -31,6 +31,23 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_idx
 
 CREATE INDEX IF NOT EXISTS chunks_text_search_idx
     ON chunks USING GIN (text_search_vector);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    session_id TEXT PRIMARY KEY,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id TEXT NOT NULL REFERENCES conversations(session_id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS conversation_messages_session_idx
+    ON conversation_messages (session_id, created_at);
 """
 
 
