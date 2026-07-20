@@ -117,10 +117,10 @@ class GenerationService:
             parts.append(f"[Source {i}: {doc_name}]\n{chunk.get('text', '')}")
         return "\n\n".join(parts)
 
-    def _build_prompt(self, query: str, chunks: List[Dict], system_prompt: Optional[str]) -> str:
+    def _build_prompt(self, query: str, chunks: List[Dict], system_prompt: Optional[str], history_prefix: str = "") -> str:
         context = self._build_context(chunks)
         instructions = system_prompt or self.system_prompt
-        return f"{instructions}\n\nContext:\n{context}\n\nQuestion: {query}\nAnswer:"
+        return f"{instructions}\n\n{history_prefix}Context:\n{context}\n\nQuestion: {query}\nAnswer:"
 
     def generate_answer(
         self,
@@ -129,6 +129,7 @@ class GenerationService:
         temperature: Optional[float] = None,
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        history_prefix: str = "",
     ) -> Dict:
         """
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
@@ -139,7 +140,7 @@ class GenerationService:
 
         trimmed = self._trim_chunks_to_budget(chunks)
         sources = list({c.get("document_name", "unknown") for c in trimmed})
-        prompt = self._build_prompt(query, trimmed, system_prompt)
+        prompt = self._build_prompt(query, trimmed, system_prompt, history_prefix)
 
         last_error = None
         for i, config in enumerate(self._chain()):
@@ -169,6 +170,7 @@ class GenerationService:
         temperature: Optional[float] = None,
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        history_prefix: str = "",
     ) -> Iterator[str]:
         """Streams the answer incrementally. Usage reporting isn't
         available for streaming (each provider handles it differently)."""
@@ -176,7 +178,7 @@ class GenerationService:
         max_tok = self.default_max_tokens if max_tokens is None else max_tokens
 
         trimmed = self._trim_chunks_to_budget(chunks)
-        prompt = self._build_prompt(query, trimmed, system_prompt)
+        prompt = self._build_prompt(query, trimmed, system_prompt, history_prefix)
 
         last_error = None
         for i, config in enumerate(self._chain()):
