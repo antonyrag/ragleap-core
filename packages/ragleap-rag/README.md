@@ -62,7 +62,7 @@ bad key on your primary provider doesn't mean a failed request:
 ```python
 rag = RagLeap(
     database_url="...",
-    embedder_api_key="...",
+    embedder=EmbeddingConfig(provider="gemini", api_key="..."),
     primary=ProviderConfig(provider="gemini", api_key="..."),
     fallbacks=[ProviderConfig(provider="groq", api_key="...", model="llama-3.3-70b-versatile")],
 )
@@ -81,6 +81,26 @@ for piece in rag.ask_stream("What SDKs are supported?"):
 Real per-provider streaming — Gemini, Anthropic, and any OpenAI-compatible
 endpoint each have different streaming APIs; all three are implemented
 properly, not stubbed.
+
+## Conversation memory
+
+Pass session_id to ask() or ask_stream() to get persistent, multi-turn memory. Prior turns in that session are automatically injected as context. Omit it and every call is fully stateless, exactly as before (no breaking change).
+
+```python
+session = "support-chat-42"
+
+rag.ask("What is the CEO name", session_id=session)
+rag.ask("What country is he based in", session_id=session)
+```
+
+Memory is Postgres-backed (its own conversations/conversation_messages tables, created by init_schema()). It survives restarts and works across processes, not just in-memory for a single script run.
+
+```python
+rag.get_history(session)
+rag.clear_session(session)
+```
+
+By default the last 10 messages are included per call (max_history_messages, no token-aware trimming yet).
 
 ## How it fits together
              +------------------+
@@ -105,7 +125,12 @@ properly, not stubbed.
              |   Generation      |-->| Fallback chain |
              |  (temp/prompt/    |   | (if primary    |
              |   max_tokens)     |   |  fails)        |
-             +-------------------+   +---------------+
+             +--------+---------+   +---------------+
+                      |
+             +--------v---------+
+             |  Conversation     |   optional: session_id ->
+             |  memory (Postgres)|   prior turns injected as context
+             +-------------------+
 
 ## Supported LLM providers
 
