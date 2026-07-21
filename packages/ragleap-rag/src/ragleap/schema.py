@@ -11,6 +11,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     filename TEXT NOT NULL,
+    metadata JSONB NOT NULL DEFAULT '{{}}'::jsonb,
     uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -22,15 +23,25 @@ CREATE TABLE IF NOT EXISTS chunks (
     text TEXT NOT NULL,
     token_count INTEGER,
     embedding vector({dimensions}),
+    metadata JSONB NOT NULL DEFAULT '{{}}'::jsonb,
     text_search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', text)) STORED,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{{}}'::jsonb;
+ALTER TABLE chunks ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{{}}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx
     ON chunks USING hnsw ((embedding::halfvec({dimensions})) halfvec_cosine_ops);
 
 CREATE INDEX IF NOT EXISTS chunks_text_search_idx
     ON chunks USING GIN (text_search_vector);
+
+CREATE INDEX IF NOT EXISTS chunks_metadata_idx
+    ON chunks USING GIN (metadata);
+
+CREATE INDEX IF NOT EXISTS documents_metadata_idx
+    ON documents USING GIN (metadata);
 
 CREATE TABLE IF NOT EXISTS conversations (
     session_id TEXT PRIMARY KEY,

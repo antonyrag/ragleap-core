@@ -9,6 +9,7 @@ schema — see that module for the exact DDL).
 No knowledge-graph coupling here by design — ragleap-graph (a separate
 package) extends retrieval with graph-boosted ranking on top of this.
 """
+import json
 import logging
 from typing import List, Dict, Optional
 
@@ -33,6 +34,7 @@ class VectorRetrievalService:
         query_embedding: List[float],
         top_k: int = 5,
         document_id: Optional[str] = None,
+        metadata_filter: Optional[Dict] = None,
     ) -> List[Dict]:
         """Dense retrieval via pgvector cosine distance."""
         if not query_embedding:
@@ -54,9 +56,15 @@ class VectorRetrievalService:
         """
         params = [self.embedding_dimensions, literal, self.embedding_dimensions]
 
+        where_clauses = []
         if document_id:
-            sql += " WHERE document_id = %s"
+            where_clauses.append("document_id = %s")
             params.append(document_id)
+        if metadata_filter:
+            where_clauses.append("metadata @> %s::jsonb")
+            params.append(json.dumps(metadata_filter))
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
 
         sql += " ORDER BY embedding::halfvec(%s) <=> %s::halfvec(%s) LIMIT %s"
         params.extend([self.embedding_dimensions, literal, self.embedding_dimensions, top_k])
@@ -94,6 +102,7 @@ class VectorRetrievalService:
         query_text: str,
         top_k: int = 5,
         document_id: Optional[str] = None,
+        metadata_filter: Optional[Dict] = None,
     ) -> List[Dict]:
         """Sparse (keyword/full-text) retrieval via Postgres text search."""
         if not query_text or not query_text.strip():
@@ -110,6 +119,9 @@ class VectorRetrievalService:
         if document_id:
             sql += " AND document_id = %s"
             params.append(document_id)
+        if metadata_filter:
+            sql += " AND metadata @> %s::jsonb"
+            params.append(json.dumps(metadata_filter))
 
         sql += " ORDER BY rank_score DESC LIMIT %s"
         params.append(top_k)
@@ -146,14 +158,15 @@ class VectorRetrievalService:
         query_embedding: List[float],
         top_k: int = 5,
         document_id: Optional[str] = None,
+        metadata_filter: Optional[Dict] = None,
     ) -> List[Dict]:
         """
         Combines dense + sparse via Reciprocal Rank Fusion. similarity_score
         in the returned dicts is the RRF-fused score, meaningful only for
         ranking within this result set (not a 0-1 cosine similarity).
         """
-        dense = self.search_similar_chunks(query_embedding, top_k=top_k * 3, document_id=document_id)
-        sparse = self.search_sparse_chunks(query_text, top_k=top_k * 3, document_id=document_id)
+        dense = self.search_similar_chunks(query_embedding, top_k=top_k * 3, document_id=document_id, metadata_filter=metadata_filter)
+        sparse = self.search_sparse_chunks(query_text, top_k=top_k * 3, document_id=document_id, metadata_filter=metadata_filter)
 
         dense_ranks = {c["chunk_id"]: i for i, c in enumerate(dense)}
         sparse_ranks = {c["chunk_id"]: i for i, c in enumerate(sparse)}
