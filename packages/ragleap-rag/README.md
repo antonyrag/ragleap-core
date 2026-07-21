@@ -133,6 +133,22 @@ The cross-encoder model (cross-encoder/ms-marco-MiniLM-L-6-v2 by default) loads 
 
 Not currently available on ask_stream().
 
+## Document lifecycle
+
+list_documents(), delete_document(), and update_document() manage previously ingested content.
+
+```python
+docs = rag.list_documents(limit=20)
+for d in docs:
+    print(d["filename"], d["chunk_count"], "chunks")
+
+rag.delete_document(docs[0]["document_id"])
+
+# update_document is delete + re-ingest under the hood - the document
+# gets a new document_id, old chunks and embeddings are not preserved
+result = rag.update_document(some_document_id, "new content here")
+```
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
