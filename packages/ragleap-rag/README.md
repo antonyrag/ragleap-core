@@ -102,6 +102,24 @@ rag.clear_session(session)
 
 By default the last 10 messages are included per call (max_history_messages, no token-aware trimming yet).
 
+## Reranking
+
+Pass rerank=True to ask() for cross-encoder reranking. The initial hybrid search retrieves a wider candidate pool, then a cross-encoder scores each (query, chunk) pair jointly, reordering results by genuine relevance rather than the initial retrieval score alone. Off by default (extra latency, extra dependency).
+
+```python
+answer = rag.ask("What is the exact pricing?", rerank=True)
+```
+
+Requires the rerank extra:
+
+```bash
+pip install ragleap-rag[rerank]
+```
+
+The cross-encoder model (cross-encoder/ms-marco-MiniLM-L-6-v2 by default) loads lazily on the first rerank=True call, not at RagLeap construction time. Note: sentence-transformers depends on torch, which may pull in CUDA libraries even for CPU-only use — if you only need CPU inference, consider installing a CPU-only torch build first.
+
+Not currently available on ask_stream().
+
 ## How it fits together
              +------------------+
              |   Your text or   |
