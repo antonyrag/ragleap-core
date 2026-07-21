@@ -34,7 +34,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.4"
+__version__ = "0.4.5"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -123,7 +123,7 @@ class RagLeap:
         text = extract_text(filename, raw_bytes)
         return self.ingest_text(filename, text)
 
-    def ingest_text(self, filename: str, text: str) -> IngestResult:
+    def ingest_text(self, filename: str, text: str, metadata: Optional[Dict] = None) -> IngestResult:
         """Same as ingest(), but for text you've already extracted yourself."""
         chunks = self._chunker.chunk_text(text)
         if not chunks:
@@ -133,7 +133,11 @@ class RagLeap:
         with self._pool.get_connection() as conn:
           try:
             cur = conn.cursor()
-            cur.execute("INSERT INTO documents (id, filename) VALUES (%s, %s)", (document_id, filename))
+            import json as _json
+            cur.execute(
+                "INSERT INTO documents (id, filename, metadata) VALUES (%s, %s, %s::jsonb)",
+                (document_id, filename, _json.dumps(metadata or {})),
+            )
 
             stored = 0
             for chunk in chunks:
@@ -145,10 +149,10 @@ class RagLeap:
                 embedding_literal = "[" + ",".join(str(float(x)) for x in embedding) + "]"
                 cur.execute(
                     """
-                    INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding)
-                    VALUES (%s, %s, %s, %s, %s, %s::vector)
+                    INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s::vector, %s::jsonb)
                     """,
-                    (document_id, filename, chunk["chunk_index"], chunk["text"], chunk["token_count"], embedding_literal),
+                    (document_id, filename, chunk["chunk_index"], chunk["text"], chunk["token_count"], embedding_literal, _json.dumps(metadata or {})),
                 )
                 stored += 1
 
@@ -174,6 +178,7 @@ class RagLeap:
         hybrid: bool = True,
         session_id: Optional[str] = None,
         rerank: bool = False,
+        metadata_filter: Optional[Dict] = None,
     ) -> Dict:
         """
         Answer a question grounded in previously ingested documents.
@@ -190,9 +195,9 @@ class RagLeap:
 
         pool_size = top_k * 4 if rerank else top_k
         if hybrid:
-            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=pool_size)
+            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
         else:
-            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=pool_size)
+            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
 
         if rerank and chunks:
             if self._reranker is None:
@@ -267,10 +272,10 @@ class RagLeap:
             cur = conn.cursor()
             cur.execute(
                 """
-                SELECT d.id, d.filename, d.uploaded_at, COUNT(c.id) AS chunk_count
+                SELECT d.id, d.filename, d.uploaded_at, d.metadata, COUNT(c.id) AS chunk_count
                 FROM documents d
                 LEFT JOIN chunks c ON c.document_id = d.id
-                GROUP BY d.id, d.filename, d.uploaded_at
+                GROUP BY d.id, d.filename, d.uploaded_at, d.metadata
                 ORDER BY d.uploaded_at DESC
                 LIMIT %s OFFSET %s
                 """,
@@ -280,7 +285,7 @@ class RagLeap:
             cur.close()
 
         return [
-            {"document_id": str(r[0]), "filename": r[1], "uploaded_at": r[2], "chunk_count": r[3]}
+            {"document_id": str(r[0]), "filename": r[1], "uploaded_at": r[2], "metadata": r[3], "chunk_count": r[4]}
             for r in rows
         ]
 

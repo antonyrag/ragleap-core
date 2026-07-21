@@ -149,6 +149,22 @@ rag.delete_document(docs[0]["document_id"])
 result = rag.update_document(some_document_id, "new content here")
 ```
 
+## Metadata & filtering
+
+Attach arbitrary JSON metadata to a document at ingest time, then restrict retrieval to matching chunks with metadata_filter on ask() - the basis for multi-tenant isolation, date-range filtering, or any other tagging scheme.
+
+```python
+rag.ingest_text("acme_handbook.txt", "...", metadata={"tenant": "acme"})
+rag.ingest_text("globex_handbook.txt", "...", metadata={"tenant": "globex"})
+
+# Only retrieves chunks whose metadata contains {"tenant": "acme"}
+answer = rag.ask("What is our PTO policy?", metadata_filter={"tenant": "acme"})
+```
+
+Filtering uses Postgres JSONB containment (metadata @> filter), backed by a GIN index - so it scales, and metadata can hold any JSON-serializable structure, not just flat tenant IDs. metadata is also returned by list_documents().
+
+Known limitation: update_document() does not currently preserve the original document's metadata - re-ingesting content via update_document() resets metadata to empty unless you pass it again yourself. Worth fixing in a follow-up if this trips anyone up.
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
