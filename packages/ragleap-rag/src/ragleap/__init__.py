@@ -28,11 +28,12 @@ from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
+from ragleap.db import ConnectionPool
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -64,11 +65,12 @@ class RagLeap:
     ):
         self.database_url = database_url
         self.embedding_dimensions = embedder.dimensions
+        self._pool = ConnectionPool(database_url)
 
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._embedder = EmbeddingService(embedder)
-        self._retriever = VectorRetrievalService(database_url=database_url, embedding_dimensions=embedder.dimensions)
-        self._memory = ConversationMemory(database_url=database_url)
+        self._retriever = VectorRetrievalService(pool=self._pool, embedding_dimensions=embedder.dimensions)
+        self._memory = ConversationMemory(pool=self._pool)
         self._reranker = None  # lazy-loaded on first rerank=True call
         self._generator = GenerationService(
             primary=primary,
@@ -81,10 +83,6 @@ class RagLeap:
     def init_schema(self) -> None:
         """Create the required tables/indexes if they don't already exist. Idempotent."""
         _schema.init_schema(self.database_url, dimensions=self.embedding_dimensions)
-
-    def _get_connection(self):
-        import psycopg2
-        return psycopg2.connect(self.database_url)
 
     def ingest(self, filename: str, raw_bytes: bytes) -> IngestResult:
         """
@@ -102,8 +100,8 @@ class RagLeap:
             raise ValueError("No chunks produced from input text — is it empty?")
 
         document_id = str(uuid.uuid4())
-        conn = self._get_connection()
-        try:
+        with self._pool.get_connection() as conn:
+          try:
             cur = conn.cursor()
             cur.execute("INSERT INTO documents (id, filename) VALUES (%s, %s)", (document_id, filename))
 
@@ -132,11 +130,9 @@ class RagLeap:
             cur.close()
             logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
             return IngestResult(document_id=document_id, chunks_stored=stored)
-        except Exception:
+          except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
 
     def ask(
         self,

@@ -23,14 +23,10 @@ class VectorRetrievalService:
     'chunks' table (see ragleap.schema for the required DDL).
     """
 
-    def __init__(self, database_url: str, embedding_dimensions: int = 3072, min_similarity: float = 0.05):
-        self.database_url = database_url
+    def __init__(self, pool, embedding_dimensions: int = 3072, min_similarity: float = 0.05):
+        self.pool = pool
         self.embedding_dimensions = embedding_dimensions
         self.min_similarity = min_similarity
-
-    def _get_connection(self):
-        import psycopg2
-        return psycopg2.connect(self.database_url)
 
     def search_similar_chunks(
         self,
@@ -66,12 +62,11 @@ class VectorRetrievalService:
         params.extend([self.embedding_dimensions, literal, self.embedding_dimensions, top_k])
 
         try:
-            conn = self._get_connection()
-            cur = conn.cursor()
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+            with self.pool.get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+                cur.close()
 
             results = []
             for row in rows:
@@ -120,12 +115,11 @@ class VectorRetrievalService:
         params.append(top_k)
 
         try:
-            conn = self._get_connection()
-            cur = conn.cursor()
-            cur.execute(sql, params)
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
+            with self.pool.get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+                cur.close()
 
             results = []
             for row in rows:

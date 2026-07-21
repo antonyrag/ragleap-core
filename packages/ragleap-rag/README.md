@@ -120,6 +120,10 @@ The cross-encoder model (cross-encoder/ms-marco-MiniLM-L-6-v2 by default) loads 
 
 Not currently available on ask_stream().
 
+## Performance
+
+Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
+
 ## How it fits together
              +------------------+
              |   Your text or   |

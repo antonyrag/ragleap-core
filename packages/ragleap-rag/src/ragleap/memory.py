@@ -15,13 +15,9 @@ DEFAULT_MAX_HISTORY_MESSAGES = 10
 class ConversationMemory:
     """Stores and retrieves per-session conversation history."""
 
-    def __init__(self, database_url: str, max_history_messages: int = DEFAULT_MAX_HISTORY_MESSAGES):
-        self.database_url = database_url
+    def __init__(self, pool, max_history_messages: int = DEFAULT_MAX_HISTORY_MESSAGES):
+        self.pool = pool
         self.max_history_messages = max_history_messages
-
-    def _get_connection(self):
-        import psycopg2
-        return psycopg2.connect(self.database_url)
 
     def _ensure_session(self, cur, session_id: str) -> None:
         cur.execute(
@@ -34,8 +30,7 @@ class ConversationMemory:
 
     def add_message(self, session_id: str, role: str, content: str) -> None:
         """Store a single message (role: 'user' or 'assistant')."""
-        conn = self._get_connection()
-        try:
+        with self.pool.get_connection() as conn:
             cur = conn.cursor()
             self._ensure_session(cur, session_id)
             cur.execute(
@@ -44,8 +39,6 @@ class ConversationMemory:
             )
             conn.commit()
             cur.close()
-        finally:
-            conn.close()
 
     def get_history(self, session_id: str, limit: int = None) -> List[Dict]:
         """
@@ -53,8 +46,7 @@ class ConversationMemory:
         [{"role": ..., "content": ..., "created_at": ...}, ...].
         """
         limit = limit if limit is not None else self.max_history_messages
-        conn = self._get_connection()
-        try:
+        with self.pool.get_connection() as conn:
             cur = conn.cursor()
             cur.execute(
                 """
@@ -68,20 +60,15 @@ class ConversationMemory:
             rows = cur.fetchall()
             cur.close()
             return [{"role": r[0], "content": r[1], "created_at": r[2]} for r in reversed(rows)]
-        finally:
-            conn.close()
 
     def clear_session(self, session_id: str) -> None:
         """Delete a session and all its messages."""
-        conn = self._get_connection()
-        try:
+        with self.pool.get_connection() as conn:
             cur = conn.cursor()
             cur.execute("DELETE FROM conversations WHERE session_id = %s", (session_id,))
             conn.commit()
             cur.close()
             logger.info(f"Cleared session '{session_id}'")
-        finally:
-            conn.close()
 
     def build_history_prompt(self, session_id: str) -> str:
         """Return prior turns formatted for injection into a prompt. Empty string if no history."""
