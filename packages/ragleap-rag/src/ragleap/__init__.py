@@ -30,11 +30,12 @@ from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
 from ragleap.db import ConnectionPool
 from ragleap.cache import QueryEmbeddingCache
+from ragleap import sanitization as _sanitization
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.5"
+__version__ = "0.4.6"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -123,8 +124,36 @@ class RagLeap:
         text = extract_text(filename, raw_bytes)
         return self.ingest_text(filename, text)
 
-    def ingest_text(self, filename: str, text: str, metadata: Optional[Dict] = None) -> IngestResult:
-        """Same as ingest(), but for text you've already extracted yourself."""
+    def ingest_text(
+        self,
+        filename: str,
+        text: str,
+        metadata: Optional[Dict] = None,
+        sanitize: bool = True,
+        warn_on_injection_risk: bool = True,
+    ) -> IngestResult:
+        """
+        Same as ingest(), but for text you've already extracted yourself.
+
+        sanitize=True (default) strips null bytes, control characters,
+        and invisible/zero-width Unicode from the text before chunking.
+        warn_on_injection_risk=True (default) logs a warning if common
+        prompt-injection trigger phrases are found - this is a heuristic
+        signal for review, not a guarantee the content is safe, and
+        nothing is blocked automatically.
+        """
+        if sanitize:
+            text = _sanitization.sanitize_text(text)
+
+        if warn_on_injection_risk:
+            risk_matches = _sanitization.detect_injection_risk(text)
+            if risk_matches:
+                logger.warning(
+                    f"Possible prompt-injection content in '{filename}': "
+                    f"matched phrase(s) {risk_matches}. This is a heuristic "
+                    f"signal, not a block - review the content if unexpected."
+                )
+
         chunks = self._chunker.chunk_text(text)
         if not chunks:
             raise ValueError("No chunks produced from input text — is it empty?")
