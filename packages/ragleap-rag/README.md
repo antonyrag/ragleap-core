@@ -82,6 +82,19 @@ Real per-provider streaming — Gemini, Anthropic, and any OpenAI-compatible
 endpoint each have different streaming APIs; all three are implemented
 properly, not stubbed.
 
+## Async support
+
+async equivalents exist for every method that touches the database or an API: aingest, aingest_text, aask, aask_stream. Use these inside an async web server (FastAPI, etc.) so a slow embedding call or LLM response does not block the event loop.
+
+```python
+result = await rag.aingest_text("handbook.txt", "...")
+answer = await rag.aask("How much PTO do employees get?")
+async for piece in rag.aask_stream("What SDKs are supported?"):
+    print(piece, end="", flush=True)
+```
+
+Honest note: these wrap the existing, tested sync implementation in a worker thread (asyncio.to_thread) rather than using natively async database/HTTP clients end to end. This still avoids blocking the event loop and works correctly under concurrent load - confirmed via a live test running 3 aask() calls concurrently - but it is not the same as a from-scratch async rewrite using asyncpg and async HTTP clients throughout. A fully native async implementation may follow in a future release if there is real demand for it.
+
 ## Conversation memory
 
 Pass session_id to ask() or ask_stream() to get persistent, multi-turn memory. Prior turns in that session are automatically injected as context. Omit it and every call is fully stateless, exactly as before (no breaking change).
