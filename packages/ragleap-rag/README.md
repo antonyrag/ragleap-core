@@ -124,6 +124,8 @@ Not currently available on ask_stream().
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
 
+Query embeddings are also cached in memory (LRU, 1000 entries by default) - repeated identical questions skip a redundant embedding call. This caches embeddings only, never full answers, since with conversation memory the same question can legitimately produce different answers depending on session history. Check cache effectiveness with rag.cache_stats(), or disable with cache_enabled=False.
+
 ## How it fits together
              +------------------+
              |   Your text or   |
