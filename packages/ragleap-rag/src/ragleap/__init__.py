@@ -31,11 +31,12 @@ from ragleap.reranking import RerankerService
 from ragleap.db import ConnectionPool
 from ragleap.cache import QueryEmbeddingCache
 from ragleap import sanitization as _sanitization
+from ragleap import web as _web
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.7"
+__version__ = "0.5.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -123,6 +124,18 @@ class RagLeap:
         """
         text = extract_text(filename, raw_bytes)
         return self.ingest_text(filename, text)
+
+    def ingest_url(self, url: str, metadata: Optional[Dict] = None) -> IngestResult:
+        """
+        Fetch a web page, extract clean readable text (stripping nav/
+        ads/footers via trafilatura), and ingest it. Requires the
+        'web' extra: pip install ragleap-rag[web]. The URL itself is
+        used as the stored filename/document_name.
+        """
+        text = _web.fetch_url_text(url)
+        if text is None:
+            raise ValueError(f"Could not extract usable text from URL: {url}")
+        return self.ingest_text(url, text, metadata=metadata)
 
     def ingest_text(
         self,
