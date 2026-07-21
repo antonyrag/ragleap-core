@@ -195,6 +195,21 @@ for c in answer["citations"]:
 
 Each citation includes source_number (matching the [Source N] label the model was given in its prompt), document_name, document_id, chunk_id, chunk_index, and a text_preview of that specific chunk - enough to verify exactly which passage backs a claim, which matters for audit or compliance use cases. The existing sources field (a deduped list of document names) is unchanged for backward compatibility.
 
+## URL ingestion
+
+ingest_url() fetches a web page and extracts clean, readable text - stripping navigation, ads, and other boilerplate via trafilatura - rather than ingesting raw HTML markup. Requires the web extra.
+
+```bash
+pip install ragleap-rag[web]
+```
+
+```python
+result = rag.ingest_url("https://example.com/blog/some-article")
+answer = rag.ask("What does the article say about X?")
+```
+
+The URL itself is stored as the document_name, so citations point back to the original page. Metadata works the same as ingest_text() - pass metadata= to tag the ingested content.
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
