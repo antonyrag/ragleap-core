@@ -34,7 +34,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.3"
+__version__ = "0.4.4"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -256,6 +256,74 @@ class RagLeap:
     def clear_session(self, session_id: str) -> None:
         """Delete a session and its full message history."""
         self._memory.clear_session(session_id)
+
+    def list_documents(self, limit: int = 100, offset: int = 0) -> List[Dict]:
+        """
+        List previously ingested documents, most recently uploaded first.
+        Returns: [{"document_id": str, "filename": str, "uploaded_at": ...,
+                   "chunk_count": int}, ...]
+        """
+        with self._pool.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT d.id, d.filename, d.uploaded_at, COUNT(c.id) AS chunk_count
+                FROM documents d
+                LEFT JOIN chunks c ON c.document_id = d.id
+                GROUP BY d.id, d.filename, d.uploaded_at
+                ORDER BY d.uploaded_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                (limit, offset),
+            )
+            rows = cur.fetchall()
+            cur.close()
+
+        return [
+            {"document_id": str(r[0]), "filename": r[1], "uploaded_at": r[2], "chunk_count": r[3]}
+            for r in rows
+        ]
+
+    def delete_document(self, document_id: str) -> bool:
+        """
+        Delete a document and all its chunks (cascades automatically via
+        the chunks.document_id foreign key). Returns True if a document
+        was actually deleted, False if document_id did not exist.
+        """
+        with self._pool.get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM documents WHERE id = %s", (document_id,))
+            deleted = cur.rowcount > 0
+            conn.commit()
+            cur.close()
+
+        if deleted:
+            logger.info(f"Deleted document {document_id}")
+        else:
+            logger.warning(f"delete_document: no document found with id {document_id}")
+        return deleted
+
+    def update_document(self, document_id: str, text: str, filename: Optional[str] = None) -> IngestResult:
+        """
+        Replace a document's content. This is implemented as delete +
+        re-ingest under the hood, not an in-place edit - chunk boundaries
+        and embeddings for the old content are not preserved, and the
+        document gets a new document_id. Use filename= to also rename it;
+        omit to keep the existing filename.
+        """
+        existing_filename = filename
+        if existing_filename is None:
+            with self._pool.get_connection() as conn:
+                cur = conn.cursor()
+                cur.execute("SELECT filename FROM documents WHERE id = %s", (document_id,))
+                row = cur.fetchone()
+                cur.close()
+            if row is None:
+                raise ValueError(f"No document found with id {document_id}")
+            existing_filename = row[0]
+
+        self.delete_document(document_id)
+        return self.ingest_text(existing_filename, text)
 
     async def aingest(self, filename: str, raw_bytes: bytes) -> IngestResult:
         """
