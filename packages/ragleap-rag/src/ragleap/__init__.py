@@ -27,11 +27,12 @@ from ragleap.retrieval import VectorRetrievalService
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
+from ragleap.reranking import RerankerService
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -68,6 +69,7 @@ class RagLeap:
         self._embedder = EmbeddingService(embedder)
         self._retriever = VectorRetrievalService(database_url=database_url, embedding_dimensions=embedder.dimensions)
         self._memory = ConversationMemory(database_url=database_url)
+        self._reranker = None  # lazy-loaded on first rerank=True call
         self._generator = GenerationService(
             primary=primary,
             fallbacks=fallbacks,
@@ -145,6 +147,7 @@ class RagLeap:
         max_tokens: Optional[int] = None,
         hybrid: bool = True,
         session_id: Optional[str] = None,
+        rerank: bool = False,
     ) -> Dict:
         """
         Answer a question grounded in previously ingested documents.
@@ -159,10 +162,16 @@ class RagLeap:
             return {"answer": "Sorry, I couldn't process your question (embedding failed).",
                     "sources": [], "provider_used": None, "usage": None, "chunks_sent": 0}
 
+        pool_size = top_k * 4 if rerank else top_k
         if hybrid:
-            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=top_k)
+            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=pool_size)
         else:
-            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=top_k)
+            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=pool_size)
+
+        if rerank and chunks:
+            if self._reranker is None:
+                self._reranker = RerankerService()
+            chunks = self._reranker.rerank(query, chunks, top_k=top_k)
 
         history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
 
