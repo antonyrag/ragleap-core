@@ -165,6 +165,22 @@ Filtering uses Postgres JSONB containment (metadata @> filter), backed by a GIN 
 
 Known limitation: update_document() does not currently preserve the original document's metadata - re-ingesting content via update_document() resets metadata to empty unless you pass it again yourself. Worth fixing in a follow-up if this trips anyone up.
 
+## Content sanitization
+
+ingest_text() sanitizes and screens content by default (sanitize=True, warn_on_injection_risk=True) - both can be disabled per call if you are already sanitizing upstream.
+
+```python
+# Default: sanitizes control characters and warns on suspicious patterns
+rag.ingest_text("doc.txt", text)
+
+# Opt out if you handle this yourself
+rag.ingest_text("doc.txt", text, sanitize=False, warn_on_injection_risk=False)
+```
+
+Sanitization strips null bytes, control characters, and invisible/zero-width Unicode characters - a documented technique for hiding instructions inside text that looks normal to a human reviewer.
+
+Injection-risk detection is heuristic pattern matching against a fixed list of common trigger phrases ("ignore previous instructions", "reveal your system prompt", etc). It logs a warning and does NOT block ingestion. Honest limitation: this is pattern matching, not semantic understanding - prompt injection via retrieved content is an open research problem, and a sufficiently motivated attacker can rephrase around any fixed pattern list. Treat a warning as a signal to review, not a guarantee of safety, and treat the absence of a warning as "nothing matched", not "this content is safe."
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
