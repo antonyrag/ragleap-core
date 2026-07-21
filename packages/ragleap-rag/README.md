@@ -181,6 +181,20 @@ Sanitization strips null bytes, control characters, and invisible/zero-width Uni
 
 Injection-risk detection is heuristic pattern matching against a fixed list of common trigger phrases ("ignore previous instructions", "reveal your system prompt", etc). It logs a warning and does NOT block ingestion. Honest limitation: this is pattern matching, not semantic understanding - prompt injection via retrieved content is an open research problem, and a sufficiently motivated attacker can rephrase around any fixed pattern list. Treat a warning as a signal to review, not a guarantee of safety, and treat the absence of a warning as "nothing matched", not "this content is safe."
 
+## Citations
+
+Every ask() response includes a citations field - a structured, chunk-level breakdown that resolves a real ambiguity: a citation like "(Source 1)" in an answer could mean a whole document or one specific passage within it. It always means the latter.
+
+```python
+answer = rag.ask("What is our refund policy?")
+print(answer["answer"])
+
+for c in answer["citations"]:
+    print(c["source_number"], c["document_name"], "chunk", c["chunk_index"], "-", c["text_preview"])
+```
+
+Each citation includes source_number (matching the [Source N] label the model was given in its prompt), document_name, document_id, chunk_id, chunk_index, and a text_preview of that specific chunk - enough to verify exactly which passage backs a claim, which matters for audit or compliance use cases. The existing sources field (a deduped list of document names) is unchanged for backward compatibility.
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.

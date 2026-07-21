@@ -35,7 +35,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.6"
+__version__ = "0.4.7"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -220,7 +220,7 @@ class RagLeap:
         query_embedding = self._embed_query_cached(query)
         if query_embedding is None:
             return {"answer": "Sorry, I couldn't process your question (embedding failed).",
-                    "sources": [], "provider_used": None, "usage": None, "chunks_sent": 0}
+                    "sources": [], "citations": [], "provider_used": None, "usage": None, "chunks_sent": 0}
 
         pool_size = top_k * 4 if rerank else top_k
         if hybrid:

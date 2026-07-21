@@ -114,8 +114,30 @@ class GenerationService:
         parts = []
         for i, chunk in enumerate(chunks, start=1):
             doc_name = chunk.get("document_name", "unknown document")
-            parts.append(f"[Source {i}: {doc_name}]\n{chunk.get('text', '')}")
+            chunk_index = chunk.get("chunk_index", "?")
+            parts.append(f"[Source {i}: {doc_name}, chunk {chunk_index}]\n{chunk.get('text', '')}")
         return "\n\n".join(parts)
+
+    def _build_citations(self, chunks: List[Dict]) -> List[Dict]:
+        """
+        Structured citation list mapping each [Source N] label used in
+        the prompt to the specific chunk it refers to - resolves the
+        ambiguity of whether a citation like "(Source 1)" in an answer
+        means a whole document or a specific passage. It is always the
+        latter: chunk-level, not document-level.
+        """
+        citations = []
+        for i, chunk in enumerate(chunks, start=1):
+            text = chunk.get("text", "")
+            citations.append({
+                "source_number": i,
+                "document_name": chunk.get("document_name", "unknown document"),
+                "document_id": chunk.get("document_id"),
+                "chunk_id": chunk.get("chunk_id"),
+                "chunk_index": chunk.get("chunk_index"),
+                "text_preview": text[:150] + ("..." if len(text) > 150 else ""),
+            })
+        return citations
 
     def _build_prompt(self, query: str, chunks: List[Dict], system_prompt: Optional[str], history_prefix: str = "") -> str:
         context = self._build_context(chunks)
@@ -140,6 +162,7 @@ class GenerationService:
 
         trimmed = self._trim_chunks_to_budget(chunks)
         sources = list({c.get("document_name", "unknown") for c in trimmed})
+        citations = self._build_citations(trimmed)
         prompt = self._build_prompt(query, trimmed, system_prompt, history_prefix)
 
         last_error = None
@@ -149,7 +172,7 @@ class GenerationService:
                 if i > 0:
                     logger.info(f"Answer generated via fallback provider '{config.provider}'")
                 return {
-                    "answer": answer_text, "sources": sources,
+                    "answer": answer_text, "sources": sources, "citations": citations,
                     "provider_used": config.provider, "usage": usage,
                     "chunks_sent": len(trimmed),
                 }
@@ -160,7 +183,7 @@ class GenerationService:
 
         return {
             "answer": f"Sorry, all configured providers failed. Last error: {last_error}",
-            "sources": [], "provider_used": None, "usage": None, "chunks_sent": 0,
+            "sources": [], "citations": [], "provider_used": None, "usage": None, "chunks_sent": 0,
         }
 
     def generate_answer_stream(
