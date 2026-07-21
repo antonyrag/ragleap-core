@@ -29,11 +29,12 @@ from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
 from ragleap.db import ConnectionPool
+from ragleap.cache import QueryEmbeddingCache
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -62,6 +63,8 @@ class RagLeap:
         max_context_chars: int = 12000,
         chunk_size: Optional[int] = None,
         chunk_overlap: Optional[int] = None,
+        cache_enabled: bool = True,
+        cache_max_size: int = 1000,
     ):
         self.database_url = database_url
         self.embedding_dimensions = embedder.dimensions
@@ -72,6 +75,8 @@ class RagLeap:
         self._retriever = VectorRetrievalService(pool=self._pool, embedding_dimensions=embedder.dimensions)
         self._memory = ConversationMemory(pool=self._pool)
         self._reranker = None  # lazy-loaded on first rerank=True call
+        self._cache_enabled = cache_enabled
+        self._query_cache = QueryEmbeddingCache(max_size=cache_max_size) if cache_enabled else None
         self._generator = GenerationService(
             primary=primary,
             fallbacks=fallbacks,
@@ -83,6 +88,31 @@ class RagLeap:
     def init_schema(self) -> None:
         """Create the required tables/indexes if they don't already exist. Idempotent."""
         _schema.init_schema(self.database_url, dimensions=self.embedding_dimensions)
+
+    def _embed_query_cached(self, query: str) -> Optional[List[float]]:
+        """Embed a query, using the cache if enabled. Cache key is
+        (query text, embedding model) - safe across different queries
+        and different embedder configs on the same instance."""
+        if self._cache_enabled:
+            cached = self._query_cache.get(query, self._embedder.model)
+            if cached is not None:
+                return cached
+
+        embedding = self._embedder.embed_text(query)
+
+        if self._cache_enabled and embedding is not None:
+            self._query_cache.set(query, self._embedder.model, embedding)
+
+        return embedding
+
+    def cache_stats(self) -> dict:
+        """Return query embedding cache stats: hits, misses, hit_rate, size.
+        Returns all zeros if caching is disabled."""
+        if not self._cache_enabled:
+            return {"hits": 0, "misses": 0, "hit_rate": 0.0, "size": 0, "enabled": False}
+        stats = self._query_cache.stats()
+        stats["enabled"] = True
+        return stats
 
     def ingest(self, filename: str, raw_bytes: bytes) -> IngestResult:
         """
@@ -153,7 +183,7 @@ class RagLeap:
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": dict|None, "chunks_sent": int}
         """
-        query_embedding = self._embedder.embed_text(query)
+        query_embedding = self._embed_query_cached(query)
         if query_embedding is None:
             return {"answer": "Sorry, I couldn't process your question (embedding failed).",
                     "sources": [], "provider_used": None, "usage": None, "chunks_sent": 0}
@@ -195,7 +225,7 @@ class RagLeap:
         """Same as ask(), but yields the answer incrementally as it's
         generated. If session_id is set, the full assembled answer is
         stored to memory once streaming completes."""
-        query_embedding = self._embedder.embed_text(query)
+        query_embedding = self._embed_query_cached(query)
         if query_embedding is None:
             yield "Sorry, I couldn't process your question (embedding failed)."
             return
