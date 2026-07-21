@@ -34,7 +34,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.2"
+__version__ = "0.4.3"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -256,3 +256,82 @@ class RagLeap:
     def clear_session(self, session_id: str) -> None:
         """Delete a session and its full message history."""
         self._memory.clear_session(session_id)
+
+    async def aingest(self, filename: str, raw_bytes: bytes) -> IngestResult:
+        """
+        Async version of ingest(). Runs the existing sync implementation
+        in a worker thread, so it does not block the event loop - the
+        underlying DB/embedding calls are not natively async, but a
+        blocking call to psycopg2 or an HTTP embedding API would
+        otherwise stall an async web server (FastAPI, etc.) on every
+        request.
+        """
+        import asyncio
+        return await asyncio.to_thread(self.ingest, filename, raw_bytes)
+
+    async def aingest_text(self, filename: str, text: str) -> IngestResult:
+        """Async version of ingest_text(). See aingest() for details."""
+        import asyncio
+        return await asyncio.to_thread(self.ingest_text, filename, text)
+
+    async def aask(
+        self,
+        query: str,
+        top_k: int = 5,
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        hybrid: bool = True,
+        session_id: Optional[str] = None,
+        rerank: bool = False,
+    ) -> Dict:
+        """Async version of ask(). See aingest() for details on the
+        threading approach."""
+        import asyncio
+        return await asyncio.to_thread(
+            self.ask, query, top_k=top_k, temperature=temperature,
+            system_prompt=system_prompt, max_tokens=max_tokens, hybrid=hybrid,
+            session_id=session_id, rerank=rerank,
+        )
+
+    async def aask_stream(
+        self,
+        query: str,
+        top_k: int = 5,
+        temperature: Optional[float] = None,
+        system_prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None,
+        hybrid: bool = True,
+        session_id: Optional[str] = None,
+    ):
+        """
+        Async version of ask_stream(). Runs the sync generator in a
+        worker thread and re-yields pieces as they become available,
+        so the event loop is not blocked while waiting on each chunk.
+        """
+        import asyncio
+        import queue
+
+        q: queue.Queue = queue.Queue()
+        SENTINEL = object()
+
+        def _run():
+            try:
+                for piece in self.ask_stream(
+                    query, top_k=top_k, temperature=temperature,
+                    system_prompt=system_prompt, max_tokens=max_tokens,
+                    hybrid=hybrid, session_id=session_id,
+                ):
+                    q.put(piece)
+            finally:
+                q.put(SENTINEL)
+
+        task = asyncio.create_task(asyncio.to_thread(_run))
+        try:
+            while True:
+                piece = await asyncio.to_thread(q.get)
+                if piece is SENTINEL:
+                    break
+                yield piece
+        finally:
+            await task
