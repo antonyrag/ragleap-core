@@ -210,6 +210,29 @@ answer = rag.ask("What does the article say about X?")
 
 The URL itself is stored as the document_name, so citations point back to the original page. Metadata works the same as ingest_text() - pass metadata= to tag the ingested content.
 
+## Supported file formats
+
+rag.ingest(filename, raw_bytes) supports 28 formats via file extension, dispatched automatically. Core formats (txt, pdf, docx, md) work with the base install; everything else requires the formats extra.
+
+```bash
+pip install ragleap-rag[formats]
+```
+
+**Office & documents**: pdf, docx, pptx, odt, ods, odp, rtf
+**Spreadsheets & tabular**: xlsx, xls, csv, tsv, parquet
+**Structured data**: json, yaml, xml, xsl, xslt
+**Markup & web**: html, htm, md
+**Archives & email**: zip (recurses into supported files inside), eml
+**Books & media metadata**: epub, vtt, srt (subtitle cue numbers and timestamps are stripped, spoken text kept)
+**Plain text**: txt, sql
+
+**Not supported**: legacy binary .doc and .ppt (pre-2007 Office formats) - no reliable pure-Python parser exists for these. Convert to the modern equivalent first, e.g. via LibreOffice headless: soffice --headless --convert-to docx yourfile.doc
+
+```python
+with open("report.xlsx", "rb") as f:
+    rag.ingest("report.xlsx", f.read())
+```
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
