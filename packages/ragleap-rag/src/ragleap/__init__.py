@@ -33,12 +33,14 @@ from ragleap.cache import QueryEmbeddingCache
 from ragleap import sanitization as _sanitization
 from ragleap import web as _web
 from ragleap import ocr as _ocr
+from ragleap import transcription as _transcription
+from ragleap.transcription import TranscriptionConfig
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.2"
-__all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
+__version__ = "0.5.3"
+__all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig"]
 
 
 @dataclass
@@ -165,6 +167,32 @@ class RagLeap:
         else:
             raise ValueError(f"Unknown mode '{mode}'. Use 'ocr' or 'caption'.")
 
+        return self.ingest_text(filename, text, metadata=metadata)
+
+    def ingest_audio(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        transcriber: Optional["TranscriptionConfig"] = None,
+        metadata: Optional[Dict] = None,
+    ) -> IngestResult:
+        """
+        Transcribe audio to text and ingest it. Pass a TranscriptionConfig
+        to choose the provider (whisper or deepgram) and options; if
+        omitted, defaults to OpenAI's hosted Whisper API using
+        OPENAI_API_KEY from the environment.
+
+        Whisper is a strong general-purpose baseline but has real
+        limitations: accuracy varies by language, there is no built-in
+        denoising (quiet/noisy audio genuinely degrades transcription
+        quality), and no domain-vocabulary biasing by default (brand
+        names and jargon commonly get mangled unless you pass a
+        prompt hint via TranscriptionConfig). Use provider='deepgram'
+        if these matter for your use case.
+        """
+        config = transcriber or _transcription.TranscriptionConfig(provider="whisper")
+        service = _transcription.TranscriptionService(config)
+        text = service.transcribe(filename, raw_bytes)
         return self.ingest_text(filename, text, metadata=metadata)
 
     def ingest_text(

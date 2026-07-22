@@ -253,6 +253,29 @@ rag.ingest_image("receipt.png", raw_bytes, mode="ocr")
 rag.ingest_image("product_photo.jpg", raw_bytes, mode="caption")
 ```
 
+## Audio ingestion
+
+ingest_audio(filename, raw_bytes, transcriber=None) transcribes audio and ingests the result. Defaults to OpenAI's hosted Whisper API using OPENAI_API_KEY from the environment; pass a TranscriptionConfig to choose a different provider or add options.
+
+```python
+from ragleap import TranscriptionConfig
+
+# Default: Whisper via OpenAI
+rag.ingest_audio("meeting.mp3", raw_bytes)
+
+# Explicit config, with a vocabulary hint and language
+config = TranscriptionConfig(provider="whisper", language="en", prompt="RagLeap, pgvector, Gemini")
+rag.ingest_audio("meeting.mp3", raw_bytes, transcriber=config)
+
+# Deepgram instead
+config = TranscriptionConfig(provider="deepgram", api_key="...")
+rag.ingest_audio("meeting.mp3", raw_bytes, transcriber=config)
+```
+
+Honest limitation: transcription quality is only as good as the underlying provider. Whisper (the default) is a strong general-purpose baseline, but has no built-in denoising - quiet or noisy audio genuinely degrades accuracy - and no domain-vocabulary biasing by default, so brand names and jargon commonly get mangled unless you pass a prompt hint. Accuracy also varies meaningfully by language. Use provider="deepgram" or pass a prompt hint if these matter for your use case.
+
+Both providers use hosted APIs - no local model weights, no torch/CUDA dependency, consistent with keeping the base install light (the same reasoning behind reranking's optional [rerank] extra). Local/offline Whisper is not currently supported.
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
