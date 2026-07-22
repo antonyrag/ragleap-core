@@ -94,6 +94,42 @@ class GenerationService:
     def _chain(self) -> List[ProviderConfig]:
         return [self.primary] + [f for f in self.fallbacks if f.provider != self.primary.provider]
 
+    def describe_image(self, image_bytes: bytes, mime_type: str = "image/jpeg", prompt: Optional[str] = None) -> str:
+        """
+        Use a vision-capable model to describe an image's contents -
+        for photos, diagrams, or charts with no readable text to OCR.
+        Currently only supports Gemini as the vision provider (the
+        primary provider's Gemini config is used regardless of what
+        the text-generation primary/fallback chain is set to).
+        """
+        gemini_config = None
+        for config in self._chain():
+            if config.provider == "gemini":
+                gemini_config = config
+                break
+        if gemini_config is None:
+            raise ValueError(
+                "Vision captioning currently requires a Gemini provider configured "
+                "(as primary or a fallback) - no Gemini config found in this chain."
+            )
+
+        import google.genai as genai
+        from google.genai import types
+
+        client = genai.Client(api_key=gemini_config.api_key)
+        instruction = prompt or "Describe this image in detail, including any visible text, objects, people, charts, or diagrams."
+        response = client.models.generate_content(
+            model=gemini_config.model,
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                instruction,
+            ],
+        )
+        text = response.text.strip() if response.text else ""
+        if not text:
+            raise ValueError("Vision model returned no description for this image.")
+        return text
+
     def _trim_chunks_to_budget(self, chunks: List[Dict]) -> List[Dict]:
         if self.max_context_chars <= 0 or not chunks:
             return chunks

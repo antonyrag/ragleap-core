@@ -233,6 +233,26 @@ with open("report.xlsx", "rb") as f:
     rag.ingest("report.xlsx", f.read())
 ```
 
+## Image ingestion
+
+ingest_image(filename, raw_bytes, mode=...) supports two different techniques for two different kinds of images.
+
+mode="ocr" (default) reads literal visible text - scanned documents, screenshots, photos of text. Requires the ocr extra AND the Tesseract binary installed on the system (not pip-installable - e.g. apt install tesseract-ocr on Debian/Ubuntu).
+
+mode="caption" describes an image's contents using a vision-capable model instead - for photos, diagrams, or charts with no readable text. Currently requires Gemini configured as the primary or a fallback provider; no extra install needed since it reuses the existing generation client.
+
+```bash
+pip install ragleap-rag[ocr]
+```
+
+```python
+# Scanned document or screenshot
+rag.ingest_image("receipt.png", raw_bytes, mode="ocr")
+
+# Photo, chart, or diagram with no text
+rag.ingest_image("product_photo.jpg", raw_bytes, mode="caption")
+```
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.

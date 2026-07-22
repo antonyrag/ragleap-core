@@ -32,11 +32,12 @@ from ragleap.db import ConnectionPool
 from ragleap.cache import QueryEmbeddingCache
 from ragleap import sanitization as _sanitization
 from ragleap import web as _web
+from ragleap import ocr as _ocr
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult"]
 
 
@@ -136,6 +137,35 @@ class RagLeap:
         if text is None:
             raise ValueError(f"Could not extract usable text from URL: {url}")
         return self.ingest_text(url, text, metadata=metadata)
+
+    def ingest_image(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        mode: str = "ocr",
+        mime_type: str = "image/jpeg",
+        metadata: Optional[Dict] = None,
+    ) -> IngestResult:
+        """
+        Ingest an image. Two modes, for two different kinds of images:
+
+        mode="ocr" (default) reads literal text visible in the image
+        (scanned documents, screenshots, photos of text). Requires the
+        'ocr' extra AND the Tesseract binary installed on the system.
+
+        mode="caption" describes the image's contents using a vision-
+        capable model instead - for photos, diagrams, or charts with
+        no readable text. Currently requires Gemini configured as the
+        primary or a fallback provider.
+        """
+        if mode == "ocr":
+            text = _ocr.extract_text_from_image(raw_bytes)
+        elif mode == "caption":
+            text = self._generator.describe_image(raw_bytes, mime_type=mime_type)
+        else:
+            raise ValueError(f"Unknown mode '{mode}'. Use 'ocr' or 'caption'.")
+
+        return self.ingest_text(filename, text, metadata=metadata)
 
     def ingest_text(
         self,
