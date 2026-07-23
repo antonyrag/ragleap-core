@@ -34,12 +34,13 @@ from ragleap import sanitization as _sanitization
 from ragleap import web as _web
 from ragleap import ocr as _ocr
 from ragleap import transcription as _transcription
+from ragleap import video as _video
 from ragleap.transcription import TranscriptionConfig
 from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig"]
 
 
@@ -194,6 +195,28 @@ class RagLeap:
         service = _transcription.TranscriptionService(config)
         text = service.transcribe(filename, raw_bytes)
         return self.ingest_text(filename, text, metadata=metadata)
+
+    def ingest_video(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        transcriber: Optional["TranscriptionConfig"] = None,
+        metadata: Optional[Dict] = None,
+    ) -> IngestResult:
+        """
+        Extract the audio track from a video file (requires the
+        ffmpeg binary installed on the system - not pip-installable),
+        transcribe it, and ingest the result. This is audio ingestion
+        plus an extraction step - no separate video-specific
+        transcription logic. Same transcriber= options and the same
+        honest limitations as ingest_audio() apply (see its docstring).
+
+        If the video already has a matching subtitle file (.vtt/.srt),
+        ingesting that directly via ingest() is cheaper and more
+        accurate than re-transcribing the audio.
+        """
+        audio_bytes = _video.extract_audio_from_video(raw_bytes, filename)
+        return self.ingest_audio(filename, audio_bytes, transcriber=transcriber, metadata=metadata)
 
     def ingest_text(
         self,
