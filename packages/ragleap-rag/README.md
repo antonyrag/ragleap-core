@@ -276,6 +276,20 @@ Honest limitation: transcription quality is only as good as the underlying provi
 
 Both providers use hosted APIs - no local model weights, no torch/CUDA dependency, consistent with keeping the base install light (the same reasoning behind reranking's optional [rerank] extra). Local/offline Whisper is not currently supported.
 
+Verified live: a real Deepgram API call against synthesized speech correctly transcribed the audio and produced an accurate, grounded answer referencing what was actually said. Whisper's API shape was verified via a mocked call (no OpenAI key was available in this session), confirming the correct request structure without a live network round-trip.
+
+## Video ingestion
+
+ingest_video(filename, raw_bytes, transcriber=None) extracts the audio track from a video file (via ffmpeg) and transcribes it - the same transcriber= options and honest limitations as ingest_audio() apply, since this is audio ingestion plus an extraction step, not separate video-specific logic. Requires the ffmpeg binary installed on the system (not pip-installable - e.g. apt install ffmpeg on Debian/Ubuntu).
+
+```python
+rag.ingest_video("webinar.mp4", raw_bytes)
+```
+
+If the video already has a matching subtitle file (.vtt/.srt), ingesting that directly via ingest() is cheaper and more accurate than re-transcribing the audio - see Supported file formats.
+
+Verification note: both the ffmpeg audio-extraction step and the transcription step are now fully verified live. ffprobe independently confirmed a real 3-second test video is extracted to a valid, playable audio stream of the correct duration. Separately, a real Deepgram API call against synthesized speech (via espeak) correctly transcribed the audio and produced an accurate, grounded answer referencing what was actually said - closing the gap noted in Audio ingestion, where live-provider testing was initially unavailable.
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
