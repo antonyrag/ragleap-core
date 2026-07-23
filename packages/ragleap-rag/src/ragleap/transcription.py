@@ -28,12 +28,24 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TranscriptionConfig:
-    """Explicit transcription provider configuration."""
+    """
+    Explicit transcription provider configuration.
+
+    provider="whisper" and provider="deepgram" are built-in. For any
+    other provider (AssemblyAI, Speechmatics, Azure Speech, AWS
+    Transcribe, or anything else), use provider="custom" and pass
+    transcribe_fn - a callable of (filename: str, audio_bytes: bytes) -> str
+    that does the transcription however you like. This makes the
+    library provider-agnostic rather than limited to the two built-in
+    options - you are not blocked on ragleap-rag adding native support
+    for a provider you already trust more.
+    """
     provider: str = "whisper"
     api_key: Optional[str] = None
     model: Optional[str] = None
     language: Optional[str] = None  # ISO 639-1 code, e.g. "en" - omit for auto-detect
     prompt: Optional[str] = None  # optional vocabulary/context hint (Whisper only)
+    transcribe_fn: Optional[object] = None  # callable(filename, audio_bytes) -> str, required if provider="custom"
 
     def __post_init__(self):
         import os
@@ -45,8 +57,14 @@ class TranscriptionConfig:
         elif self.provider == "deepgram":
             self.api_key = self.api_key or os.environ.get("DEEPGRAM_API_KEY")
             self.model = self.model or "nova-2"
+        elif self.provider == "custom":
+            if not callable(self.transcribe_fn):
+                raise ValueError(
+                    "provider='custom' requires transcribe_fn=<callable(filename, audio_bytes) -> str>."
+                )
+            return  # custom provider handles its own auth, no api_key check needed
         else:
-            raise ValueError(f"Unknown transcription provider '{self.provider}'. Supported: whisper, deepgram.")
+            raise ValueError(f"Unknown transcription provider '{self.provider}'. Supported: whisper, deepgram, custom.")
 
         if not self.api_key:
             raise ValueError(
@@ -66,6 +84,8 @@ class TranscriptionService:
             return self._transcribe_whisper(filename, audio_bytes)
         elif self.config.provider == "deepgram":
             return self._transcribe_deepgram(audio_bytes)
+        elif self.config.provider == "custom":
+            return self.config.transcribe_fn(filename, audio_bytes)
 
     def _transcribe_whisper(self, filename: str, audio_bytes: bytes) -> str:
         try:

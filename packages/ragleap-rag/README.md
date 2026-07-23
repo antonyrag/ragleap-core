@@ -276,6 +276,17 @@ Honest limitation: transcription quality is only as good as the underlying provi
 
 Both providers use hosted APIs - no local model weights, no torch/CUDA dependency, consistent with keeping the base install light (the same reasoning behind reranking's optional [rerank] extra). Local/offline Whisper is not currently supported.
 
+Not limited to Whisper and Deepgram - provider="custom" accepts any transcription function you supply, so you can use AssemblyAI, Speechmatics, Azure Speech, AWS Transcribe, or anything else without waiting on ragleap-rag to add native support.
+
+```python
+def my_transcriber(filename: str, audio_bytes: bytes) -> str:
+    # call whatever provider/SDK you prefer
+    return transcript_text
+
+config = TranscriptionConfig(provider="custom", transcribe_fn=my_transcriber)
+rag.ingest_audio("call.mp3", raw_bytes, transcriber=config)
+```
+
 Verified live: a real Deepgram API call against synthesized speech correctly transcribed the audio and produced an accurate, grounded answer referencing what was actually said. Whisper's API shape was verified via a mocked call (no OpenAI key was available in this session), confirming the correct request structure without a live network round-trip.
 
 ## Video ingestion
