@@ -343,6 +343,73 @@ rag = RagLeap(
 
 Verification note: proven with two separate `RagLeap` instances (simulating two separate worker processes) pointed at the same Redis - the first instance's cache miss and resulting embedding write was correctly picked up as a cache hit on the second, completely separate instance's first call, confirming the embedding is genuinely shared across process boundaries and not just cached within one Python object.
 
+## Celery integration
+
+Running ingestion or asking as background tasks (so a web request doesn't block on an LLM call) is a common pattern. The one thing that matters: **RagLeap's connection pool is per-instance and not fork-safe across processes.** Create one global `RagLeap` object before Celery's default "prefork" pool forks workers, and every worker inherits the same pool and file descriptors - this shows up later as hung queries or connection errors under concurrent load, not as an obvious startup crash.
+
+The fix: each worker process builds its own `RagLeap` instance, once, after it forks - not at module import time.
+
+```python
+from celery import Celery
+from celery.signals import worker_process_init
+from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
+
+app = Celery("ragleap_tasks", broker="redis://localhost:6379/0", backend="redis://localhost:6379/0")
+
+_rag_instance = None
+
+def get_rag() -> RagLeap:
+    global _rag_instance
+    if _rag_instance is None:
+        _rag_instance = RagLeap(
+            database_url="postgresql://...",
+            embedder=EmbeddingConfig(provider="gemini", api_key="..."),
+            primary=ProviderConfig(provider="gemini", api_key="..."),
+            # Same Redis server as the broker above is fine - a different
+            # db index keeps the query cache and the task queue from colliding.
+            cache_backend="redis",
+            redis_url="redis://localhost:6379/1",
+        )
+        _rag_instance.init_schema()
+    return _rag_instance
+
+@worker_process_init.connect
+def init_worker(**kwargs):
+    get_rag()  # built right after fork, not before
+
+@app.task(name="ragleap.ingest_text")
+def ingest_text_task(filename: str, text: str, metadata: dict | None = None):
+    result = get_rag().ingest_text(filename=filename, text=text, metadata=metadata)
+    return {"document_id": result.document_id, "chunks_stored": result.chunks_stored}
+
+@app.task(name="ragleap.ask")
+def ask_task(query: str, session_id: str | None = None):
+    answer = get_rag().ask(query, session_id=session_id)
+    return {"answer": answer["answer"], "sources": answer["sources"]}
+```
+
+Architecture:
+
+```
+                    +-----------+
+  Web request  ---> |   Redis   | ---> worker process 1 (own RagLeap + pool)
+  (non-blocking)    |  broker   | ---> worker process 2 (own RagLeap + pool)
+                    +-----------+                |
+                                                  v
+                                          +---------------+
+                                          |   PostgreSQL   |
+                                          |   + pgvector   |
+                                          +---------------+
+                                                  ^
+                                                  |
+                                   (optional) Redis query cache,
+                                   shared across all worker processes
+```
+
+Each worker process talks to the same Postgres database and, optionally, shares the Redis query cache (a separate concern from the Celery broker/backend, even if it's the same Redis server). Run `celery -A your_module worker --loglevel=info` to start a worker, then call `.delay(...)` from your web app to enqueue tasks without blocking the request.
+
+See `examples/05_celery_background_tasks.py` for the full runnable version.
+
 ## How it fits together
              +------------------+
              |   Your text or   |
@@ -389,6 +456,7 @@ in the source repo:
 - `02_streaming.py` — streaming responses
 - `03_fallback_and_hybrid_search.py` — provider fallback + hybrid toggle
 - `04_flask_web_api.py` — drop-in web API (works identically in FastAPI)
+- `05_celery_background_tasks.py` — background ingestion/asking via Celery + Redis
 
 ## Why this exists
 
