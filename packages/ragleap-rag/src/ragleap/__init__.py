@@ -29,7 +29,7 @@ from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
 from ragleap.db import ConnectionPool
-from ragleap.cache import QueryEmbeddingCache
+from ragleap.cache import QueryEmbeddingCache, RedisQueryEmbeddingCache
 from ragleap import sanitization as _sanitization
 from ragleap import web as _web
 from ragleap import ocr as _ocr
@@ -40,7 +40,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.5"
+__version__ = "0.5.6"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig"]
 
 
@@ -71,6 +71,9 @@ class RagLeap:
         chunk_overlap: Optional[int] = None,
         cache_enabled: bool = True,
         cache_max_size: int = 1000,
+        cache_backend: str = "memory",
+        redis_url: Optional[str] = None,
+        cache_ttl_seconds: int = 86400,
     ):
         self.database_url = database_url
         self.embedding_dimensions = embedder.dimensions
@@ -82,7 +85,16 @@ class RagLeap:
         self._memory = ConversationMemory(pool=self._pool)
         self._reranker = None  # lazy-loaded on first rerank=True call
         self._cache_enabled = cache_enabled
-        self._query_cache = QueryEmbeddingCache(max_size=cache_max_size) if cache_enabled else None
+        if not cache_enabled:
+            self._query_cache = None
+        elif cache_backend == "redis":
+            if not redis_url:
+                raise ValueError("cache_backend='redis' requires redis_url= to be set.")
+            self._query_cache = RedisQueryEmbeddingCache(redis_url, max_size=cache_max_size, ttl_seconds=cache_ttl_seconds)
+        elif cache_backend == "memory":
+            self._query_cache = QueryEmbeddingCache(max_size=cache_max_size)
+        else:
+            raise ValueError(f"Unknown cache_backend '{cache_backend}'. Use 'memory' or 'redis'.")
         self._generator = GenerationService(
             primary=primary,
             fallbacks=fallbacks,
@@ -469,6 +481,109 @@ class RagLeap:
         """Async version of ingest_text(). See aingest() for details."""
         import asyncio
         return await asyncio.to_thread(self.ingest_text, filename, text)
+
+    async def aingest_url(self, url: str, metadata: Optional[Dict] = None) -> IngestResult:
+        """Async version of ingest_url(). See aingest() for details."""
+        import asyncio
+        return await asyncio.to_thread(self.ingest_url, url, metadata)
+
+    async def aingest_image(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        mode: str = "ocr",
+        mime_type: str = "image/jpeg",
+        metadata: Optional[Dict] = None,
+    ) -> IngestResult:
+        """Async version of ingest_image(). See aingest() for details."""
+        import asyncio
+        return await asyncio.to_thread(self.ingest_image, filename, raw_bytes, mode, mime_type, metadata)
+
+    async def aingest_audio(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        transcriber: Optional["TranscriptionConfig"] = None,
+        metadata: Optional[Dict] = None,
+    ) -> IngestResult:
+        """Async version of ingest_audio(). See aingest() for details."""
+        import asyncio
+        return await asyncio.to_thread(self.ingest_audio, filename, raw_bytes, transcriber, metadata)
+
+    async def aingest_video(
+        self,
+        filename: str,
+        raw_bytes: bytes,
+        transcriber: Optional["TranscriptionConfig"] = None,
+        metadata: Optional[Dict] = None,
+    ) -> IngestResult:
+        """Async version of ingest_video(). See aingest() for details."""
+        import asyncio
+        return await asyncio.to_thread(self.ingest_video, filename, raw_bytes, transcriber, metadata)
+
+    async def ingest_batch(self, items: List[Dict]) -> List[Dict]:
+        """
+        Ingest a mixed batch of documents concurrently - any
+        combination of types, e.g. a PDF, a video, an image, and a
+        URL all in one call. Each item runs independently: one
+        item's failure does not stop or roll back the others, and
+        each successfully ingested item is committed on its own (the
+        same as calling each ingest_*() method separately, just
+        concurrent instead of sequential).
+
+        items: list of dicts, each with:
+          - "type": one of "file", "url", "image", "audio", "video"
+            ("file" covers ingest()'s full format range - pdf, docx,
+            xlsx, etc. - dispatched by filename extension)
+          - "filename": required for file/image/audio/video
+          - "raw_bytes": required for file/image/audio/video
+          - "url": required for type="url"
+          - "mode": optional, image only ("ocr" or "caption")
+          - "transcriber": optional, audio/video only (TranscriptionConfig)
+          - "metadata": optional, any type
+
+        Returns a list of dicts, one per input item, in the same
+        order: {"success": bool, "result": IngestResult | None,
+                "error": str | None}. Check "success" per item rather
+        than assuming the whole batch succeeded - a batch of 10 with
+        3 failures still stores the other 7.
+        """
+        async def _run_one(item: Dict) -> Dict:
+            try:
+                item_type = item.get("type")
+                metadata = item.get("metadata")
+
+                if item_type == "file":
+                    result = await self.aingest(item["filename"], item["raw_bytes"])
+                elif item_type == "url":
+                    result = await self.aingest_url(item["url"], metadata=metadata)
+                elif item_type == "image":
+                    result = await self.aingest_image(
+                        item["filename"], item["raw_bytes"],
+                        mode=item.get("mode", "ocr"),
+                        mime_type=item.get("mime_type", "image/jpeg"),
+                        metadata=metadata,
+                    )
+                elif item_type == "audio":
+                    result = await self.aingest_audio(
+                        item["filename"], item["raw_bytes"],
+                        transcriber=item.get("transcriber"), metadata=metadata,
+                    )
+                elif item_type == "video":
+                    result = await self.aingest_video(
+                        item["filename"], item["raw_bytes"],
+                        transcriber=item.get("transcriber"), metadata=metadata,
+                    )
+                else:
+                    raise ValueError(f"Unknown batch item type '{item_type}'. Use file, url, image, audio, or video.")
+
+                return {"success": True, "result": result, "error": None}
+            except Exception as e:
+                logger.warning(f"ingest_batch item failed (type={item.get('type')}, filename={item.get('filename') or item.get('url')}): {e}")
+                return {"success": False, "result": None, "error": str(e)}
+
+        import asyncio
+        return await asyncio.gather(*[_run_one(item) for item in items])
 
     async def aask(
         self,

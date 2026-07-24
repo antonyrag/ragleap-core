@@ -301,11 +301,47 @@ If the video already has a matching subtitle file (.vtt/.srt), ingesting that di
 
 Verification note: both the ffmpeg audio-extraction step and the transcription step are now fully verified live. ffprobe independently confirmed a real 3-second test video is extracted to a valid, playable audio stream of the correct duration. Separately, a real Deepgram API call against synthesized speech (via espeak) correctly transcribed the audio and produced an accurate, grounded answer referencing what was actually said - closing the gap noted in Audio ingestion, where live-provider testing was initially unavailable.
 
+## Batch ingestion
+
+`rag.ingest_batch(items)` ingests a list of mixed-type items concurrently, and returns a per-item result rather than raising on the first failure - one bad item never blocks or rolls back the others.
+
+```python
+results = await rag.ingest_batch([
+    {"type": "file", "filename": "notes.txt", "raw_bytes": b"..."},
+    {"type": "url", "url": "https://example.com/article"},
+    {"type": "image", "filename": "scan.png", "raw_bytes": b"...", "mode": "ocr"},
+    {"type": "audio", "filename": "call.mp3", "raw_bytes": b"..."},
+])
+
+for r in results:
+    if r["success"]:
+        print(r["result"])
+    else:
+        print("failed:", r["error"])
+```
+
+Each item dict needs a `"type"` key (`"file"`, `"url"`, `"image"`, `"audio"`, or `"video"`) plus whatever kwargs that type's `ingest_*` method normally needs. Verification note: tested with a real 4-item mixed batch (a .txt file, a live URL fetch, a deliberately corrupt fake PDF, and a .json file) - 3 of 4 succeeded exactly as expected, and the corrupt PDF failed cleanly with a clear logged error rather than crashing the batch or silently affecting the other results.
+
 ## Performance
 
 Database connections are pooled internally (min 1, max 10 by default) rather than opened fresh on every call. Previously every ingest, ask, and memory operation opened a brand-new Postgres connection and closed it afterward - real, avoidable latency, especially under concurrent load (e.g. a web server handling multiple requests at once). This is automatic and requires no configuration.
 
 Query embeddings are also cached in memory (LRU, 1000 entries by default) - repeated identical questions skip a redundant embedding call. This caches embeddings only, never full answers, since with conversation memory the same question can legitimately produce different answers depending on session history. Check cache effectiveness with rag.cache_stats(), or disable with cache_enabled=False.
+
+For multi-process deployments (multiple Gunicorn or Celery workers), the in-memory cache doesn't help across processes - each worker has its own separate cache, so a hit in one worker is invisible to the others. Setting `cache_backend="redis"` (with the `[redis]` extra and a `redis_url`) shares the query embedding cache across all worker processes via Redis, with a configurable `cache_ttl_seconds` (default 86400 = 24h).
+
+```python
+rag = RagLeap(
+    database_url="...",
+    embedder=EmbeddingConfig(...),
+    primary=ProviderConfig(...),
+    cache_backend="redis",
+    redis_url="redis://localhost:6379/0",
+    cache_ttl_seconds=86400,
+)
+```
+
+Verification note: proven with two separate `RagLeap` instances (simulating two separate worker processes) pointed at the same Redis - the first instance's cache miss and resulting embedding write was correctly picked up as a cache hit on the second, completely separate instance's first call, confirming the embedding is genuinely shared across process boundaries and not just cached within one Python object.
 
 ## How it fits together
              +------------------+
