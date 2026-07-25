@@ -8,6 +8,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.5.8]
+
+### Changed
+- Reranking now runs on ONNX Runtime (CPU only) instead of torch/sentence-transformers — the `[rerank]` extra no longer pulls in a 2GB+ torch+CUDA install for what is, at this model size, pure CPU inference. A quantized cross-encoder (~23MB, `Xenova/ms-marco-MiniLM-L-6-v2`) downloads once via `huggingface_hub` and is cached locally.
+
+### Breaking (opt-in extra only)
+- `RerankerService.__init__()`'s `model_name=` param is now `model_repo=` (a Hugging Face repo id, not a sentence-transformers model name). Only affects callers who passed a custom reranking model explicitly — the default behavior (no argument) is unaffected.
+
 ## [0.5.7]
 
 ### Fixed
