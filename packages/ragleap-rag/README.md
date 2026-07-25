@@ -82,6 +82,10 @@ Real per-provider streaming — Gemini, Anthropic, and any OpenAI-compatible
 endpoint each have different streaming APIs; all three are implemented
 properly, not stubbed.
 
+`ask_stream()` supports `rerank=` and `metadata_filter=`, the same as
+`ask()` - these were missing from the streaming variant until 0.5.7,
+a genuine API inconsistency now fixed.
+
 ## Async support
 
 async equivalents exist for every method that touches the database or an API: aingest, aingest_text, aask, aask_stream. Use these inside an async web server (FastAPI, etc.) so a slow embedding call or LLM response does not block the event loop.
