@@ -34,6 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gemini = ["google-genai>=0.3.0"]
+test = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0", "psycopg2-binary>=2.9.0"]
 anthropic = ["anthropic>=0.34.0"]
 openai = ["openai>=1.40.0"]
 rerank = ["sentence-transformers>=3.0.0"]
