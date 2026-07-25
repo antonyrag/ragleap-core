@@ -6,7 +6,7 @@ numbers — not estimates. Bring your own API keys; nothing is routed
 through us.
 
 ```bash
-pip install ragleap-rag[gemini]
+pip install ragleap-rag
 # or
 uv add ragleap-rag[gemini]
 ```
@@ -133,7 +133,7 @@ Requires the rerank extra:
 pip install ragleap-rag[rerank]
 ```
 
-The cross-encoder model (cross-encoder/ms-marco-MiniLM-L-6-v2 by default) loads lazily on the first rerank=True call, not at RagLeap construction time. Note: sentence-transformers depends on torch, which may pull in CUDA libraries even for CPU-only use — if you only need CPU inference, consider installing a CPU-only torch build first.
+The reranker runs on ONNX Runtime (CPU only) rather than torch/sentence-transformers - a quantized cross-encoder model (~23MB) downloads once on the first rerank=True call and is cached locally by huggingface_hub, not at RagLeap construction time. This avoids the 2GB+ torch+CUDA install that sentence-transformers pulled in even for CPU-only use in versions before 0.5.8.
 
 Not currently available on ask_stream().
 
