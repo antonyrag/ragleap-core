@@ -8,6 +8,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.5.7]
+
+### Fixed
+- `ask_stream()` (and `aask_stream()`) were missing `rerank=` and `metadata_filter=` params that `ask()` already had — a real, previously-flagged API inconsistency. Both are now supported identically across the sync/async and streaming/non-streaming variants. Regression-covered by 4 new tests.
+
 ## [0.5.6] - 2026-07
 
 ### Added

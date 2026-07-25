@@ -40,7 +40,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.6"
+__version__ = "0.5.7"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig"]
 
 
@@ -361,6 +361,8 @@ class RagLeap:
         max_tokens: Optional[int] = None,
         hybrid: bool = True,
         session_id: Optional[str] = None,
+        rerank: bool = False,
+        metadata_filter: Optional[Dict] = None,
     ) -> Iterator[str]:
         """Same as ask(), but yields the answer incrementally as it's
         generated. If session_id is set, the full assembled answer is
@@ -370,10 +372,16 @@ class RagLeap:
             yield "Sorry, I couldn't process your question (embedding failed)."
             return
 
+        pool_size = top_k * 4 if rerank else top_k
         if hybrid:
-            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=top_k)
+            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
         else:
-            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=top_k)
+            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
+
+        if rerank and chunks:
+            if self._reranker is None:
+                self._reranker = RerankerService()
+            chunks = self._reranker.rerank(query, chunks, top_k=top_k)
 
         history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
 
@@ -614,6 +622,8 @@ class RagLeap:
         max_tokens: Optional[int] = None,
         hybrid: bool = True,
         session_id: Optional[str] = None,
+        rerank: bool = False,
+        metadata_filter: Optional[Dict] = None,
     ):
         """
         Async version of ask_stream(). Runs the sync generator in a
@@ -632,6 +642,7 @@ class RagLeap:
                     query, top_k=top_k, temperature=temperature,
                     system_prompt=system_prompt, max_tokens=max_tokens,
                     hybrid=hybrid, session_id=session_id,
+                    rerank=rerank, metadata_filter=metadata_filter,
                 ):
                     q.put(piece)
             finally:

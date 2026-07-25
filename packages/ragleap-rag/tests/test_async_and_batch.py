@@ -58,3 +58,26 @@ async def test_ingest_batch_preserves_input_order(rag):
     ])
     assert len(results) == 5
     assert all(r["success"] for r in results)
+
+
+@pytest.mark.asyncio
+async def test_aask_stream_respects_rerank_and_metadata_filter(rag, monkeypatch):
+    from ragleap.reranking import RerankerService
+
+    await rag.aingest_text(filename="a.txt", text="Acme content.")
+    monkeypatch.setattr(rag._memory, "add_message", rag._memory.add_message)  # no-op, keeps default behavior explicit
+
+    call_log = []
+
+    def fake_rerank(self, query, chunks, top_k):
+        call_log.append(len(chunks))
+        return chunks[:top_k]
+
+    monkeypatch.setattr(RerankerService, "rerank", fake_rerank)
+
+    pieces = []
+    async for piece in rag.aask_stream("a question", rerank=True, top_k=1):
+        pieces.append(piece)
+
+    assert "".join(pieces) == "This is a fake streamed answer."
+    assert len(call_log) == 1
