@@ -37,6 +37,34 @@ Employees get unlimited PTO. (Source 1)
 That's the whole loop: ingest text (or a `.txt`/`.pdf`/`.docx` file via
 `rag.ingest(filename, raw_bytes)`), then ask questions grounded in it.
 
+## Vector backends
+
+By default, `RagLeap` stores vectors in Postgres/pgvector - the `database_url` you already pass in. Conversation memory always uses this same Postgres connection regardless of which vector backend you choose, since memory (session history) is a separate concern from vector storage.
+
+You can swap the vector backend via `vector_backend=`:
+
+```python
+from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
+from ragleap.vectorstores import FAISSBackend
+
+rag = RagLeap(
+    database_url="postgresql://user:pass@localhost/mydb",  # still required, for conversation memory
+    vector_backend=FAISSBackend(persist_directory="./my_faiss_data"),  # vectors go here instead
+    embedder=EmbeddingConfig(provider="gemini", api_key="..."),
+    primary=ProviderConfig(provider="gemini", api_key="..."),
+)
+rag.init_schema()
+```
+
+Currently available:
+
+| Backend | Extra | Sparse/hybrid search | Notes |
+|---|---|---|---|
+| `PgVectorBackend` (default) | none needed | Yes - real Postgres full-text search | Battle-tested, the original implementation |
+| `FAISSBackend` | `pip install ragleap-rag[faiss]` | No - `ask(hybrid=True)` gracefully degrades to dense-only | Local, in-process, no API key. Pass `persist_directory=` for data that survives restarts - without it, everything is in-memory and lost on process exit. Metadata filtering is a post-filter (over-fetch then filter), not an indexed query - fine for small-to-medium datasets, less efficient than pgvector's JSONB GIN index at large scale. |
+
+More backends (Pinecone, Weaviate, Qdrant, Milvus) are planned - see the project roadmap. Building your own is straightforward: implement the `ragleap.vectorstores.VectorBackend` abstract interface (`init_schema`, `insert_document`, `insert_chunk`, `search_dense`, `list_documents`, `delete_document`, `get_document_filename`, and optionally `search_sparse`/`search_hybrid`/`supports_sparse` if your backend can do keyword search).
+
 ## The three things that matter
 
 **Retrieval** is hybrid by default — dense (pgvector cosine similarity)

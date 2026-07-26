@@ -1,11 +1,23 @@
 """
 Database schema management for ragleap-rag.
+
+Split into two independent pieces:
+- Core schema (documents/chunks) - specific to PgVectorBackend, lives
+  behind the VectorBackend interface now.
+- Memory schema (conversations/conversation_messages) - conversation
+  memory always requires Postgres regardless of which vector backend
+  is chosen (FAISS, Pinecone, etc. only store vectors, not chat
+  history), so this stays independent and is always initialized.
+
+init_schema()/get_schema_sql() are kept as backward-compatible
+wrappers that run both pieces together, exactly matching the old
+combined behavior for anyone calling this module directly.
 """
 import logging
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_SQL_TEMPLATE = """
+CORE_SCHEMA_SQL_TEMPLATE = """
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS documents (
@@ -33,16 +45,15 @@ ALTER TABLE chunks ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{{}
 
 CREATE INDEX IF NOT EXISTS chunks_embedding_idx
     ON chunks USING hnsw ((embedding::halfvec({dimensions})) halfvec_cosine_ops);
-
 CREATE INDEX IF NOT EXISTS chunks_text_search_idx
     ON chunks USING GIN (text_search_vector);
-
 CREATE INDEX IF NOT EXISTS chunks_metadata_idx
     ON chunks USING GIN (metadata);
-
 CREATE INDEX IF NOT EXISTS documents_metadata_idx
     ON documents USING GIN (metadata);
+"""
 
+MEMORY_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS conversations (
     session_id TEXT PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -62,25 +73,53 @@ CREATE INDEX IF NOT EXISTS conversation_messages_session_idx
 """
 
 
+def get_core_schema_sql(dimensions: int = 3072) -> str:
+    """DDL for documents/chunks - the PgVectorBackend-specific pieces."""
+    return CORE_SCHEMA_SQL_TEMPLATE.format(dimensions=dimensions)
+
+
+def get_memory_schema_sql() -> str:
+    """DDL for conversations/conversation_messages - always Postgres,
+    independent of which vector backend is in use."""
+    return MEMORY_SCHEMA_SQL
+
+
 def get_schema_sql(dimensions: int = 3072) -> str:
-    """Return the DDL for the given embedding dimensionality."""
-    return SCHEMA_SQL_TEMPLATE.format(dimensions=dimensions)
+    """Backward-compatible: both pieces combined, matching the old
+    single-template behavior exactly."""
+    return get_core_schema_sql(dimensions) + get_memory_schema_sql()
+
+
+def _run_sql(database_url: str, sql: str) -> None:
+    import psycopg2
+    conn = psycopg2.connect(database_url)
+    try:
+        cur = conn.cursor()
+        cur.execute(sql)
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+
+
+def init_core_schema(database_url: str, dimensions: int = 3072) -> None:
+    """Create/verify the documents/chunks tables. Idempotent."""
+    _run_sql(database_url, get_core_schema_sql(dimensions))
+    logger.info(f"Core schema initialized (embedding dimensions={dimensions})")
+
+
+def init_memory_schema(database_url: str) -> None:
+    """Create/verify the conversations/conversation_messages tables.
+    Always Postgres, regardless of vector backend choice. Idempotent."""
+    _run_sql(database_url, get_memory_schema_sql())
+    logger.info("Memory schema initialized")
 
 
 def init_schema(database_url: str, dimensions: int = 3072) -> None:
     """
-    Create the required tables/indexes in the given database if they
-    don't already exist. Safe to call repeatedly (idempotent —
-    everything uses IF NOT EXISTS).
+    Backward-compatible: initializes both core and memory schema
+    together in one call, matching the old combined behavior exactly.
+    Safe to call repeatedly (idempotent - everything uses IF NOT EXISTS).
     """
-    import psycopg2
-
-    conn = psycopg2.connect(database_url)
-    try:
-        cur = conn.cursor()
-        cur.execute(get_schema_sql(dimensions))
-        conn.commit()
-        cur.close()
-        logger.info(f"Schema initialized (embedding dimensions={dimensions})")
-    finally:
-        conn.close()
+    init_core_schema(database_url, dimensions)
+    init_memory_schema(database_url)

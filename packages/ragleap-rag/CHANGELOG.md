@@ -8,6 +8,18 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.6.0]
+
+### Added
+- Pluggable vector storage backends via `vector_backend=` on `RagLeap.__init__()`. Vector storage is now decoupled from conversation memory (which always uses Postgres regardless of vector backend choice, since memory is a separate concern).
+- `ragleap.vectorstores.VectorBackend` — the abstract interface any backend implements (`init_schema`, `insert_document`, `insert_chunk`, `search_dense`, `list_documents`, `delete_document`, `get_document_filename`, optionally `search_sparse`/`search_hybrid`/`supports_sparse`).
+- `PgVectorBackend` — the default, a refactor (not a rewrite) of the existing proven Postgres/pgvector logic. Zero behavior change for existing users; verified via the full existing test suite passing unmodified (73/73) after the refactor.
+- `FAISSBackend` — new, local, in-process, no API key required. Requires the `[faiss]` extra. No native full-text search (`supports_sparse()` returns `False`; `ask(hybrid=True)` gracefully degrades to dense-only). Metadata filtering is a post-filter over a SQLite sidecar, not an indexed query. Optional `persist_directory=` for data that survives process restarts — verified live across separate backend instances pointed at the same directory, not just in-process. 10 new tests, all live against a real FAISS index (no mocking of the backend itself).
+
+### Changed
+- Internal: `RagLeap._retriever` (the old `VectorRetrievalService`) removed in favor of `RagLeap._vector_backend`. This is a private-attribute rename — anyone reaching into `rag._retriever` directly (not part of the public API) needs to update to `rag._vector_backend` with its new method names (`search_dense`/`search_sparse`/`search_hybrid` instead of `search_similar_chunks`/`search_sparse_chunks`/`search_hybrid_chunks`).
+- `schema.py` split into independent core schema (documents/chunks, backend-specific) and memory schema (conversations/conversation_messages, always Postgres) - `init_schema()`/`get_schema_sql()` remain as backward-compatible combined wrappers for anyone calling the module directly.
+
 ## [0.5.8]
 
 ### Changed
