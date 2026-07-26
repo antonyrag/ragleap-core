@@ -23,7 +23,7 @@ from typing import Dict, Iterator, List, Optional
 
 from ragleap.chunker import TextChunker
 from ragleap.embedding import EmbeddingService, EmbeddingConfig
-from ragleap.retrieval import VectorRetrievalService
+from ragleap.vectorstores import VectorBackend, PgVectorBackend
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
@@ -40,8 +40,8 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.8"
-__all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig"]
+__version__ = "0.6.0"
+__all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
 @dataclass
@@ -54,8 +54,10 @@ class RagLeap:
     """
     The main entry point for ragleap-rag. Wires together chunking,
     embedding, hybrid retrieval, and generation (with fallback,
-    streaming, and token usage reporting) over a PostgreSQL + pgvector
-    database you control.
+    streaming, and token usage reporting) over a pluggable vector
+    backend (Postgres/pgvector by default) plus Postgres-backed
+    conversation memory, which is always required regardless of
+    which vector backend is chosen.
     """
 
     def __init__(
@@ -63,6 +65,7 @@ class RagLeap:
         database_url: str,
         primary: ProviderConfig,
         embedder: EmbeddingConfig,
+        vector_backend: Optional[VectorBackend] = None,
         fallbacks: Optional[List[ProviderConfig]] = None,
         default_temperature: float = 0.3,
         default_max_tokens: int = 1024,
@@ -75,13 +78,21 @@ class RagLeap:
         redis_url: Optional[str] = None,
         cache_ttl_seconds: int = 86400,
     ):
+        """
+        database_url is always required - conversation memory is
+        always Postgres-backed regardless of which vector_backend is
+        chosen (FAISS/Pinecone/etc. only store vectors, not chat
+        history). Pass vector_backend= to swap vector storage away
+        from the default PgVectorBackend (pip install ragleap-rag[faiss]
+        etc. for the optional backend-specific dependencies).
+        """
         self.database_url = database_url
         self.embedding_dimensions = embedder.dimensions
         self._pool = ConnectionPool(database_url)
+        self._vector_backend = vector_backend or PgVectorBackend(database_url)
 
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._embedder = EmbeddingService(embedder)
-        self._retriever = VectorRetrievalService(pool=self._pool, embedding_dimensions=embedder.dimensions)
         self._memory = ConversationMemory(pool=self._pool)
         self._reranker = None  # lazy-loaded on first rerank=True call
         self._cache_enabled = cache_enabled
@@ -104,8 +115,13 @@ class RagLeap:
         )
 
     def init_schema(self) -> None:
-        """Create the required tables/indexes if they don't already exist. Idempotent."""
-        _schema.init_schema(self.database_url, dimensions=self.embedding_dimensions)
+        """
+        Create the required storage structures if they don't already
+        exist. Idempotent. Initializes both the vector backend's
+        schema and the (always-Postgres) conversation memory schema.
+        """
+        self._vector_backend.init_schema(self.embedding_dimensions)
+        _schema.init_memory_schema(self.database_url)
 
     def _embed_query_cached(self, query: str) -> Optional[List[float]]:
         """Embed a query, using the cache if enabled. Cache key is
@@ -194,14 +210,6 @@ class RagLeap:
         to choose the provider (whisper or deepgram) and options; if
         omitted, defaults to OpenAI's hosted Whisper API using
         OPENAI_API_KEY from the environment.
-
-        Whisper is a strong general-purpose baseline but has real
-        limitations: accuracy varies by language, there is no built-in
-        denoising (quiet/noisy audio genuinely degrades transcription
-        quality), and no domain-vocabulary biasing by default (brand
-        names and jargon commonly get mangled unless you pass a
-        prompt hint via TranscriptionConfig). Use provider='deepgram'
-        if these matter for your use case.
         """
         config = transcriber or _transcription.TranscriptionConfig(provider="whisper")
         service = _transcription.TranscriptionService(config)
@@ -265,43 +273,27 @@ class RagLeap:
             raise ValueError("No chunks produced from input text — is it empty?")
 
         document_id = str(uuid.uuid4())
-        with self._pool.get_connection() as conn:
-          try:
-            cur = conn.cursor()
-            import json as _json
-            cur.execute(
-                "INSERT INTO documents (id, filename, metadata) VALUES (%s, %s, %s::jsonb)",
-                (document_id, filename, _json.dumps(metadata or {})),
+        self._vector_backend.insert_document(document_id, filename, metadata or {})
+
+        stored = 0
+        for chunk in chunks:
+            embedding = self._embedder.embed_text(chunk["text"])
+            if embedding is None:
+                logger.warning(f"Skipping chunk {chunk['chunk_index']} — embedding failed")
+                continue
+
+            self._vector_backend.insert_chunk(
+                document_id=document_id, document_name=filename, chunk_index=chunk["chunk_index"],
+                text=chunk["text"], token_count=chunk["token_count"], embedding=embedding, metadata=metadata or {},
             )
+            stored += 1
 
-            stored = 0
-            for chunk in chunks:
-                embedding = self._embedder.embed_text(chunk["text"])
-                if embedding is None:
-                    logger.warning(f"Skipping chunk {chunk['chunk_index']} — embedding failed")
-                    continue
+        if stored == 0:
+            self._vector_backend.delete_document(document_id)
+            raise ValueError(f"All {len(chunks)} chunk(s) failed to embed — nothing was stored.")
 
-                embedding_literal = "[" + ",".join(str(float(x)) for x in embedding) + "]"
-                cur.execute(
-                    """
-                    INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, embedding, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s::vector, %s::jsonb)
-                    """,
-                    (document_id, filename, chunk["chunk_index"], chunk["text"], chunk["token_count"], embedding_literal, _json.dumps(metadata or {})),
-                )
-                stored += 1
-
-            if stored == 0:
-                conn.rollback()
-                raise ValueError(f"All {len(chunks)} chunk(s) failed to embed — nothing was stored.")
-
-            conn.commit()
-            cur.close()
-            logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
-            return IngestResult(document_id=document_id, chunks_stored=stored)
-          except Exception:
-            conn.rollback()
-            raise
+        logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
+        return IngestResult(document_id=document_id, chunks_stored=stored)
 
     def ask(
         self,
@@ -320,6 +312,12 @@ class RagLeap:
         Pass session_id to enable persistent, multi-turn conversation
         memory (Postgres-backed) — prior turns in that session are
         injected as context. Omit it for a fully stateless call.
+
+        hybrid=True requests dense+sparse fusion, but gracefully
+        degrades to dense-only if the active vector backend doesn't
+        support sparse search (see VectorBackend.supports_sparse()) -
+        not every backend can do full-text search.
+
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": dict|None, "chunks_sent": int}
         """
@@ -330,9 +328,9 @@ class RagLeap:
 
         pool_size = top_k * 4 if rerank else top_k
         if hybrid:
-            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
+            chunks = self._vector_backend.search_hybrid(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
         else:
-            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
+            chunks = self._vector_backend.search_dense(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
 
         if rerank and chunks:
             if self._reranker is None:
@@ -374,9 +372,9 @@ class RagLeap:
 
         pool_size = top_k * 4 if rerank else top_k
         if hybrid:
-            chunks = self._retriever.search_hybrid_chunks(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
+            chunks = self._vector_backend.search_hybrid(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
         else:
-            chunks = self._retriever.search_similar_chunks(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
+            chunks = self._vector_backend.search_dense(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
 
         if rerank and chunks:
             if self._reranker is None:
@@ -411,40 +409,14 @@ class RagLeap:
         Returns: [{"document_id": str, "filename": str, "uploaded_at": ...,
                    "chunk_count": int}, ...]
         """
-        with self._pool.get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                SELECT d.id, d.filename, d.uploaded_at, d.metadata, COUNT(c.id) AS chunk_count
-                FROM documents d
-                LEFT JOIN chunks c ON c.document_id = d.id
-                GROUP BY d.id, d.filename, d.uploaded_at, d.metadata
-                ORDER BY d.uploaded_at DESC
-                LIMIT %s OFFSET %s
-                """,
-                (limit, offset),
-            )
-            rows = cur.fetchall()
-            cur.close()
-
-        return [
-            {"document_id": str(r[0]), "filename": r[1], "uploaded_at": r[2], "metadata": r[3], "chunk_count": r[4]}
-            for r in rows
-        ]
+        return self._vector_backend.list_documents(limit=limit, offset=offset)
 
     def delete_document(self, document_id: str) -> bool:
         """
-        Delete a document and all its chunks (cascades automatically via
-        the chunks.document_id foreign key). Returns True if a document
+        Delete a document and all its chunks. Returns True if a document
         was actually deleted, False if document_id did not exist.
         """
-        with self._pool.get_connection() as conn:
-            cur = conn.cursor()
-            cur.execute("DELETE FROM documents WHERE id = %s", (document_id,))
-            deleted = cur.rowcount > 0
-            conn.commit()
-            cur.close()
-
+        deleted = self._vector_backend.delete_document(document_id)
         if deleted:
             logger.info(f"Deleted document {document_id}")
         else:
@@ -461,14 +433,9 @@ class RagLeap:
         """
         existing_filename = filename
         if existing_filename is None:
-            with self._pool.get_connection() as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT filename FROM documents WHERE id = %s", (document_id,))
-                row = cur.fetchone()
-                cur.close()
-            if row is None:
+            existing_filename = self._vector_backend.get_document_filename(document_id)
+            if existing_filename is None:
                 raise ValueError(f"No document found with id {document_id}")
-            existing_filename = row[0]
 
         self.delete_document(document_id)
         return self.ingest_text(existing_filename, text)

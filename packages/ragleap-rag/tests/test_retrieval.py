@@ -1,21 +1,22 @@
-"""Tests for VectorRetrievalService — dense (fake embeddings, plumbing
-only), sparse (real Postgres full-text search, genuinely meaningful),
-and hybrid RRF fusion. Accesses rag's internal retriever directly for
-white-box testing of retrieval behavior that ask() doesn't fully expose."""
+"""Tests for the active VectorBackend's retrieval methods - dense (fake
+embeddings, plumbing only), sparse (real Postgres full-text search,
+genuinely meaningful), and hybrid RRF fusion. Accesses rag's internal
+_vector_backend directly for white-box testing of retrieval behavior
+that ask() doesn't fully expose."""
 
 
 def test_sparse_search_finds_real_keyword_matches(rag):
     rag.ingest_text(filename="a.txt", text="This document is about bananas and tropical fruit.")
     rag.ingest_text(filename="b.txt", text="This document is about spaceships and rocket engines.")
 
-    results = rag._retriever.search_sparse_chunks("bananas")
+    results = rag._vector_backend.search_sparse("bananas", top_k=5)
     assert len(results) == 1
     assert results[0]["document_name"] == "a.txt"
 
 
 def test_sparse_search_no_match_returns_empty(rag):
     rag.ingest_text(filename="a.txt", text="This document is about bananas.")
-    results = rag._retriever.search_sparse_chunks("nonexistentxyzword")
+    results = rag._vector_backend.search_sparse("nonexistentxyzword", top_k=5)
     assert results == []
 
 
@@ -23,21 +24,21 @@ def test_sparse_search_respects_metadata_filter(rag):
     rag.ingest_text(filename="a.txt", text="Content about pricing plans.", metadata={"tenant": "acme"})
     rag.ingest_text(filename="b.txt", text="Content about pricing plans.", metadata={"tenant": "globex"})
 
-    results = rag._retriever.search_sparse_chunks("pricing plans", metadata_filter={"tenant": "acme"})
+    results = rag._vector_backend.search_sparse("pricing plans", top_k=5, metadata_filter={"tenant": "acme"})
     assert len(results) == 1
     assert results[0]["document_name"] == "a.txt"
 
 
 def test_dense_search_respects_embedding_dimension_mismatch(rag):
-    """A query embedding of the wrong dimension should be rejected,
-    not silently truncated or padded."""
+    """A query embedding of the wrong dimension should be rejected or
+    return no results, not crash."""
     wrong_dim_embedding = [0.1, 0.2, 0.3]  # rag fixture uses TEST_DIMENSIONS=8
-    results = rag._retriever.search_similar_chunks(wrong_dim_embedding)
+    results = rag._vector_backend.search_dense(wrong_dim_embedding, top_k=5)
     assert results == []
 
 
 def test_dense_search_empty_embedding_returns_empty(rag):
-    assert rag._retriever.search_similar_chunks([]) == []
+    assert rag._vector_backend.search_dense([], top_k=5) == []
 
 
 def test_hybrid_search_prefers_keyword_match_via_sparse_signal(rag):
@@ -55,7 +56,14 @@ def test_hybrid_search_combines_dense_and_sparse_result_sets(rag):
     rag.ingest_text(filename="a.txt", text="Unique keyword zephyrtown appears here.")
     rag.ingest_text(filename="b.txt", text="Completely different unrelated content.")
 
-    results = rag._retriever.search_hybrid_chunks("zephyrtown", query_embedding=[0.5] * 8, top_k=5)
+    results = rag._vector_backend.search_hybrid("zephyrtown", embedding=[0.5] * 8, top_k=5)
     assert len(results) >= 1
     assert any(r["document_name"] == "a.txt" for r in results)
     assert all(r["retrieval_method"] == "hybrid_rrf" for r in results)
+
+
+def test_backend_reports_sparse_support(rag):
+    """PgVectorBackend (the default) genuinely supports sparse search -
+    this isn't a formality, ask()/ask_stream() could check it before
+    assuming hybrid mode does anything beyond dense search."""
+    assert rag._vector_backend.supports_sparse() is True
