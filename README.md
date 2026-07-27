@@ -63,7 +63,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 |---|---|
 | A hosted product | Self-hosted software you run yourself |
 | Multi-tenant, with persistent cross-session memory | Single-tenant — one bot, one document set, per deployment |
-| A platform with Voice calling built in | WhatsApp/Telegram/Discord included; Voice lives in the hosted version |
+| A multi-tenant platform | WhatsApp/Telegram/Discord/Voice channel adapters included, single-tenant — multi-tenant routing lives in the hosted version |
 | A no-code SaaS dashboard | A codebase you deploy and configure |
 | Feature-complete with the hosted version | The foundational subset — see [Roadmap](#roadmap) |
 
@@ -464,15 +464,17 @@ same live API.
 ## Roadmap
 
 - [x] Public repository created
-- [ ] Core RAG engine extracted and cleaned from production codebase
-- [ ] Standalone Docker Compose setup (no external Django project dependency)
-- [ ] Document ingestion module (PDF, TXT, DOCX)
-- [ ] Basic web chat widget
-- [ ] Bring-your-own-API-key support (OpenAI, Gemini, Anthropic, custom endpoint)
+- [x] Core RAG engine extracted and cleaned from production codebase
+- [x] Standalone Docker Compose setup (no external Django project dependency)
+- [x] Document ingestion module (28+ formats, not just PDF/TXT/DOCX)
+- [x] Web chat widget
+- [x] Bring-your-own-API-key support (19 providers)
+- [x] WhatsApp, Telegram, Discord, and Voice channel adapters (single-tenant)
+- [x] Knowledge Graph (Neo4j), language detection, database/CRM integrations
 - [ ] Contribution guide and good-first-issue labels
 - [ ] Community Discord
 
-See [ROADMAP.md](ROADMAP.md) for more detail.
+See [ROADMAP.md](ROADMAP.md) for the full phase-by-phase history.
 
 ## Contributing
 
