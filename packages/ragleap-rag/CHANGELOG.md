@@ -8,6 +8,15 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.6.1]
+
+### Added
+- Guardrail hooks: `input_guardrails=`/`output_guardrails=` on `RagLeap.__init__()` - user-supplied validation callbacks that extend (not replace) the existing sanitization/injection-risk detection. Each guardrail is `(text: str) -> str`, or raises `GuardrailViolation` to reject content.
+- `input_guardrails` run during `ingest_text()`, after sanitization - a violation aborts ingestion with nothing stored.
+- `output_guardrails` run on `ask()`'s answer - a violation replaces the answer with a refusal message and sets `answer["guardrail_blocked"] = True`.
+- `ask_stream()` support with an honestly-documented limitation: output guardrails can only run after the full answer is assembled, but tokens are already yielded to the caller by then - a violation during streaming is logged as a warning, not enforced. Use `ask()` instead if blocking bad output before the user sees it matters.
+- 8 new tests covering modification, rejection, ordering, and the ask()/ask_stream() enforcement difference.
+
 ## [0.6.0]
 
 ### Added
