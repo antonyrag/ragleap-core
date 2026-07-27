@@ -31,23 +31,39 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [x] Final Quickstart accuracy pass
 - [x] Troubleshooting documentation for common Docker networking issues
 
-## Phase 4 — Community
+## Phase 4 — Channels, Knowledge Graph & Integrations ✅ Complete
 
-- [ ] Public launch (Hacker News / Product Hunt) — deferred until Phase 2/3 polish is fully done
+- [x] WhatsApp channel adapter (Twilio + Gupshup), single-tenant
+- [x] Telegram channel adapter
+- [x] Discord channel adapter
+- [x] Voice channel — Twilio Media Streams, WebSocket server, real-time STT/TTS
+- [x] Knowledge Graph (Neo4j) — entity extraction and graph-boosted retrieval alongside vector search
+- [x] Language detection across all channels (~55 languages via langdetect)
+- [x] Database/CRM/API integrations: MySQL, PostgreSQL, MongoDB, REST API, Salesforce, HubSpot, Shopify, Google Sheets, Stripe
+- [x] Hybrid search (dense + sparse via Reciprocal Rank Fusion)
+- [x] Streaming responses
+- [x] Provider fallback chain
+- [x] Real token usage reporting + context-size budget trimming
+- [x] Web chat widget
+
+## Phase 5 — Community (in progress)
+
+- [ ] Public launch (Hacker News / Product Hunt)
 - [ ] Open contributions with labeled good-first-issues
 - [ ] Community Discord
 - [ ] Plugin/extension system for custom document loaders or AI providers
 
 ## Not planned for RagLeap Core
 
-These remain part of the commercial hosted product at [ragleap.com](https://ragleap.com), consistent with the open-core model:
+These remain part of the commercial hosted product at [ragleap.com](https://ragleap.com), consistent with the open-core model. Note: this repo *does* include single-tenant WhatsApp/Telegram/Discord/Voice channel adapters (see Phase 4 above) — the items below are what the hosted platform adds on top of them, not duplicates of what's already open:
 
-- Voice AI / phone call handling
-- WhatsApp, Telegram, Discord bot integrations
-- AI Employees (role-based persistent memory system)
-- Manager AI (executive-assistant layer)
-- n8n workflow automation
+- Multi-tenant channel routing (this repo's channel adapters are single-tenant, one bot/config per deployment)
+- AI Employees (role-based persistent memory system, seeded per workspace)
+- Manager AI (executive-assistant layer with cross-channel reach)
+- Persistent memory that spans sessions and channels (this repo's memory is per-conversation)
+- n8n workflow automation triggered from conversations
 - Multi-tenant billing and subscription management
+- Observability & hallucination detection dashboard
 - Managed hosting, support, and SLAs
 
 ---
