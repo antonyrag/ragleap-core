@@ -213,6 +213,35 @@ Sanitization strips null bytes, control characters, and invisible/zero-width Uni
 
 Injection-risk detection is heuristic pattern matching against a fixed list of common trigger phrases ("ignore previous instructions", "reveal your system prompt", etc). It logs a warning and does NOT block ingestion. Honest limitation: this is pattern matching, not semantic understanding - prompt injection via retrieved content is an open research problem, and a sufficiently motivated attacker can rephrase around any fixed pattern list. Treat a warning as a signal to review, not a guarantee of safety, and treat the absence of a warning as "nothing matched", not "this content is safe."
 
+## Guardrails
+
+Beyond the built-in sanitization above, `input_guardrails=`/`output_guardrails=` let you plug in your own validation callbacks - a PII filter, a profanity check, a brand-voice check, whatever your use case needs. Each guardrail is a function `(text: str) -> str` that returns the (possibly modified) text, or raises `GuardrailViolation` to reject it outright.
+
+```python
+from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
+from ragleap.guardrails import GuardrailViolation
+
+def reject_pii(text: str) -> str:
+    if "ssn:" in text.lower():
+        raise GuardrailViolation("Document appears to contain an SSN")
+    return text
+
+def enforce_brand_voice(text: str) -> str:
+    return text.replace("gonna", "going to")
+
+rag = RagLeap(
+    database_url="...",
+    embedder=EmbeddingConfig(...),
+    primary=ProviderConfig(...),
+    input_guardrails=[reject_pii],       # runs during ingest_text(), after sanitization
+    output_guardrails=[enforce_brand_voice],  # runs on ask()/ask_stream()'s answer
+)
+```
+
+On `ask()`, a raised `GuardrailViolation` replaces the answer with a refusal message and sets `answer["guardrail_blocked"] = True` (the key is only present when guardrails are configured). On `ingest_text()`, a violation aborts ingestion entirely - nothing is stored.
+
+Honest limitation for `ask_stream()`: output guardrails can only run *after* the full answer is assembled, but by then individual tokens have already been yielded to the caller - streaming can't retroactively un-send content. A violation during streaming is logged as a warning, not enforced. If blocking bad output before the user sees any of it matters for your use case, use `ask()` instead of `ask_stream()`.
+
 ## Citations
 
 Every ask() response includes a citations field - a structured, chunk-level breakdown that resolves a real ambiguity: a citation like "(Source 1)" in an answer could mean a whole document or one specific passage within it. It always means the latter.

@@ -19,12 +19,13 @@ ragleap-rag: a fast, honest, self-hosted RAG engine.
 import uuid
 import logging
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Optional
+from typing import Callable, Dict, Iterator, List, Optional
 
 from ragleap.chunker import TextChunker
 from ragleap.embedding import EmbeddingService, EmbeddingConfig
 from ragleap.vectorstores import VectorBackend, PgVectorBackend
 from ragleap.generation import GenerationService, ProviderConfig
+from ragleap.guardrails import GuardrailViolation, run_guardrails
 from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
@@ -40,7 +41,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.0"
+__version__ = "0.6.1"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -77,6 +78,8 @@ class RagLeap:
         cache_backend: str = "memory",
         redis_url: Optional[str] = None,
         cache_ttl_seconds: int = 86400,
+        input_guardrails: Optional[List[Callable[[str], str]]] = None,
+        output_guardrails: Optional[List[Callable[[str], str]]] = None,
     ):
         """
         database_url is always required - conversation memory is
@@ -90,6 +93,8 @@ class RagLeap:
         self.embedding_dimensions = embedder.dimensions
         self._pool = ConnectionPool(database_url)
         self._vector_backend = vector_backend or PgVectorBackend(database_url)
+        self._input_guardrails = input_guardrails
+        self._output_guardrails = output_guardrails
 
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._embedder = EmbeddingService(embedder)
@@ -268,6 +273,8 @@ class RagLeap:
                     f"signal, not a block - review the content if unexpected."
                 )
 
+        text = run_guardrails(text, self._input_guardrails)
+
         chunks = self._chunker.chunk_text(text)
         if not chunks:
             raise ValueError("No chunks produced from input text — is it empty?")
@@ -344,6 +351,14 @@ class RagLeap:
             max_tokens=max_tokens, history_prefix=history_prefix,
         )
 
+        if self._output_guardrails:
+            try:
+                result["answer"] = run_guardrails(result["answer"], self._output_guardrails)
+                result["guardrail_blocked"] = False
+            except GuardrailViolation as e:
+                result["answer"] = f"Response blocked by guardrail: {e}"
+                result["guardrail_blocked"] = True
+
         if session_id:
             self._memory.add_message(session_id, "user", query)
             self._memory.add_message(session_id, "assistant", result["answer"])
@@ -391,9 +406,20 @@ class RagLeap:
             pieces.append(piece)
             yield piece
 
+        full_answer = "".join(pieces)
+        if self._output_guardrails:
+            try:
+                run_guardrails(full_answer, self._output_guardrails)
+            except GuardrailViolation as e:
+                logger.warning(
+                    f"Output guardrail would have blocked this streamed response, "
+                    f"but tokens were already yielded to the caller and cannot be "
+                    f"retroactively un-sent: {e}"
+                )
+
         if session_id:
             self._memory.add_message(session_id, "user", query)
-            self._memory.add_message(session_id, "assistant", "".join(pieces))
+            self._memory.add_message(session_id, "assistant", full_answer)
 
     def get_history(self, session_id: str) -> List[Dict]:
         """Return the stored conversation history for a session, oldest first."""
