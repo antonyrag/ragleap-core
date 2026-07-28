@@ -27,6 +27,7 @@ from ragleap.vectorstores import VectorBackend, PgVectorBackend
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.guardrails import GuardrailViolation, run_guardrails
 from ragleap import evaluation as _evaluation
+from ragleap.observability import fire_event
 from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
@@ -42,7 +43,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -81,6 +82,9 @@ class RagLeap:
         cache_ttl_seconds: int = 86400,
         input_guardrails: Optional[List[Callable[[str], str]]] = None,
         output_guardrails: Optional[List[Callable[[str], str]]] = None,
+        on_ingest: Optional[List[Callable[[Dict], None]]] = None,
+        on_query: Optional[List[Callable[[Dict], None]]] = None,
+        on_answer: Optional[List[Callable[[Dict], None]]] = None,
     ):
         """
         database_url is always required - conversation memory is
@@ -96,6 +100,9 @@ class RagLeap:
         self._vector_backend = vector_backend or PgVectorBackend(database_url)
         self._input_guardrails = input_guardrails
         self._output_guardrails = output_guardrails
+        self._on_ingest = on_ingest
+        self._on_query = on_query
+        self._on_answer = on_answer
 
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._embedder = EmbeddingService(embedder)
@@ -301,6 +308,12 @@ class RagLeap:
             raise ValueError(f"All {len(chunks)} chunk(s) failed to embed — nothing was stored.")
 
         logger.info(f"Ingested '{filename}': {stored}/{len(chunks)} chunks stored")
+
+        fire_event(
+            {"document_id": document_id, "filename": filename, "chunks_stored": stored, "chunks_attempted": len(chunks)},
+            self._on_ingest, "on_ingest",
+        )
+
         return IngestResult(document_id=document_id, chunks_stored=stored)
 
     def ask(
@@ -345,6 +358,11 @@ class RagLeap:
                 self._reranker = RerankerService()
             chunks = self._reranker.rerank(query, chunks, top_k=top_k)
 
+        fire_event(
+            {"query": query, "hybrid": hybrid, "rerank": rerank, "top_k": top_k, "chunks_retrieved": len(chunks), "streaming": False},
+            self._on_query, "on_query",
+        )
+
         history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
 
         result = self._generator.generate_answer(
@@ -359,6 +377,12 @@ class RagLeap:
             except GuardrailViolation as e:
                 result["answer"] = f"Response blocked by guardrail: {e}"
                 result["guardrail_blocked"] = True
+
+        fire_event(
+            {"query": query, "provider_used": result.get("provider_used"), "usage": result.get("usage"),
+             "chunks_sent": result.get("chunks_sent"), "guardrail_blocked": result.get("guardrail_blocked", False), "streaming": False},
+            self._on_answer, "on_answer",
+        )
 
         if session_id:
             self._memory.add_message(session_id, "user", query)
@@ -397,6 +421,11 @@ class RagLeap:
                 self._reranker = RerankerService()
             chunks = self._reranker.rerank(query, chunks, top_k=top_k)
 
+        fire_event(
+            {"query": query, "hybrid": hybrid, "rerank": rerank, "top_k": top_k, "chunks_retrieved": len(chunks), "streaming": True},
+            self._on_query, "on_query",
+        )
+
         history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
 
         pieces = []
@@ -417,6 +446,11 @@ class RagLeap:
                     f"but tokens were already yielded to the caller and cannot be "
                     f"retroactively un-sent: {e}"
                 )
+
+        fire_event(
+            {"query": query, "answer_length": len(full_answer), "streaming": True},
+            self._on_answer, "on_answer",
+        )
 
         if session_id:
             self._memory.add_message(session_id, "user", query)
