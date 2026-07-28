@@ -8,6 +8,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.6.2]
+
+### Added
+- `rag.evaluate(test_cases)` - a lightweight, deterministic evaluation utility. Reports retrieval hit rate, keyword coverage, and citation groundedness against a labeled test set. Explicitly NOT an LLM-as-judge framework (no faithfulness/relevancy scoring like Ragas) - that requires careful judge-prompt calibration and is planned as a separate, dedicated tool. This is a fast, free, repeatable sanity check for catching regressions in your own retrieval/generation setup.
+- New `ragleap.evaluation` module: `evaluate()` and `evaluate_case()`.
+- 8 new tests, including using the fake test generator's real prompt-echo behavior to create genuinely checkable keyword overlap (not coincidental passes).
+
 ## [0.6.1]
 
 ### Added
