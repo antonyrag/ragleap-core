@@ -242,6 +242,28 @@ On `ask()`, a raised `GuardrailViolation` replaces the answer with a refusal mes
 
 Honest limitation for `ask_stream()`: output guardrails can only run *after* the full answer is assembled, but by then individual tokens have already been yielded to the caller - streaming can't retroactively un-send content. A violation during streaming is logged as a warning, not enforced. If blocking bad output before the user sees any of it matters for your use case, use `ask()` instead of `ask_stream()`.
 
+## Evaluation
+
+`rag.evaluate(test_cases)` runs a labeled test set through `ask()` and reports deterministic quality signals - it is **not** an LLM-as-judge framework (no faithfulness/relevancy scoring like Ragas). It measures three things that don't require an LLM call themselves:
+
+- **Retrieval hit rate** - did the expected document actually show up in `sources`?
+- **Keyword coverage** - what fraction of expected keywords appear in the generated answer?
+- **Citation groundedness** - of the keywords found in the answer, how many also appear in the chunks the answer actually cited? A low score here is a real (if heuristic) hallucination signal.
+
+```python
+result = rag.evaluate([
+    {"query": "What's the refund policy?", "expected_document": "policy.pdf", "expected_keywords": ["30 days", "receipt"]},
+    {"query": "How do I reset my password?", "expected_document": "faq.pdf", "expected_keywords": ["settings", "email link"]},
+])
+
+print(result["retrieval_hit_rate"])       # 1.0
+print(result["keyword_coverage_rate"])    # 0.75
+print(result["groundedness_rate"])        # 0.9
+print(result["results"][0])               # per-case detail: query, answer, sources, hits
+```
+
+Any extra keyword arguments (`top_k=`, `rerank=`, `hybrid=`, `metadata_filter=`, etc.) are passed through to every `ask()` call the evaluation makes. This is a fast, free, repeatable sanity check for catching regressions in your own retrieval/generation setup - not a substitute for human review, and not a claim of measuring "truthfulness." A full LLM-as-judge evaluation framework is planned as a separate, dedicated tool (see the project roadmap).
+
 ## Citations
 
 Every ask() response includes a citations field - a structured, chunk-level breakdown that resolves a real ambiguity: a citation like "(Source 1)" in an answer could mean a whole document or one specific passage within it. It always means the latter.

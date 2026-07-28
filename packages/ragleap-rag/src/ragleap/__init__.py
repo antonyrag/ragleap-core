@@ -26,6 +26,7 @@ from ragleap.embedding import EmbeddingService, EmbeddingConfig
 from ragleap.vectorstores import VectorBackend, PgVectorBackend
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.guardrails import GuardrailViolation, run_guardrails
+from ragleap import evaluation as _evaluation
 from ragleap.parsers import extract_text
 from ragleap.memory import ConversationMemory
 from ragleap.reranking import RerankerService
@@ -41,7 +42,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -428,6 +429,21 @@ class RagLeap:
     def clear_session(self, session_id: str) -> None:
         """Delete a session and its full message history."""
         self._memory.clear_session(session_id)
+
+    def evaluate(self, test_cases: List[Dict], **ask_kwargs) -> Dict:
+        """
+        Run a labeled test set through ask() and report deterministic
+        quality signals - retrieval hit rate, keyword coverage, and
+        citation groundedness. NOT an LLM-as-judge framework (no
+        faithfulness/relevancy scoring) - see ragleap.evaluation for
+        the full honest scope of what this does and does not measure.
+
+        test_cases: list of {"query": str, "expected_document": str
+        (optional), "expected_keywords": List[str] (optional)}.
+        Any extra ask_kwargs (top_k, rerank, hybrid, etc.) are passed
+        through to every ask() call.
+        """
+        return _evaluation.evaluate(self, test_cases, **ask_kwargs)
 
     def list_documents(self, limit: int = 100, offset: int = 0) -> List[Dict]:
         """
