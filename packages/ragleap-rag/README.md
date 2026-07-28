@@ -264,6 +264,28 @@ print(result["results"][0])               # per-case detail: query, answer, sour
 
 Any extra keyword arguments (`top_k=`, `rerank=`, `hybrid=`, `metadata_filter=`, etc.) are passed through to every `ask()` call the evaluation makes. This is a fast, free, repeatable sanity check for catching regressions in your own retrieval/generation setup - not a substitute for human review, and not a claim of measuring "truthfulness." A full LLM-as-judge evaluation framework is planned as a separate, dedicated tool (see the project roadmap).
 
+## Observability hooks
+
+`on_ingest=`/`on_query=`/`on_answer=` are lightweight, fire-and-forget event emission points - not a dashboard or storage layer, just an instrumentation seam for logging, metrics, tracing, or a future observability tool to plug into. Each is a list of callables `(event: dict) -> None`.
+
+```python
+import logging
+logger = logging.getLogger("ragleap.events")
+
+rag = RagLeap(
+    database_url="...",
+    embedder=EmbeddingConfig(...),
+    primary=ProviderConfig(...),
+    on_ingest=[lambda e: logger.info(f"Ingested {e['filename']}: {e['chunks_stored']} chunks")],
+    on_query=[lambda e: logger.info(f"Query: {e['query']!r} (hybrid={e['hybrid']}, streaming={e['streaming']})")],
+    on_answer=[lambda e: logger.info(f"Answered via {e.get('provider_used')}, usage={e.get('usage')}")],
+)
+```
+
+A hook that raises an exception is caught, logged as a warning, and swallowed - it never breaks the actual ingest/ask call. This is fire-and-forget, not a delivery guarantee: if a hook is slow or fails, that's on the hook, not on your RAG pipeline.
+
+`on_answer` fires on both `ask()` (with `provider_used`, `usage`, `chunks_sent`, `guardrail_blocked`) and `ask_stream()` (with `answer_length`, since usage isn't available for streaming - see the Streaming section). Every event includes `streaming: bool` so one handler can distinguish the two if needed.
+
 ## Citations
 
 Every ask() response includes a citations field - a structured, chunk-level breakdown that resolves a real ambiguity: a citation like "(Source 1)" in an answer could mean a whole document or one specific passage within it. It always means the latter.

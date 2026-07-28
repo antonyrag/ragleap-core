@@ -8,6 +8,16 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.6.3]
+
+### Added
+- Observability hooks: `on_ingest=`/`on_query=`/`on_answer=` on `RagLeap.__init__()` - lightweight, fire-and-forget event emission, not a dashboard or storage layer. Each is a list of `(event: dict) -> None` callables.
+- `on_ingest` fires after successful ingestion with document_id/filename/chunks_stored/chunks_attempted.
+- `on_query` fires after retrieval (before generation) with query/hybrid/rerank/top_k/chunks_retrieved/streaming.
+- `on_answer` fires after generation on both `ask()` (provider_used/usage/chunks_sent/guardrail_blocked) and `ask_stream()` (answer_length, since usage isn't available for streaming) - every event includes `streaming: bool`.
+- A hook that raises is caught, logged as a warning, and swallowed - never breaks the actual ingest/ask operation. New `ragleap.observability` module (`fire_event()`).
+- 7 new tests, including explicit coverage that a broken hook does not break ingestion or asking.
+
 ## [0.6.2]
 
 ### Added
