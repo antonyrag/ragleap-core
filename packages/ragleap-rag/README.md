@@ -286,6 +286,30 @@ A hook that raises an exception is caught, logged as a warning, and swallowed - 
 
 `on_answer` fires on both `ask()` (with `provider_used`, `usage`, `chunks_sent`, `guardrail_blocked`) and `ask_stream()` (with `answer_length`, since usage isn't available for streaming - see the Streaming section). Every event includes `streaming: bool` so one handler can distinguish the two if needed.
 
+## Cost tracking
+
+Every `ask()` call returns a `cost` field computed from the real, provider-reported token usage - `{"cost_usd": float | None, "cumulative_cost_usd": float, "pricing_available": bool}`. `cost_usd` is `None` whenever the provider/model isn't in the pricing table, never a guessed number.
+
+```python
+rag = RagLeap(
+    database_url="...",
+    embedder=EmbeddingConfig(...),
+    primary=ProviderConfig(provider="anthropic", model="claude-sonnet-5", ...),
+    pricing_table={"anthropic": {"claude-sonnet-5": {"input": 2.00, "output": 10.00}}},  # optional, merges with/overrides the seed table
+    budget_usd_per_month=50.0,
+    budget_fallback=ProviderConfig(provider="ollama", model="llama3"),  # used once budget is crossed
+)
+
+result = rag.ask("A question")
+print(result["cost"])  # {"cost_usd": 0.000053, "cumulative_cost_usd": 0.000053, "pricing_available": True}
+```
+
+The built-in seed pricing table covers Gemini, Anthropic, and OpenAI only, verified against provider pricing pages on 2026-07-28. **LLM pricing changes fast** - three major providers each shipped new pricing tiers within the same week this table was built. Pass `pricing_table=` to override or extend it; your entries always win over the seed table. This is the expected, normal way to keep costs accurate, not an edge case.
+
+`budget_usd_per_month` + `budget_fallback` implement budget-triggered fallback: once cumulative spend crosses the budget, subsequent `ask()` calls use `budget_fallback` instead of the configured primary/fallback chain for that call only - the shared `RagLeap` instance's own primary/fallbacks are never mutated, so concurrent `ask()` calls from other requests aren't affected by one request's fallback decision. If `budget_usd_per_month` is set with no `budget_fallback`, spend is tracked but nothing ever switches providers.
+
+Honest limitations: `ask_stream()` never reports a `cost_usd` (streaming has no token usage data available - see the Streaming section), though `override_provider` still applies for budget-triggered fallback if you've configured one. The cumulative spend counter is a simple in-process running total, not a thread-safe, precise, multi-worker ledger - fine for a single process tracking its own approximate spend, not for aggregating exact costs across many concurrent workers (use the `on_answer` observability hook to aggregate `cost_usd` externally for that instead).
+
 ## Citations
 
 Every ask() response includes a citations field - a structured, chunk-level breakdown that resolves a real ambiguity: a citation like "(Source 1)" in an answer could mean a whole document or one specific passage within it. It always means the latter.

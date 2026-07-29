@@ -91,7 +91,9 @@ class GenerationService:
         self.max_context_chars = max_context_chars
         self.system_prompt = system_prompt
 
-    def _chain(self) -> List[ProviderConfig]:
+    def _chain(self, override_provider: Optional[ProviderConfig] = None) -> List[ProviderConfig]:
+        if override_provider is not None:
+            return [override_provider]
         return [self.primary] + [f for f in self.fallbacks if f.provider != self.primary.provider]
 
     def describe_image(self, image_bytes: bytes, mime_type: str = "image/jpeg", prompt: Optional[str] = None) -> str:
@@ -188,6 +190,7 @@ class GenerationService:
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         history_prefix: str = "",
+        override_provider: Optional[ProviderConfig] = None,
     ) -> Dict:
         """
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
@@ -202,14 +205,14 @@ class GenerationService:
         prompt = self._build_prompt(query, trimmed, system_prompt, history_prefix)
 
         last_error = None
-        for i, config in enumerate(self._chain()):
+        for i, config in enumerate(self._chain(override_provider)):
             try:
                 answer_text, usage = self._call_provider(config, prompt, temp, max_tok)
                 if i > 0:
                     logger.info(f"Answer generated via fallback provider '{config.provider}'")
                 return {
                     "answer": answer_text, "sources": sources, "citations": citations,
-                    "provider_used": config.provider, "usage": usage,
+                    "provider_used": config.provider, "model_used": config.model, "usage": usage,
                     "chunks_sent": len(trimmed),
                 }
             except Exception as e:
@@ -219,7 +222,7 @@ class GenerationService:
 
         return {
             "answer": f"Sorry, all configured providers failed. Last error: {last_error}",
-            "sources": [], "citations": [], "provider_used": None, "usage": None, "chunks_sent": 0,
+            "sources": [], "citations": [], "provider_used": None, "model_used": None, "usage": None, "chunks_sent": 0,
         }
 
     def generate_answer_stream(
@@ -230,6 +233,7 @@ class GenerationService:
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         history_prefix: str = "",
+        override_provider: Optional[ProviderConfig] = None,
     ) -> Iterator[str]:
         """Streams the answer incrementally. Usage reporting isn't
         available for streaming (each provider handles it differently)."""
@@ -240,7 +244,7 @@ class GenerationService:
         prompt = self._build_prompt(query, trimmed, system_prompt, history_prefix)
 
         last_error = None
-        for i, config in enumerate(self._chain()):
+        for i, config in enumerate(self._chain(override_provider)):
             yielded = False
             try:
                 for piece in self._stream_provider(config, prompt, temp, max_tok):
