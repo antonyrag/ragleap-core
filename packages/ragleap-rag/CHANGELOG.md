@@ -8,6 +8,16 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.6.4]
+
+### Added
+- Cost-First RAG: `ask()` now returns a `cost` field (`cost_usd`, `cumulative_cost_usd`, `pricing_available`) computed from real provider-reported token usage. New `ragleap.cost` module (`compute_cost()`, `CostTracker`).
+- Built-in seed pricing table for Gemini, Anthropic, and OpenAI, verified via live web search on 2026-07-28 (not from training-data memory, since pricing changes fast). `pricing_table=` on `RagLeap.__init__()` merges with/overrides the seed table — user-supplied entries always win. Unknown provider/model combinations return `cost_usd: None`, never a guessed number.
+- Budget-triggered fallback: `budget_usd_per_month=` + `budget_fallback=` on `RagLeap.__init__()`. Once cumulative spend crosses the budget, subsequent `ask()`/`ask_stream()` calls use `budget_fallback` for that call only via a new non-mutating `override_provider=` param on `GenerationService.generate_answer()`/`generate_answer_stream()` — the shared instance's own primary/fallback chain is never touched, so concurrent calls aren't affected by one request's fallback decision.
+- `generate_answer()`'s return dict gained a `model_used` field (alongside the existing `provider_used`) - needed to look up pricing, and a genuinely useful addition on its own.
+- `ask_stream()` never reports a real `cost_usd` (streaming has no token usage data - see the Streaming section), but `override_provider` still applies for budget-triggered fallback if configured.
+- 17 new tests, including a real end-to-end proof that budget-triggered fallback switches `provider_used` on the second call once the first call's real cost crosses the budget.
+
 ## [0.6.3]
 
 ### Added

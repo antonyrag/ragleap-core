@@ -25,6 +25,7 @@ from ragleap.chunker import TextChunker
 from ragleap.embedding import EmbeddingService, EmbeddingConfig
 from ragleap.vectorstores import VectorBackend, PgVectorBackend
 from ragleap.generation import GenerationService, ProviderConfig
+from ragleap.cost import CostTracker
 from ragleap.guardrails import GuardrailViolation, run_guardrails
 from ragleap import evaluation as _evaluation
 from ragleap.observability import fire_event
@@ -43,7 +44,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.3"
+__version__ = "0.6.4"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -85,6 +86,9 @@ class RagLeap:
         on_ingest: Optional[List[Callable[[Dict], None]]] = None,
         on_query: Optional[List[Callable[[Dict], None]]] = None,
         on_answer: Optional[List[Callable[[Dict], None]]] = None,
+        pricing_table: Optional[Dict] = None,
+        budget_usd_per_month: Optional[float] = None,
+        budget_fallback: Optional[ProviderConfig] = None,
     ):
         """
         database_url is always required - conversation memory is
@@ -103,6 +107,8 @@ class RagLeap:
         self._on_ingest = on_ingest
         self._on_query = on_query
         self._on_answer = on_answer
+        self._cost_tracker = CostTracker(pricing_table=pricing_table, budget_usd_per_month=budget_usd_per_month)
+        self._budget_fallback = budget_fallback
 
         self._chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._embedder = EmbeddingService(embedder)
@@ -365,10 +371,24 @@ class RagLeap:
 
         history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
 
+        override_provider = (
+            self._budget_fallback
+            if (self._budget_fallback and self._cost_tracker.is_over_budget())
+            else None
+        )
+
         result = self._generator.generate_answer(
             query, chunks, temperature=temperature, system_prompt=system_prompt,
             max_tokens=max_tokens, history_prefix=history_prefix,
+            override_provider=override_provider,
         )
+
+        cost_usd = self._cost_tracker.record(result.get("provider_used"), result.get("model_used"), result.get("usage"))
+        result["cost"] = {
+            "cost_usd": cost_usd,
+            "cumulative_cost_usd": self._cost_tracker.cumulative_cost_usd,
+            "pricing_available": cost_usd is not None,
+        }
 
         if self._output_guardrails:
             try:
@@ -428,15 +448,25 @@ class RagLeap:
 
         history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
 
+        override_provider = (
+            self._budget_fallback
+            if (self._budget_fallback and self._cost_tracker.is_over_budget())
+            else None
+        )
+
         pieces = []
         for piece in self._generator.generate_answer_stream(
             query, chunks, temperature=temperature, system_prompt=system_prompt,
             max_tokens=max_tokens, history_prefix=history_prefix,
+            override_provider=override_provider,
         ):
             pieces.append(piece)
             yield piece
 
         full_answer = "".join(pieces)
+        # Streaming never has token usage data (see generate_answer_stream's docstring),
+        # so cost is always reported as unavailable here rather than guessed.
+        self._cost_tracker.record(None, None, None)
         if self._output_guardrails:
             try:
                 run_guardrails(full_answer, self._output_guardrails)
