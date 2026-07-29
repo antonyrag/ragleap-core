@@ -577,6 +577,26 @@ Perplexity, or a custom endpoint (`provider="custom"` + `base_url=...`).
 Install extras as needed: `pip install ragleap-rag[anthropic]`,
 `[openai]`, or `[all]`.
 
+## Supported embedding providers
+
+```python
+from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
+
+rag = RagLeap(
+    database_url="...",
+    embedder=EmbeddingConfig(provider="ollama"),  # local, no API key, no cost
+    primary=ProviderConfig(...),
+)
+```
+
+Gemini, OpenAI, Mistral, Together, and Ollama (all OpenAI-compatible under the hood, no new dependency), plus Cohere and Voyage AI (own API shapes, via `requests`). No new extras needed beyond the existing `[gemini]`/`[openai]` — Mistral/Together/Ollama reuse the `openai` package's client pointed at a different `base_url`.
+
+**Live-verification status**, following this project's own standard of testing against real infrastructure before calling anything done: `gemini` and `openai` are long-verified. `ollama` was live-verified this release — fully local, no API key, tested end-to-end through real ingestion + real FAISS retrieval. `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but **not live-verified** against a real account (the same caveat already attached to the Pinecone vector backend) — their default models/dimensions are best-effort until confirmed live.
+
+`together` has no default embedding model or dimensions (too many incompatible models on the platform to guess safely) — pass `model=` and `dimensions=` explicitly, or it raises a clear error rather than guessing wrong.
+
+Honest limitation for `cohere`: its API distinguishes query vs. document embeddings via an `input_type` parameter for better retrieval quality, but `embed_text()`/`embed_batch()` don't currently know which context they're called in — Cohere calls always use `input_type="search_document"`, which isn't optimal for query embeddings specifically.
+
 ## More examples
 
 See [`examples/`](https://github.com/antonyrag/ragleap-core/tree/main/packages/ragleap-rag/examples)

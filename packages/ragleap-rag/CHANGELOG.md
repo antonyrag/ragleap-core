@@ -8,6 +8,18 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.7.0]
+
+### Added
+- Embedding provider expansion: Mistral, Together, Ollama, Cohere, and Voyage AI, alongside existing Gemini/OpenAI support.
+- Mistral, Together, and Ollama reuse the existing `openai` package's client pointed at a custom `base_url` (all three expose OpenAI-compatible `/embeddings` endpoints) - no new dependency.
+- Cohere and Voyage AI use `requests` (already a core dependency) directly, since their response shapes differ from OpenAI's.
+- `ollama` is live-verified this release: fully local, no API key required, tested end-to-end (`embed_text()`, `embed_batch()`, and a full real ingest -> real FAISS retrieval integration test) via `nomic-embed-text`.
+- `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but NOT live-verified against a real account - same caveat already attached to the Pinecone vector backend. Their default models/dimensions are best-effort until confirmed live.
+- `together` requires explicit `model=` and `dimensions=` - no safe default exists across its many incompatible embedding models. Raises a clear error rather than guessing.
+- Honest limitation documented for `cohere`: always uses `input_type="search_document"` since `embed_text()`/`embed_batch()` don't currently distinguish query vs. document embedding calls.
+- 16 new tests: live Ollama tests (skipped automatically if Ollama isn't running, so CI never fails on its absence) plus config-resolution/error-handling tests for the four unverified providers (123 -> 139 passing).
+
 ## [0.6.4]
 
 ### Added
