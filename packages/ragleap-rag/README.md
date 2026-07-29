@@ -589,7 +589,7 @@ rag = RagLeap(
 )
 ```
 
-Gemini, OpenAI, Mistral, Together, and Ollama (all OpenAI-compatible under the hood, no new dependency), plus Cohere and Voyage AI (own API shapes, via `requests`). No new extras needed beyond the existing `[gemini]`/`[openai]` — Mistral/Together/Ollama reuse the `openai` package's client pointed at a different `base_url`.
+Gemini, OpenAI, Mistral, Together, and Ollama (all OpenAI-compatible under the hood, no new dependency), plus Cohere and Voyage AI (own API shapes, via `requests`). Mistral/Together/Ollama reuse the `openai` package's client pointed at a different `base_url` — install the `[openai]` extra for any of them (`pip install ragleap-rag[openai]`), even if you don't have an OpenAI account or key; it's the underlying HTTP client library, not an OpenAI dependency in the account sense.
 
 **Live-verification status**, following this project's own standard of testing against real infrastructure before calling anything done: `gemini` and `openai` are long-verified. `ollama` was live-verified this release — fully local, no API key, tested end-to-end through real ingestion + real FAISS retrieval. `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but **not live-verified** against a real account (the same caveat already attached to the Pinecone vector backend) — their default models/dimensions are best-effort until confirmed live.
 
