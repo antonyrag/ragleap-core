@@ -8,6 +8,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.8.1]
+
+### Fixed
+- Default Gemini generation model changed from `gemini-2.5-flash` (deprecated by Google, returns `404 NOT_FOUND` on new API calls as of this release) to `gemini-3.6-flash` - the current GA general-purpose Flash tier, confirmed via live web search (BenchLM pricing sync 2026-07-28, innFactory release notes 2026-07-21) and matching the model already used in `cost.py`'s seed pricing table. Affects only callers relying on the default `ProviderConfig(provider="gemini", ...)` without passing `model=` explicitly. Discovered during v0.8.0's live structured-output verification (see that release's "Known issue" note).
+- `gemini-2.5-flash-lite` (a different, still-current cheaper tier per the same search) is unaffected and unchanged.
+- Two `test_cost.py` tests were coupled to the old default model string and started failing once it changed (one because the new default is now priced, one because it hardcoded the old model name in a pricing_table override) - both fixed by using explicit `model=` rather than relying on whatever the library's default happens to be, since that default has now demonstrably changed once already.
+
 ## [0.8.0]
 
 ### Added
