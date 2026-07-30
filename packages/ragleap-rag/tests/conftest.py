@@ -81,8 +81,8 @@ def _init_schema_once(database_url):
     this once per test session is safe and matches real-world usage."""
     rag = RagLeap(
         database_url=database_url,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
     )
     rag.init_schema()
     yield
@@ -110,6 +110,6 @@ def rag(database_url):
     automatically via the autouse fixtures above."""
     return RagLeap(
         database_url=database_url,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
     )

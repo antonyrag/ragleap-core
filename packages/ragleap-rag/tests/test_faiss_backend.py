@@ -25,8 +25,8 @@ def faiss_rag(database_url, tmp_path):
     rag = RagLeap(
         database_url=database_url,
         vector_backend=backend,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
     )
     rag.init_schema()
     return rag
@@ -116,8 +116,8 @@ def test_faiss_persistence_across_backend_instances(tmp_path, database_url):
     backend1 = FAISSBackend(persist_directory=persist_dir)
     rag1 = RagLeap(
         database_url=database_url, vector_backend=backend1,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
     )
     rag1.init_schema()
     rag1.ingest_text("persisted.txt", "This content should survive a restart.")
@@ -126,8 +126,8 @@ def test_faiss_persistence_across_backend_instances(tmp_path, database_url):
     backend2 = FAISSBackend(persist_directory=persist_dir)
     rag2 = RagLeap(
         database_url=database_url, vector_backend=backend2,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
     )
     rag2.init_schema()
 

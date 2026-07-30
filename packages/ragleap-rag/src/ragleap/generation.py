@@ -45,13 +45,17 @@ class ProviderConfig:
         self.provider = self.provider.lower()
 
         # Convenience env-var fallback (e.g. for quick scripts) — explicit
-        # values passed to the constructor always take precedence.
+        # values passed to the constructor always take precedence. No model
+        # is ever hardcoded as a silent default: provider model names and
+        # deprecations change frequently (learned the hard way - see
+        # CHANGELOG v0.8.1/v0.9.0), so ragleap-rag always requires you to
+        # know and specify which model you're using, one way or another.
         if self.provider == "gemini":
             self.api_key = self.api_key or os.environ.get("GEMINI_API_KEY")
-            self.model = self.model or os.environ.get("GEMINI_CHAT_MODEL", "gemini-3.6-flash")
+            self.model = self.model or os.environ.get("GEMINI_CHAT_MODEL")
         elif self.provider == "anthropic":
             self.api_key = self.api_key or os.environ.get("ANTHROPIC_API_KEY")
-            self.model = self.model or os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+            self.model = self.model or os.environ.get("ANTHROPIC_MODEL")
         elif self.provider in PROVIDER_BASE_URLS:
             self.api_key = self.api_key or os.environ.get(f"{self.provider.upper()}_API_KEY")
             self.model = self.model or os.environ.get(f"{self.provider.upper()}_MODEL")
@@ -68,6 +72,14 @@ class ProviderConfig:
             raise ValueError(f"No API key for provider '{self.provider}'. Pass api_key= explicitly.")
         if self.provider not in ("gemini", "anthropic") and not self.base_url:
             raise ValueError(f"No base_url for provider '{self.provider}'. Pass base_url= explicitly.")
+        if not self.model and self.provider != "custom":
+            env_var_name = "GEMINI_CHAT_MODEL" if self.provider == "gemini" else "ANTHROPIC_MODEL" if self.provider == "anthropic" else f"{self.provider.upper()}_MODEL"
+            raise ValueError(
+                f"No model specified for provider '{self.provider}'. Pass model= explicitly "
+                f"to ProviderConfig(), or set {env_var_name} in your environment. "
+                f"ragleap-rag never hardcodes a default model - provider model names and "
+                f"deprecations change too frequently for a baked-in default to stay reliable."
+            )
         if self.provider not in ("gemini", "anthropic") and not self.model:
             raise ValueError(f"No model for provider '{self.provider}'. Pass model= explicitly.")
 

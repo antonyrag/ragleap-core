@@ -57,8 +57,8 @@ def test_rag_cache_disabled_returns_zeroed_stats(database_url):
 
     rag = RagLeap(
         database_url=database_url,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
         cache_enabled=False,
     )
     assert rag.cache_stats() == {"hits": 0, "misses": 0, "hit_rate": 0.0, "size": 0, "enabled": False}
@@ -85,7 +85,7 @@ def test_rag_cache_backend_redis_requires_redis_url(database_url):
     with pytest.raises(ValueError, match="requires redis_url"):
         RagLeap(
             database_url=database_url,
-            embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-            primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+            embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+            primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
             cache_backend="redis",
         )

@@ -8,6 +8,20 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.9.0]
+
+### Breaking
+
+- **No provider ever hardcodes a default model again** - `ProviderConfig` (Gemini, Anthropic) and `EmbeddingConfig` (all 7 embedding providers) now require `model=` explicitly (constructor arg or env var), and `EmbeddingConfig` additionally requires `dimensions=` explicitly for every provider - not just `together`, which set this precedent from the start.
+- This is a deliberate reliability-over-convenience decision, not an oversight: v0.8.1 fixed a hardcoded Gemini default that broke in production when Google deprecated it. Investigating a "safer" fix (using Google's own `gemini-flash-latest` rolling alias instead of a pinned model string) found that the alias mechanism itself has also been deprecated before - there's no model string, pinned or aliased, that stays permanently safe to hardcode in a fast-moving space. Rather than trade one staleness risk for another, the library now always asks you to know and specify your model.
+- **Migration**: any code relying on an implicit default (e.g. `ProviderConfig(provider="gemini", api_key="...")` with no `model=`, or `EmbeddingConfig(provider="gemini", api_key="...")` with no `model=`/`dimensions=`) will now raise a `ValueError` with a clear message telling you exactly what to pass, or which environment variable to set instead.
+- Every example in `examples/`, the README, and the module docstring updated accordingly.
+
+### Added
+
+- `provider="custom"` + `base_url=...` support for `EmbeddingConfig`, mirroring `ProviderConfig`'s existing support for chat models - reaches any OpenAI-compatible embeddings endpoint not otherwise named (self-hosted servers, or providers without dedicated code here yet). Several Chinese providers - Qwen/DashScope, Zhipu/GLM, Moonshot/Kimi - ship OpenAI-compatible modes and work via this path today, alongside the already-named `deepseek` in `ProviderConfig` and aggregators like `openrouter`.
+- 9 new tests (150 -> 159 passing): `test_embedding.py` rewritten to test the new explicit-required contract instead of old default-resolution behavior, plus 4 new tests covering the `custom` embedding provider.
+
 ## [0.8.1]
 
 ### Fixed

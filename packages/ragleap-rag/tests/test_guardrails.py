@@ -10,8 +10,8 @@ from conftest import TEST_DATABASE_URL, TEST_DIMENSIONS
 def _make_rag(**kwargs):
     return RagLeap(
         database_url=TEST_DATABASE_URL,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
         **kwargs,
     )
 

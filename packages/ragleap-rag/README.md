@@ -22,8 +22,8 @@ from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
 
 rag = RagLeap(
     database_url="postgresql://user:pass@localhost/mydb",
-    embedder=EmbeddingConfig(provider="gemini", api_key="your-gemini-key"),
-    primary=ProviderConfig(provider="gemini", api_key="your-gemini-key"),
+    embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=3072, api_key="your-gemini-key"),
+    primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="your-gemini-key"),
 )
 rag.init_schema()  # one-time, idempotent — safe to call every run
 
@@ -50,8 +50,8 @@ from ragleap.vectorstores import FAISSBackend
 rag = RagLeap(
     database_url="postgresql://user:pass@localhost/mydb",  # still required, for conversation memory
     vector_backend=FAISSBackend(persist_directory="./my_faiss_data"),  # vectors go here instead
-    embedder=EmbeddingConfig(provider="gemini", api_key="..."),
-    primary=ProviderConfig(provider="gemini", api_key="..."),
+    embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=3072, api_key="..."),
+    primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="..."),
 )
 rag.init_schema()
 ```
@@ -90,8 +90,8 @@ bad key on your primary provider doesn't mean a failed request:
 ```python
 rag = RagLeap(
     database_url="...",
-    embedder=EmbeddingConfig(provider="gemini", api_key="..."),
-    primary=ProviderConfig(provider="gemini", api_key="..."),
+    embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=3072, api_key="..."),
+    primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="..."),
     fallbacks=[ProviderConfig(provider="groq", api_key="...", model="llama-3.3-70b-versatile")],
 )
 ```
@@ -521,8 +521,8 @@ def get_rag() -> RagLeap:
     if _rag_instance is None:
         _rag_instance = RagLeap(
             database_url="postgresql://...",
-            embedder=EmbeddingConfig(provider="gemini", api_key="..."),
-            primary=ProviderConfig(provider="gemini", api_key="..."),
+            embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=3072, api_key="..."),
+            primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="..."),
             # Same Redis server as the broker above is fine - a different
             # db index keeps the query cache and the task queue from colliding.
             cache_backend="redis",
@@ -606,6 +606,8 @@ Perplexity, or a custom endpoint (`provider="custom"` + `base_url=...`).
 Install extras as needed: `pip install ragleap-rag[anthropic]`,
 `[openai]`, or `[all]`.
 
+**`model=` is always required** (constructor arg or the relevant env var, e.g. `GEMINI_CHAT_MODEL`/`ANTHROPIC_MODEL`) - `ragleap-rag` never hardcodes a default model for any provider. This was a deliberate v0.9.0 decision, not an oversight: a hardcoded Gemini default broke in production mid-project when Google deprecated it, and there's no model string (pinned or a provider's own "-latest" alias) that stays safe indefinitely - even Google's own `-latest` aliases have been deprecated before. Rather than trade one staleness risk for another, the library just always asks you to know and specify your model.
+
 ## Supported embedding providers
 
 ```python
@@ -613,16 +615,18 @@ from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
 
 rag = RagLeap(
     database_url="...",
-    embedder=EmbeddingConfig(provider="ollama"),  # local, no API key, no cost
-    primary=ProviderConfig(...),
+    embedder=EmbeddingConfig(provider="ollama", model="nomic-embed-text", dimensions=768),  # local, no API key, no cost
+    primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="..."),
 )
 ```
 
 Gemini, OpenAI, Mistral, Together, and Ollama (all OpenAI-compatible under the hood, no new dependency), plus Cohere and Voyage AI (own API shapes, via `requests`). Mistral/Together/Ollama reuse the `openai` package's client pointed at a different `base_url` — install the `[openai]` extra for any of them (`pip install ragleap-rag[openai]`), even if you don't have an OpenAI account or key; it's the underlying HTTP client library, not an OpenAI dependency in the account sense.
 
-**Live-verification status**, following this project's own standard of testing against real infrastructure before calling anything done: `gemini` and `openai` are long-verified. `ollama` was live-verified this release — fully local, no API key, tested end-to-end through real ingestion + real FAISS retrieval. `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but **not live-verified** against a real account (the same caveat already attached to the Pinecone vector backend) — their default models/dimensions are best-effort until confirmed live.
+**`model=` and `dimensions=` are always required** for every embedding provider (constructor arg or env var, e.g. `GEMINI_EMBEDDING_MODEL`/`EMBEDDING_DIMENSIONS`) - same reasoning as generation providers above. `dimensions=` in particular can't be safely inferred without assuming a specific model, so it's mandatory everywhere now, not just for `together` (which set this precedent from the start).
 
-`together` has no default embedding model or dimensions (too many incompatible models on the platform to guess safely) — pass `model=` and `dimensions=` explicitly, or it raises a clear error rather than guessing wrong.
+**Live-verification status**, following this project's own standard of testing against real infrastructure before calling anything done: `gemini` and `openai` are long-verified. `ollama` was live-verified this release — fully local, no API key, tested end-to-end through real ingestion + real FAISS retrieval. `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but **not live-verified** against a real account (the same caveat already attached to the Pinecone vector backend).
+
+`provider="custom"` + `base_url=...` reaches any OpenAI-compatible embeddings endpoint not otherwise named above - a self-hosted server (vLLM, LM Studio, etc.), or a provider without dedicated code here yet. Several Chinese providers - Qwen/DashScope, Zhipu/GLM, Moonshot/Kimi - ship OpenAI-compatible modes and work via this path today. Mirrors `generation.py`'s existing `provider="custom"` support for chat models.
 
 Honest limitation for `cohere`: its API distinguishes query vs. document embeddings via an `input_type` parameter for better retrieval quality, but `embed_text()`/`embed_batch()` don't currently know which context they're called in — Cohere calls always use `input_type="search_document"`, which isn't optimal for query embeddings specifically.
 

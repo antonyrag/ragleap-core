@@ -5,8 +5,8 @@ ragleap-rag: a fast, honest, self-hosted RAG engine.
 
     rag = RagLeap(
         database_url="postgresql://user:pass@localhost/mydb",
-        embedder=EmbeddingConfig(provider="gemini", api_key="..."),
-        primary=ProviderConfig(provider="gemini", api_key="..."),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=3072, api_key="..."),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="..."),
     )
     rag.init_schema()                  # one-time, idempotent
 
@@ -44,7 +44,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.8.1"
+__version__ = "0.9.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 

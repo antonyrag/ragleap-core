@@ -57,8 +57,8 @@ def get_rag() -> RagLeap:
     if _rag_instance is None:
         _rag_instance = RagLeap(
             database_url=DATABASE_URL,
-            embedder=EmbeddingConfig(provider="gemini", api_key=GEMINI_API_KEY),
-            primary=ProviderConfig(provider="gemini", api_key=GEMINI_API_KEY),
+            embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key=GEMINI_API_KEY),
+            primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key=GEMINI_API_KEY),
             # Redis-backed cache is a *separate* concern from the Celery
             # broker above — same Redis server is fine, different db index
             # keeps them from colliding.

@@ -20,25 +20,6 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODELS = {
-    "gemini": "models/gemini-embedding-001",
-    "openai": "text-embedding-3-small",
-    "mistral": "mistral-embed",
-    "ollama": "nomic-embed-text",
-    "cohere": "embed-english-v3.0",
-    "voyage": "voyage-3",
-    # "together" has no safe default - too many incompatible embedding
-    # models on the platform to guess correctly. Must be passed explicitly.
-}
-DEFAULT_DIMENSIONS = {
-    "gemini": 3072,
-    "openai": 1536,
-    "mistral": 1024,
-    "ollama": 768,
-    "cohere": 1024,
-    "voyage": 1024,
-}
-
 # Providers whose embeddings endpoint is OpenAI-compatible (same request/
 # response shape as OpenAI's /v1/embeddings) - reuses the openai package's
 # client pointed at a custom base_url, same trick generation.py uses.
@@ -52,11 +33,20 @@ OPENAI_COMPATIBLE_BASE_URLS = {
 # Providers with their own (non-OpenAI-compatible) response shape.
 CUSTOM_SHAPE_PROVIDERS = ("cohere", "voyage")
 
+_ALL_PROVIDERS = ("gemini",) + tuple(OPENAI_COMPATIBLE_BASE_URLS.keys()) + CUSTOM_SHAPE_PROVIDERS + ("custom",)
+
 
 @dataclass
 class EmbeddingConfig:
     """Explicit embedding provider configuration. Use this for library
-    integration rather than relying on environment variables."""
+    integration rather than relying on environment variables.
+
+    No model or dimensions value is ever hardcoded as a silent default -
+    provider model names, availability, and dimensions all change over
+    time (a hardcoded gemini generation model default broke in production
+    mid-project - see CHANGELOG v0.8.1/v0.9.0), so this always requires
+    you to know and specify both, one way or another (constructor arg or
+    environment variable)."""
     provider: str
     api_key: Optional[str] = None
     model: Optional[str] = None
@@ -68,39 +58,41 @@ class EmbeddingConfig:
 
         if self.provider == "gemini":
             self.api_key = self.api_key or os.environ.get("GEMINI_API_KEY")
-            self.model = self.model or os.environ.get("GEMINI_EMBEDDING_MODEL", DEFAULT_MODELS["gemini"])
-            self.dimensions = self.dimensions or int(
-                os.environ.get("EMBEDDING_DIMENSIONS", str(DEFAULT_DIMENSIONS["gemini"]))
-            )
+            self.model = self.model or os.environ.get("GEMINI_EMBEDDING_MODEL")
+            env_dims = os.environ.get("EMBEDDING_DIMENSIONS")
+            self.dimensions = self.dimensions or (int(env_dims) if env_dims else None)
         elif self.provider in OPENAI_COMPATIBLE_BASE_URLS:
             self.api_key = self.api_key or os.environ.get(f"{self.provider.upper()}_API_KEY")
-            self.model = self.model or os.environ.get(
-                f"{self.provider.upper()}_EMBEDDING_MODEL", DEFAULT_MODELS.get(self.provider)
-            )
+            self.model = self.model or os.environ.get(f"{self.provider.upper()}_EMBEDDING_MODEL")
             env_dims = os.environ.get(f"{self.provider.upper()}_EMBEDDING_DIMENSIONS") or os.environ.get("EMBEDDING_DIMENSIONS")
-            default_dims = DEFAULT_DIMENSIONS.get(self.provider)
-            self.dimensions = self.dimensions or (int(env_dims) if env_dims else default_dims)
+            self.dimensions = self.dimensions or (int(env_dims) if env_dims else None)
             self.base_url = self.base_url or OPENAI_COMPATIBLE_BASE_URLS[self.provider]
-
-            if self.provider == "together" and (not self.model or not self.dimensions):
-                raise ValueError(
-                    "Provider 'together' has no safe default embedding model or "
-                    "dimensions - too many incompatible models on the platform to "
-                    "guess correctly. Pass model= and dimensions= explicitly to "
-                    "EmbeddingConfig(), or set TOGETHER_EMBEDDING_MODEL and "
-                    "TOGETHER_EMBEDDING_DIMENSIONS in your environment."
-                )
         elif self.provider in CUSTOM_SHAPE_PROVIDERS:
             self.api_key = self.api_key or os.environ.get(f"{self.provider.upper()}_API_KEY")
-            self.model = self.model or os.environ.get(
-                f"{self.provider.upper()}_EMBEDDING_MODEL", DEFAULT_MODELS.get(self.provider)
-            )
+            self.model = self.model or os.environ.get(f"{self.provider.upper()}_EMBEDDING_MODEL")
             env_dims = os.environ.get(f"{self.provider.upper()}_EMBEDDING_DIMENSIONS") or os.environ.get("EMBEDDING_DIMENSIONS")
-            self.dimensions = self.dimensions or (int(env_dims) if env_dims else DEFAULT_DIMENSIONS.get(self.provider))
+            self.dimensions = self.dimensions or (int(env_dims) if env_dims else None)
+        elif self.provider == "custom":
+            # Any OpenAI-compatible embeddings endpoint not already named
+            # above - self-hosted servers (vLLM, LM Studio, etc.), or a
+            # provider without dedicated code here yet (many Chinese
+            # providers - Qwen/DashScope, Zhipu/GLM, Moonshot/Kimi - ship
+            # OpenAI-compatible modes and work via this path today).
+            self.api_key = self.api_key or os.environ.get("CUSTOM_EMBEDDING_API_KEY")
+            self.model = self.model or os.environ.get("CUSTOM_EMBEDDING_MODEL")
+            env_dims = os.environ.get("CUSTOM_EMBEDDING_DIMENSIONS") or os.environ.get("EMBEDDING_DIMENSIONS")
+            self.dimensions = self.dimensions or (int(env_dims) if env_dims else None)
+            self.base_url = self.base_url or os.environ.get("CUSTOM_EMBEDDING_BASE_URL")
+            if not self.base_url:
+                raise ValueError(
+                    "No base_url for provider 'custom'. Pass base_url= explicitly "
+                    "to EmbeddingConfig(), or set CUSTOM_EMBEDDING_BASE_URL in your "
+                    "environment - it must point to an OpenAI-compatible /embeddings endpoint."
+                )
         else:
             raise ValueError(
                 f"Unknown embedding provider '{self.provider}'. Supported: "
-                f"gemini, openai, mistral, together, ollama, cohere, voyage."
+                f"{', '.join(_ALL_PROVIDERS)}."
             )
 
         if not self.api_key and self.provider != "ollama":
@@ -108,6 +100,24 @@ class EmbeddingConfig:
                 f"No API key for embedding provider '{self.provider}'. Pass api_key= "
                 f"explicitly to EmbeddingConfig(), or set {self.provider.upper()}_API_KEY "
                 f"in your environment."
+            )
+        if not self.model:
+            raise ValueError(
+                f"No embedding model specified for provider '{self.provider}'. Pass "
+                f"model= explicitly to EmbeddingConfig(), or set "
+                f"{self.provider.upper()}_EMBEDDING_MODEL in your environment. "
+                f"ragleap-rag never hardcodes a default embedding model - provider "
+                f"model availability and dimensions change too frequently for a "
+                f"baked-in default to stay reliable."
+            )
+        if not self.dimensions:
+            raise ValueError(
+                f"No dimensions specified for embedding provider '{self.provider}' "
+                f"model '{self.model}'. Pass dimensions= explicitly to "
+                f"EmbeddingConfig(), or set EMBEDDING_DIMENSIONS (or "
+                f"{self.provider.upper()}_EMBEDDING_DIMENSIONS) in your environment - "
+                f"dimensions must match your chosen model exactly, and ragleap-rag "
+                f"can't safely guess it."
             )
 
 
@@ -129,7 +139,7 @@ class EmbeddingService:
         try:
             if self.config.provider == "gemini":
                 return self._embed_gemini(text)
-            elif self.config.provider in OPENAI_COMPATIBLE_BASE_URLS:
+            elif self.config.provider in OPENAI_COMPATIBLE_BASE_URLS or self.config.provider == "custom":
                 return self._embed_openai_compatible(text)
             elif self.config.provider == "cohere":
                 return self._embed_cohere([text])[0]
@@ -147,7 +157,7 @@ class EmbeddingService:
         try:
             if self.config.provider == "gemini":
                 return self._embed_batch_gemini(texts)
-            elif self.config.provider in OPENAI_COMPATIBLE_BASE_URLS:
+            elif self.config.provider in OPENAI_COMPATIBLE_BASE_URLS or self.config.provider == "custom":
                 return self._embed_batch_openai_compatible(texts)
             elif self.config.provider == "cohere":
                 return self._embed_cohere(texts)
