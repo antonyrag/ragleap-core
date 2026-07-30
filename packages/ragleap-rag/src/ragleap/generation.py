@@ -48,7 +48,7 @@ class ProviderConfig:
         # values passed to the constructor always take precedence.
         if self.provider == "gemini":
             self.api_key = self.api_key or os.environ.get("GEMINI_API_KEY")
-            self.model = self.model or os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
+            self.model = self.model or os.environ.get("GEMINI_CHAT_MODEL", "gemini-3.6-flash")
         elif self.provider == "anthropic":
             self.api_key = self.api_key or os.environ.get("ANTHROPIC_API_KEY")
             self.model = self.model or os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")

@@ -95,10 +95,13 @@ def test_ask_result_has_cost_field_with_known_pricing():
     assert result["cost"]["cumulative_cost_usd"] == pytest.approx(0.000053, abs=1e-9)
 
 
-def test_ask_result_cost_unavailable_for_unpriced_default_model():
-    """Default gemini model (no explicit model= passed) isn't in the seed
-    pricing table - cost must honestly report unavailable, never guess."""
-    rag = _make_rag()  # ProviderConfig(provider="gemini", api_key=...) -> defaults to "gemini-2.5-flash"
+def test_ask_result_cost_unavailable_for_unpriced_model():
+    """A model not in the seed pricing table - cost must honestly report
+    unavailable, never guess. Uses an explicit, deliberately-fake model
+    name rather than relying on "whatever the current default happens
+    to be", since that default is not a stable thing to couple a test
+    to (see: gemini-2.5-flash getting deprecated by Google mid-project)."""
+    rag = _make_rag(primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="some-future-unpriced-gemini-model"))
     rag.ingest_text("a.txt", "Some content.")
 
     result = rag.ask("A question")
@@ -108,7 +111,10 @@ def test_ask_result_cost_unavailable_for_unpriced_default_model():
 
 
 def test_ask_pricing_table_override_applies_through_rag_constructor():
-    rag = _make_rag(pricing_table={"gemini": {"gemini-2.5-flash": {"input": 0.05, "output": 0.10}}})
+    rag = _make_rag(
+        primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash"),
+        pricing_table={"gemini": {"gemini-3.6-flash": {"input": 0.05, "output": 0.10}}},
+    )
     rag.ingest_text("a.txt", "Some content.")
 
     result = rag.ask("A question")
