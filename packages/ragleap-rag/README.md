@@ -310,6 +310,35 @@ The built-in seed pricing table covers Gemini, Anthropic, and OpenAI only, verif
 
 Honest limitations: `ask_stream()` never reports a `cost_usd` (streaming has no token usage data available - see the Streaming section), though `override_provider` still applies for budget-triggered fallback if you've configured one. The cumulative spend counter is a simple in-process running total, not a thread-safe, precise, multi-worker ledger - fine for a single process tracking its own approximate spend, not for aggregating exact costs across many concurrent workers (use the `on_answer` observability hook to aggregate `cost_usd` externally for that instead).
 
+## Structured output
+
+Pass `response_format=` (a JSON schema dict) to `ask()` to get validated structured data alongside the usual prose answer. Install the `[structured]` extra (`pip install ragleap-rag[structured]`) for real schema validation via `jsonschema` - without it, only a basic top-level type check runs, and the result honestly says so.
+
+```python
+schema = {
+    "type": "object",
+    "properties": {
+        "city": {"type": "string"},
+        "country": {"type": "string"},
+        "population_millions": {"type": "number"},
+    },
+    "required": ["city", "country", "population_millions"],
+}
+
+result = rag.ask("What city is this, what country, and its population?", response_format=schema)
+print(result["structured"])                  # {"city": "Chennai", "country": "India", "population_millions": 11}
+print(result["structured_valid"])             # True
+print(result["structured_enforcement"])       # "native" or "json_object_fallback"
+print(result["structured_validation_method"]) # "jsonschema" or "basic_type_check_only"
+print(result["answer"])                        # still the JSON as a string, for backward compatibility
+```
+
+**Per-provider enforcement, live-verified this release with a real Gemini call** (not mocked): Gemini uses native `response_schema` constrained decoding. Anthropic has no OpenAI-style `response_format` - the documented mechanism is forcing a single tool call whose `input_schema` is the desired shape, then reading the tool's parsed input directly. Both report `structured_enforcement: "native"`. OpenAI-compatible providers (OpenAI, Mistral, Together, Ollama) try strict `json_schema` mode first; not every one of them supports it, so on failure this honestly falls back to unconstrained `json_object` mode and reports `structured_enforcement: "json_object_fallback"` rather than pretending the guarantee is the same.
+
+`structured_valid` reflects real validation against your schema (`required` fields, types, etc.) when `jsonschema` is installed - `structured_enforcement: "native"` means the provider *tried* to follow the schema, not that the result is guaranteed valid; always check `structured_valid` before trusting the shape. Without the `[structured]` extra, `structured_validation_method` will be `"basic_type_check_only"` - it confirms the top-level type (object/array/etc.) but can't catch a missing `required` field or a wrong nested type.
+
+Not currently supported on `ask_stream()` - structured output needs the complete response before it's valid JSON, so streaming it defeats the purpose. This is a real gap, not an oversight; token-level streaming of partial JSON is a distinct feature that may come later.
+
 ## Citations
 
 Every ask() response includes a citations field - a structured, chunk-level breakdown that resolves a real ambiguity: a citation like "(Source 1)" in an answer could mean a whole document or one specific passage within it. It always means the latter.

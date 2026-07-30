@@ -5,9 +5,12 @@ provider. Configure explicitly via ProviderConfig, or let it fall back to
 environment variables for convenience (useful for scripts/notebooks).
 """
 import os
+import json
 import logging
 from dataclasses import dataclass, field
 from typing import List, Dict, Iterator, Optional, Tuple
+
+from ragleap.structured import parse_and_validate, parse_and_validate_object
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +194,7 @@ class GenerationService:
         max_tokens: Optional[int] = None,
         history_prefix: str = "",
         override_provider: Optional[ProviderConfig] = None,
+        response_format: Optional[Dict] = None,
     ) -> Dict:
         """
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
@@ -207,23 +211,37 @@ class GenerationService:
         last_error = None
         for i, config in enumerate(self._chain(override_provider)):
             try:
-                answer_text, usage = self._call_provider(config, prompt, temp, max_tok)
+                answer_text, usage, enforcement = self._call_provider(config, prompt, temp, max_tok, response_format)
                 if i > 0:
                     logger.info(f"Answer generated via fallback provider '{config.provider}'")
-                return {
+
+                result = {
                     "answer": answer_text, "sources": sources, "citations": citations,
                     "provider_used": config.provider, "model_used": config.model, "usage": usage,
                     "chunks_sent": len(trimmed),
                 }
+                if response_format is not None:
+                    structured, is_valid, method = parse_and_validate(answer_text, response_format)
+                    result["structured"] = structured
+                    result["structured_valid"] = is_valid
+                    result["structured_enforcement"] = enforcement
+                    result["structured_validation_method"] = method
+                return result
             except Exception as e:
                 last_error = e
                 logger.warning(f"Provider '{config.provider}' failed: {e}")
                 continue
 
-        return {
+        failure = {
             "answer": f"Sorry, all configured providers failed. Last error: {last_error}",
             "sources": [], "citations": [], "provider_used": None, "model_used": None, "usage": None, "chunks_sent": 0,
         }
+        if response_format is not None:
+            failure["structured"] = None
+            failure["structured_valid"] = False
+            failure["structured_enforcement"] = None
+            failure["structured_validation_method"] = None
+        return failure
 
     def generate_answer_stream(
         self,
@@ -261,13 +279,13 @@ class GenerationService:
 
         yield f"Sorry, all configured providers failed. Last error: {last_error}"
 
-    def _call_provider(self, config: ProviderConfig, prompt: str, temperature: float, max_tokens: int) -> Tuple[str, Optional[Dict]]:
+    def _call_provider(self, config: ProviderConfig, prompt: str, temperature: float, max_tokens: int, response_format: Optional[Dict] = None) -> Tuple[str, Optional[Dict], Optional[str]]:
         if config.provider == "gemini":
-            return self._call_gemini(prompt, temperature, max_tokens, config.api_key, config.model)
+            return self._call_gemini(prompt, temperature, max_tokens, config.api_key, config.model, response_format)
         elif config.provider == "anthropic":
-            return self._call_anthropic(prompt, temperature, max_tokens, config.api_key, config.model)
+            return self._call_anthropic(prompt, temperature, max_tokens, config.api_key, config.model, response_format)
         else:
-            return self._call_openai_compatible(prompt, temperature, max_tokens, config.api_key, config.model, config.base_url)
+            return self._call_openai_compatible(prompt, temperature, max_tokens, config.api_key, config.model, config.base_url, response_format)
 
     def _stream_provider(self, config: ProviderConfig, prompt: str, temperature: float, max_tokens: int) -> Iterator[str]:
         if config.provider == "gemini":
@@ -277,20 +295,26 @@ class GenerationService:
         else:
             yield from self._stream_openai_compatible(prompt, temperature, max_tokens, config.api_key, config.model, config.base_url)
 
-    def _call_gemini(self, prompt, temperature, max_tokens, api_key, model) -> Tuple[str, Optional[Dict]]:
+    def _call_gemini(self, prompt, temperature, max_tokens, api_key, model, response_format: Optional[Dict] = None) -> Tuple[str, Optional[Dict], Optional[str]]:
         import google.genai as genai
         from google.genai import types
         client = genai.Client(api_key=api_key)
+        config_kwargs = {"temperature": temperature, "max_output_tokens": max_tokens}
+        enforcement = None
+        if response_format is not None:
+            config_kwargs["response_mime_type"] = "application/json"
+            config_kwargs["response_schema"] = response_format
+            enforcement = "native"
         response = client.models.generate_content(
             model=model, contents=prompt,
-            config=types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens),
+            config=types.GenerateContentConfig(**config_kwargs),
         )
         text = response.text.strip() if response.text else "No answer generated."
         usage = None
         if getattr(response, "usage_metadata", None):
             um = response.usage_metadata
             usage = {"prompt_tokens": um.prompt_token_count, "completion_tokens": um.candidates_token_count, "total_tokens": um.total_token_count}
-        return text, usage
+        return text, usage, enforcement
 
     def _stream_gemini(self, prompt, temperature, max_tokens, api_key, model) -> Iterator[str]:
         import google.genai as genai
@@ -304,15 +328,34 @@ class GenerationService:
             if chunk.text:
                 yield chunk.text
 
-    def _call_anthropic(self, prompt, temperature, max_tokens, api_key, model) -> Tuple[str, Optional[Dict]]:
+    def _call_anthropic(self, prompt, temperature, max_tokens, api_key, model, response_format: Optional[Dict] = None) -> Tuple[str, Optional[Dict], Optional[str]]:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(model=model, max_tokens=max_tokens, temperature=temperature, messages=[{"role": "user", "content": prompt}])
-        text = response.content[0].text.strip() if response.content else "No answer generated."
+        enforcement = None
+        if response_format is not None:
+            # Anthropic has no OpenAI-style response_format - the documented
+            # mechanism is forcing a single tool call whose input_schema is
+            # the desired output shape, then reading .input directly (it's
+            # already a parsed dict, not a JSON string to re-parse).
+            tool = {"name": "structured_response", "description": "Return the answer in the required structure.", "input_schema": response_format}
+            response = client.messages.create(
+                model=model, max_tokens=max_tokens, temperature=temperature,
+                messages=[{"role": "user", "content": prompt}],
+                tools=[tool], tool_choice={"type": "tool", "name": "structured_response"},
+            )
+            tool_use_block = next((b for b in response.content if b.type == "tool_use"), None)
+            if tool_use_block is None:
+                text = "No answer generated."
+            else:
+                text = json.dumps(tool_use_block.input)
+            enforcement = "native"
+        else:
+            response = client.messages.create(model=model, max_tokens=max_tokens, temperature=temperature, messages=[{"role": "user", "content": prompt}])
+            text = response.content[0].text.strip() if response.content else "No answer generated."
         usage = None
         if getattr(response, "usage", None):
             usage = {"prompt_tokens": response.usage.input_tokens, "completion_tokens": response.usage.output_tokens, "total_tokens": response.usage.input_tokens + response.usage.output_tokens}
-        return text, usage
+        return text, usage, enforcement
 
     def _stream_anthropic(self, prompt, temperature, max_tokens, api_key, model) -> Iterator[str]:
         import anthropic
@@ -321,15 +364,34 @@ class GenerationService:
             for text in stream.text_stream:
                 yield text
 
-    def _call_openai_compatible(self, prompt, temperature, max_tokens, api_key, model, base_url) -> Tuple[str, Optional[Dict]]:
+    def _call_openai_compatible(self, prompt, temperature, max_tokens, api_key, model, base_url, response_format: Optional[Dict] = None) -> Tuple[str, Optional[Dict], Optional[str]]:
         import openai
         client = openai.OpenAI(api_key=api_key or "not-needed", base_url=base_url)
-        response = client.chat.completions.create(model=model, messages=[{"role": "user", "content": prompt}], temperature=temperature, max_tokens=max_tokens)
+        enforcement = None
+        kwargs = {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": temperature, "max_tokens": max_tokens}
+        if response_format is not None:
+            # Not every OpenAI-compatible provider supports strict schema
+            # mode (json_schema) - honestly fall back to unconstrained
+            # json_object mode rather than failing the whole call, and
+            # flag which one actually ran via `enforcement`.
+            try:
+                strict_kwargs = dict(kwargs)
+                strict_kwargs["response_format"] = {"type": "json_schema", "json_schema": {"name": "structured_response", "schema": response_format, "strict": True}}
+                response = client.chat.completions.create(**strict_kwargs)
+                enforcement = "native"
+            except Exception as e:
+                logger.warning(f"Provider does not support strict json_schema mode, falling back to json_object: {e}")
+                fallback_kwargs = dict(kwargs)
+                fallback_kwargs["response_format"] = {"type": "json_object"}
+                response = client.chat.completions.create(**fallback_kwargs)
+                enforcement = "json_object_fallback"
+        else:
+            response = client.chat.completions.create(**kwargs)
         text = response.choices[0].message.content.strip() if response.choices else "No answer generated."
         usage = None
         if getattr(response, "usage", None):
             usage = {"prompt_tokens": response.usage.prompt_tokens, "completion_tokens": response.usage.completion_tokens, "total_tokens": response.usage.total_tokens}
-        return text, usage
+        return text, usage, enforcement
 
     def _stream_openai_compatible(self, prompt, temperature, max_tokens, api_key, model, base_url) -> Iterator[str]:
         import openai
