@@ -8,6 +8,21 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.8.0]
+
+### Added
+- Structured/JSON output mode: `response_format=<JSON schema dict>` on `ask()`. Result gains `structured` (parsed object or `None`), `structured_valid` (bool), `structured_enforcement` (`"native"` or `"json_object_fallback"`), `structured_validation_method` (`"jsonschema"` or `"basic_type_check_only"`).
+- New `ragleap.structured` module (`parse_and_validate()`, `parse_and_validate_object()`), new `[structured]` extra (`jsonschema>=4.0.0`) for real schema validation - without it, only a basic top-level type check runs, honestly flagged as such rather than claiming full validation.
+- Gemini uses native `response_schema` constrained decoding. Anthropic uses forced tool-use (no OpenAI-style `response_format` exists for it) - a single tool whose `input_schema` is the desired shape, reading the parsed tool input directly. Both report `"native"` enforcement.
+- OpenAI-compatible providers (OpenAI, Mistral, Together, Ollama) try strict `json_schema` mode first, honestly falling back to unconstrained `json_object` mode on failure (`"json_object_fallback"`) rather than silently claiming equal guarantees.
+- **Live-verified this release** with a real Gemini API call (not mocked): correctly extracted structured city/country/population data from source context, passed real `jsonschema` validation. Anthropic/OpenAI-compatible paths are code-complete per each provider's public documentation but not live-verified against a real account this session.
+- Not supported on `ask_stream()` - structured output needs the complete response before it's valid JSON; documented as a real gap, not silently unsupported.
+- `_call_provider()`'s internal return contract changed from a 2-tuple to a 3-tuple (added enforcement mode) - a private-method change, not part of the public API, but noted for anyone who monkeypatched it directly (e.g. in tests).
+- 11 new tests (139 -> 150 passing): `ragleap.structured` unit tests including a forced no-jsonschema-installed fallback path, plus `ask()` plumbing tests proving `response_format=` flows correctly end-to-end and real validation runs (not rubber-stamped).
+
+### Known issue (not fixed this release)
+- Discovered during live verification: the library's default Gemini model, `gemini-2.5-flash`, is now deprecated by Google (`404 NOT_FOUND` on new API calls) - affects any caller relying on the default rather than passing `model=` explicitly. Flagged as a follow-up, out of scope for this release.
+
 ## [0.7.0]
 
 ### Added

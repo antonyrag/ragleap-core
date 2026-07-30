@@ -42,10 +42,24 @@ def fake_embedder(monkeypatch):
 def fake_generator(monkeypatch):
     """No network. Canned but realistic-shaped responses so tests can
     assert on the actual RagLeap response contract."""
-    def fake_call_provider(self, config, prompt, temperature, max_tokens):
+    def fake_call_provider(self, config, prompt, temperature, max_tokens, response_format=None):
+        if response_format is not None:
+            import json
+            # Fake providers don't call a real model, so return something
+            # type-conformant to whatever top-level type the schema
+            # declares (defaults to object) - enough for structured-mode
+            # tests that check shape/plumbing, not real model behavior.
+            expected_type = response_format.get("type", "object")
+            fake_payload = {"result": "fake"} if expected_type == "object" else (["fake"] if expected_type == "array" else "fake")
+            return (
+                json.dumps(fake_payload),
+                {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                "native",
+            )
         return (
             f"[fake answer based on context] {prompt[-120:]}",
             {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            None,
         )
 
     def fake_stream_provider(self, config, prompt, temperature, max_tokens):

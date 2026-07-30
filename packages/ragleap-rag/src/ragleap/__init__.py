@@ -44,7 +44,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -333,6 +333,7 @@ class RagLeap:
         session_id: Optional[str] = None,
         rerank: bool = False,
         metadata_filter: Optional[Dict] = None,
+        response_format: Optional[Dict] = None,
     ) -> Dict:
         """
         Answer a question grounded in previously ingested documents.
@@ -344,6 +345,15 @@ class RagLeap:
         degrades to dense-only if the active vector backend doesn't
         support sparse search (see VectorBackend.supports_sparse()) -
         not every backend can do full-text search.
+
+        response_format=<JSON schema dict> requests structured output.
+        The result gains "structured" (parsed object or None),
+        "structured_valid" (bool), "structured_enforcement" ("native"
+        or "json_object_fallback" depending on provider support), and
+        "structured_validation_method" ("jsonschema" if the [structured]
+        extra is installed, else "basic_type_check_only"). "answer"
+        still contains the JSON as a string either way, for backward
+        compatibility with existing callers.
 
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": dict|None, "chunks_sent": int}
@@ -380,7 +390,7 @@ class RagLeap:
         result = self._generator.generate_answer(
             query, chunks, temperature=temperature, system_prompt=system_prompt,
             max_tokens=max_tokens, history_prefix=history_prefix,
-            override_provider=override_provider,
+            override_provider=override_provider, response_format=response_format,
         )
 
         cost_usd = self._cost_tracker.record(result.get("provider_used"), result.get("model_used"), result.get("usage"))

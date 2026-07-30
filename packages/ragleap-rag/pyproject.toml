@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-rag"
-version = "0.7.0"
+version = "0.8.0"
 description = "A fast, honest, self-hosted RAG engine — hybrid dense+sparse retrieval, streaming, provider fallback, and real token usage reporting. BYOK, no vendor lock-in."
 readme = "README.md"
 license = "MIT"
@@ -39,6 +39,7 @@ anthropic = ["anthropic>=0.34.0"]
 openai = ["openai>=1.40.0"]
 rerank = ["onnxruntime>=1.17.0", "tokenizers>=0.19.0", "huggingface_hub>=0.20.0"]
 faiss = ["faiss-cpu>=1.8.0"]
+structured = ["jsonschema>=4.0.0"]
 web = ["trafilatura>=1.6.0"]
 ocr = ["pytesseract>=0.3.10", "Pillow>=10.0.0"]
 redis = ["redis>=5.0.0"]
@@ -53,7 +54,7 @@ formats = [
     "pyyaml>=6.0",
     "pyarrow>=14.0.0",
 ]
-all = ["google-genai>=0.3.0", "anthropic>=0.34.0", "openai>=1.40.0", "onnxruntime>=1.17.0", "tokenizers>=0.19.0", "huggingface_hub>=0.20.0", "faiss-cpu>=1.8.0", "trafilatura>=1.6.0", "pytesseract>=0.3.10", "Pillow>=10.0.0", "redis>=5.0.0", "openpyxl>=3.1.0", "xlrd>=2.0.0", "python-pptx>=1.0.0", "odfpy>=1.4.0", "striprtf>=0.0.26", "beautifulsoup4>=4.12.0", "ebooklib>=0.18", "pyyaml>=6.0", "pyarrow>=14.0.0"]
+all = ["google-genai>=0.3.0", "anthropic>=0.34.0", "openai>=1.40.0", "onnxruntime>=1.17.0", "tokenizers>=0.19.0", "huggingface_hub>=0.20.0", "faiss-cpu>=1.8.0", "trafilatura>=1.6.0", "pytesseract>=0.3.10", "Pillow>=10.0.0", "redis>=5.0.0", "openpyxl>=3.1.0", "xlrd>=2.0.0", "python-pptx>=1.0.0", "odfpy>=1.4.0", "striprtf>=0.0.26", "beautifulsoup4>=4.12.0", "ebooklib>=0.18", "pyyaml>=6.0", "pyarrow>=14.0.0", "jsonschema>=4.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/antonyrag/ragleap-core"
