@@ -20,8 +20,8 @@ DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/postgres"
 
 rag = RagLeap(
     database_url=DATABASE_URL,
-    embedder=EmbeddingConfig(provider="gemini", api_key=GEMINI_API_KEY),
-    primary=ProviderConfig(provider="gemini", api_key=GEMINI_API_KEY),
+    embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key=GEMINI_API_KEY),
+    primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key=GEMINI_API_KEY),
 )
 
 # One-time setup — creates the required tables/indexes if they don't exist.

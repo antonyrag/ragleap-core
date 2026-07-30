@@ -10,8 +10,8 @@ from conftest import TEST_DATABASE_URL, TEST_DIMENSIONS
 def _make_rag(primary=None, **kwargs):
     return RagLeap(
         database_url=TEST_DATABASE_URL,
-        embedder=EmbeddingConfig(provider="gemini", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
-        primary=primary or ProviderConfig(provider="gemini", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
+        primary=primary or ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
         **kwargs,
     )
 
@@ -85,7 +85,7 @@ def test_cost_tracker_over_budget_after_threshold_crossed():
 # --- Integration tests: real ask() wiring through RagLeap ---
 
 def test_ask_result_has_cost_field_with_known_pricing():
-    rag = _make_rag(primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash"))
+    rag = _make_rag(primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"))
     rag.ingest_text("a.txt", "Some content about testing things.")
 
     result = rag.ask("A question")
@@ -101,7 +101,7 @@ def test_ask_result_cost_unavailable_for_unpriced_model():
     name rather than relying on "whatever the current default happens
     to be", since that default is not a stable thing to couple a test
     to (see: gemini-2.5-flash getting deprecated by Google mid-project)."""
-    rag = _make_rag(primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="some-future-unpriced-gemini-model"))
+    rag = _make_rag(primary=ProviderConfig(provider="gemini", model="some-future-unpriced-gemini-model", api_key="fake-test-key"))
     rag.ingest_text("a.txt", "Some content.")
 
     result = rag.ask("A question")
@@ -112,7 +112,7 @@ def test_ask_result_cost_unavailable_for_unpriced_model():
 
 def test_ask_pricing_table_override_applies_through_rag_constructor():
     rag = _make_rag(
-        primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash"),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
         pricing_table={"gemini": {"gemini-3.6-flash": {"input": 0.05, "output": 0.10}}},
     )
     rag.ingest_text("a.txt", "Some content.")
@@ -125,7 +125,7 @@ def test_ask_pricing_table_override_applies_through_rag_constructor():
 
 
 def test_cumulative_cost_grows_across_multiple_ask_calls():
-    rag = _make_rag(primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash"))
+    rag = _make_rag(primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"))
     rag.ingest_text("a.txt", "Some content.")
 
     first = rag.ask("Q1")
@@ -139,7 +139,7 @@ def test_budget_fallback_triggers_switch_to_fallback_provider():
     Its real cost then crosses the tiny budget, so the second call must
     use budget_fallback instead - proving override_provider actually
     reaches the generation chain, not just that cost is tracked."""
-    primary = ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash")
+    primary = ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key")
     fallback = ProviderConfig(provider="anthropic", api_key="fake-test-key", model="claude-haiku-4-5-20251001")
     rag = _make_rag(
         primary=primary,
@@ -158,7 +158,7 @@ def test_budget_fallback_triggers_switch_to_fallback_provider():
 def test_no_budget_fallback_configured_never_switches_provider():
     """budget_usd_per_month set but no budget_fallback provider -> stays
     on primary regardless of spend, since there's nowhere to fall back to."""
-    primary = ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash")
+    primary = ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key")
     rag = _make_rag(primary=primary, budget_usd_per_month=0.00001)
     rag.ingest_text("a.txt", "Some content.")
 
@@ -171,7 +171,7 @@ def test_no_budget_fallback_configured_never_switches_provider():
 def test_ask_stream_cost_is_always_unavailable():
     """Streaming has no token usage data (see generate_answer_stream's
     docstring) - cost must honestly report unavailable, not fabricated."""
-    rag = _make_rag(primary=ProviderConfig(provider="gemini", api_key="fake-test-key", model="gemini-3.6-flash"))
+    rag = _make_rag(primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"))
     rag.ingest_text("a.txt", "Some content.")
 
     list(rag.ask_stream("A question"))
