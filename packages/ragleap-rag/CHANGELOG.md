@@ -8,6 +8,21 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.10.1]
+
+### Added
+
+- `PineconeBackend` - a real, working implementation of the `VectorBackend` interface for Pinecone's managed serverless vector database, following the same SQLite-sidecar pattern as `FAISSBackend`. New `[pinecone]` extra.
+- Every attribute path used (`IndexList.names`, `IndexStatus.ready`, `ScoredVector.id`/`.score`, `Pinecone.Index(host=...)`) was verified directly against the actual installed `pinecone==9.1.0` package's real source code during development - not assumed from documentation or memory. This caught a real bug before it shipped: an early draft used dict-style access (`idx["name"]`, `status.get("ready")`) that would have failed at runtime, since the SDK's response objects are `msgspec.Struct`s requiring attribute access throughout, not dicts.
+- **Not live-verified** against a real Pinecone account (none was available) - 20 tests cover constructor validation, pure helper functions, SQLite CRUD in isolation, and mocked-client interaction tests (confirming the right SDK methods get called with the right arguments), but none of this is a substitute for a real end-to-end run against Pinecone's actual service.
+- Deliberate design choice: `persist_directory=` is **required**, not optional like `FAISSBackend`'s - Pinecone vectors persist remotely regardless of local process state, so an in-memory-only SQLite sidecar would create orphaned vectors (searchable in Pinecone, with no matching text) the instant the process restarts.
+- `metadata_filter` uses Pinecone's real native filtering (translated to its `$eq` syntax), not a post-filter like `FAISSBackend` has to do - the caller-supplied metadata dict is stored in Pinecone's own vector metadata, not just SQLite.
+- Serverless index creation readiness is polled with a 60s timeout - a well-documented Pinecone requirement (indexes aren't instantly queryable after creation) that's easy to miss.
+
+### Corrected
+
+- Prior CHANGELOG entries (v0.7.0) and README text referenced "the same caveat already attached to the Pinecone vector backend" - **this was inaccurate**. No Pinecone backend existed in the codebase at that time; the phrase was carried over from an earlier, unverified project-planning document (the original session handoff) that had incorrectly described Pinecone as "code-complete but unverified" when it had, in fact, never been built. Historical CHANGELOG entries are left as-written (a changelog is a historical record, not silently rewritten after the fact), but README.md - being living documentation, not a historical record - has been corrected to reflect that `PineconeBackend` now genuinely exists as of this release.
+
 ## [0.10.0]
 
 ### Added
