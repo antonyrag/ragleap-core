@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-rag"
-version = "0.9.0"
+version = "0.10.0"
 description = "A fast, honest, self-hosted RAG engine — hybrid dense+sparse retrieval, streaming, provider fallback, and real token usage reporting. BYOK, no vendor lock-in."
 readme = "README.md"
 license = "MIT"

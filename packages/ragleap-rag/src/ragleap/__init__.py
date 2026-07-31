@@ -26,6 +26,7 @@ from ragleap.embedding import EmbeddingService, EmbeddingConfig
 from ragleap.vectorstores import VectorBackend, PgVectorBackend
 from ragleap.generation import GenerationService, ProviderConfig
 from ragleap.cost import CostTracker
+from ragleap import query_rewrite as _query_rewrite
 from ragleap.guardrails import GuardrailViolation, run_guardrails
 from ragleap import evaluation as _evaluation
 from ragleap.observability import fire_event
@@ -44,7 +45,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -334,6 +335,8 @@ class RagLeap:
         rerank: bool = False,
         metadata_filter: Optional[Dict] = None,
         response_format: Optional[Dict] = None,
+        query_rewrite: Optional[str] = None,
+        multi_query_n: int = 3,
     ) -> Dict:
         """
         Answer a question grounded in previously ingested documents.
@@ -355,16 +358,77 @@ class RagLeap:
         still contains the JSON as a string either way, for backward
         compatibility with existing callers.
 
+        query_rewrite=<"contextual"|"hyde"|"multi_query"> improves
+        retrieval by transforming the query before it's embedded/
+        searched. "contextual" resolves follow-up questions ("what
+        about its pricing?") into standalone questions using session_id
+        history - needs session_id set, no-ops otherwise. "hyde"
+        generates a hypothetical answer and embeds that instead of the
+        raw query (Gao et al. 2022) - often better semantic match than
+        embedding a short question. "multi_query" generates
+        multi_query_n alternative phrasings, retrieves for each, and
+        merges via Reciprocal Rank Fusion - can improve recall, but
+        generated variants can be "nearly identical and lacking in
+        diversity" (a documented RAG-Fusion limitation, not unique to
+        this implementation), and costs multi_query_n retrieval calls
+        instead of one. Every strategy fails open: if the extra LLM
+        call itself fails, retrieval proceeds with the original query
+        unmodified - a broken rewrite step never breaks retrieval.
+        The final answer generation always uses your original query,
+        never the rewritten form - rewriting only affects what gets
+        retrieved. Result gains "query_rewrite" with the strategy used
+        and what was actually retrieved-with (rewritten_query,
+        hyde_document, or query_variants) when a strategy is set.
+
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": dict|None, "chunks_sent": int}
         """
-        query_embedding = self._embed_query_cached(query)
+        history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
+
+        override_provider = (
+            self._budget_fallback
+            if (self._budget_fallback and self._cost_tracker.is_over_budget())
+            else None
+        )
+
+        query_rewrite_info = None
+        if query_rewrite == "contextual":
+            retrieval_query, rewrite_result = _query_rewrite.contextual_rewrite(self._generator, query, history_prefix, override_provider)
+            if rewrite_result is not None:
+                self._cost_tracker.record(rewrite_result.get("provider_used"), rewrite_result.get("model_used"), rewrite_result.get("usage"))
+            query_rewrite_info = {"strategy": "contextual", "rewritten_query": retrieval_query}
+            query_embedding = self._embed_query_cached(retrieval_query)
+        elif query_rewrite == "hyde":
+            hyde_text, rewrite_result = _query_rewrite.hyde_document(self._generator, query, override_provider)
+            if rewrite_result is not None:
+                self._cost_tracker.record(rewrite_result.get("provider_used"), rewrite_result.get("model_used"), rewrite_result.get("usage"))
+            query_rewrite_info = {"strategy": "hyde", "hyde_document": hyde_text}
+            query_embedding = self._embed_query_cached(hyde_text)
+        else:
+            query_embedding = self._embed_query_cached(query)
+
         if query_embedding is None:
             return {"answer": "Sorry, I couldn't process your question (embedding failed).",
                     "sources": [], "citations": [], "provider_used": None, "usage": None, "chunks_sent": 0}
 
         pool_size = top_k * 4 if rerank else top_k
-        if hybrid:
+
+        if query_rewrite == "multi_query":
+            variants, rewrite_result = _query_rewrite.multi_query_variants(self._generator, query, multi_query_n, override_provider)
+            if rewrite_result is not None:
+                self._cost_tracker.record(rewrite_result.get("provider_used"), rewrite_result.get("model_used"), rewrite_result.get("usage"))
+            query_rewrite_info = {"strategy": "multi_query", "query_variants": variants}
+            ranked_lists = []
+            for variant in variants:
+                variant_embedding = self._embed_query_cached(variant)
+                if variant_embedding is None:
+                    continue
+                if hybrid:
+                    ranked_lists.append(self._vector_backend.search_hybrid(variant, variant_embedding, top_k=pool_size, metadata_filter=metadata_filter))
+                else:
+                    ranked_lists.append(self._vector_backend.search_dense(variant_embedding, top_k=pool_size, metadata_filter=metadata_filter))
+            chunks = _query_rewrite.reciprocal_rank_fusion(ranked_lists)[:pool_size]
+        elif hybrid:
             chunks = self._vector_backend.search_hybrid(query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
         else:
             chunks = self._vector_backend.search_dense(query_embedding, top_k=pool_size, metadata_filter=metadata_filter)
@@ -375,16 +439,8 @@ class RagLeap:
             chunks = self._reranker.rerank(query, chunks, top_k=top_k)
 
         fire_event(
-            {"query": query, "hybrid": hybrid, "rerank": rerank, "top_k": top_k, "chunks_retrieved": len(chunks), "streaming": False},
+            {"query": query, "hybrid": hybrid, "rerank": rerank, "top_k": top_k, "chunks_retrieved": len(chunks), "streaming": False, "query_rewrite": query_rewrite},
             self._on_query, "on_query",
-        )
-
-        history_prefix = self._memory.build_history_prompt(session_id) if session_id else ""
-
-        override_provider = (
-            self._budget_fallback
-            if (self._budget_fallback and self._cost_tracker.is_over_budget())
-            else None
         )
 
         result = self._generator.generate_answer(
@@ -392,6 +448,9 @@ class RagLeap:
             max_tokens=max_tokens, history_prefix=history_prefix,
             override_provider=override_provider, response_format=response_format,
         )
+
+        if query_rewrite_info is not None:
+            result["query_rewrite"] = query_rewrite_info
 
         cost_usd = self._cost_tracker.record(result.get("provider_used"), result.get("model_used"), result.get("usage"))
         result["cost"] = {

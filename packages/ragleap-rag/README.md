@@ -197,6 +197,34 @@ Filtering uses Postgres JSONB containment (metadata @> filter), backed by a GIN 
 
 Known limitation: update_document() does not currently preserve the original document's metadata - re-ingesting content via update_document() resets metadata to empty unless you pass it again yourself. Worth fixing in a follow-up if this trips anyone up.
 
+## Query rewriting
+
+Pass `query_rewrite=` to `ask()` to transform the query before it's embedded/searched - can improve retrieval quality, at the cost of one extra LLM call (or more, for `multi_query`). Grounded in established RAG research: HyDE (Gao et al. 2022), RAG-Fusion/multi-query (Rackauckas 2023).
+
+```python
+# Resolves follow-up questions using conversation history - needs session_id
+rag.ask("What about pricing?", session_id="s1", query_rewrite="contextual")
+
+# Generates a hypothetical answer and embeds that instead of the raw query
+rag.ask("What is RagLeap's pricing?", query_rewrite="hyde")
+
+# Generates alternative phrasings, retrieves for each, merges via Reciprocal Rank Fusion
+result = rag.ask("What is RagLeap's pricing?", query_rewrite="multi_query", multi_query_n=3)
+print(result["query_rewrite"])  # {"strategy": "multi_query", "query_variants": [...]}
+```
+
+Three strategies, each suited to a different problem:
+
+- **`"contextual"`** - rewrites a follow-up question ("what about its pricing?") into a standalone question using `session_id` conversation history. No-ops (uses the original query) if there's no history yet. One extra LLM call, no extra retrieval calls.
+- **`"hyde"`** - generates a hypothetical answer passage and embeds *that* instead of the raw query. Often a better semantic match than embedding a short question, since the hypothetical is closer in length/style to your actual corpus documents. One extra LLM call, no extra retrieval calls.
+- **`"multi_query"`** - generates `multi_query_n` alternative phrasings (default 3), retrieves separately for each, merges via Reciprocal Rank Fusion. Can improve recall by covering more of the query's "intent space" - but honestly, generated variants can be "nearly identical and lacking in diversity" (a documented limitation in the broader RAG-Fusion literature, not unique to this implementation), and it costs `multi_query_n` retrieval calls instead of one. If you want the cheap, fast option, use `"contextual"` or `"hyde"` instead.
+
+**The final answer generation always uses your original query, never the rewritten form** - rewriting only affects what gets retrieved, not what the model is asked to answer. Every strategy fails open: if the extra LLM call itself fails for any reason, retrieval proceeds with the original, unmodified query - a broken rewrite step can never break retrieval entirely.
+
+The result gains a `query_rewrite` field with the strategy used and what was actually retrieved-with (`rewritten_query`, `hyde_document`, or `query_variants`) whenever a strategy is set; it's absent entirely when `query_rewrite=` isn't passed, for backward compatibility. The extra LLM call's real token cost is recorded into the existing cost-tracking infrastructure (see Cost tracking), contributing to `cumulative_cost_usd`.
+
+Not currently supported on `ask_stream()`.
+
 ## Content sanitization
 
 ingest_text() sanitizes and screens content by default (sanitize=True, warn_on_injection_risk=True) - both can be disabled per call if you are already sanitizing upstream.
