@@ -62,8 +62,20 @@ Currently available:
 |---|---|---|---|
 | `PgVectorBackend` (default) | none needed | Yes - real Postgres full-text search | Battle-tested, the original implementation |
 | `FAISSBackend` | `pip install ragleap-rag[faiss]` | No - `ask(hybrid=True)` gracefully degrades to dense-only | Local, in-process, no API key. Pass `persist_directory=` for data that survives restarts - without it, everything is in-memory and lost on process exit. Metadata filtering is a post-filter (over-fetch then filter), not an indexed query - fine for small-to-medium datasets, less efficient than pgvector's JSONB GIN index at large scale. |
+| `PineconeBackend` | `pip install ragleap-rag[pinecone]` | No - `ask(hybrid=True)` gracefully degrades to dense-only | Managed, serverless. **Not live-verified** - no Pinecone account was available during development; code-complete against the real installed SDK's actual source (not just docs), but treat as best-effort until confirmed live. `persist_directory=` is **required** (not optional like FAISS) - Pinecone vectors persist remotely regardless of local state, so a SQLite sidecar for chunk text is mandatory to avoid orphaned vectors after a restart. `metadata_filter` uses Pinecone's real native filtering, not a post-filter. |
 
-More backends (Pinecone, Weaviate, Qdrant, Milvus) are planned - see the project roadmap. Building your own is straightforward: implement the `ragleap.vectorstores.VectorBackend` abstract interface (`init_schema`, `insert_document`, `insert_chunk`, `search_dense`, `list_documents`, `delete_document`, `get_document_filename`, and optionally `search_sparse`/`search_hybrid`/`supports_sparse` if your backend can do keyword search).
+```python
+from ragleap.vectorstores import PineconeBackend
+
+rag = RagLeap(
+    database_url="postgresql://user:pass@localhost/mydb",
+    vector_backend=PineconeBackend(persist_directory="./pinecone_meta", api_key="...", index_name="my-index"),
+    embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=3072, api_key="..."),
+    primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="..."),
+)
+```
+
+More backends (Weaviate, Qdrant, Milvus) are planned - see the project roadmap. Building your own is straightforward: implement the `ragleap.vectorstores.VectorBackend` abstract interface (`init_schema`, `insert_document`, `insert_chunk`, `search_dense`, `list_documents`, `delete_document`, `get_document_filename`, and optionally `search_sparse`/`search_hybrid`/`supports_sparse` if your backend can do keyword search).
 
 ## The three things that matter
 
@@ -652,7 +664,7 @@ Gemini, OpenAI, Mistral, Together, and Ollama (all OpenAI-compatible under the h
 
 **`model=` and `dimensions=` are always required** for every embedding provider (constructor arg or env var, e.g. `GEMINI_EMBEDDING_MODEL`/`EMBEDDING_DIMENSIONS`) - same reasoning as generation providers above. `dimensions=` in particular can't be safely inferred without assuming a specific model, so it's mandatory everywhere now, not just for `together` (which set this precedent from the start).
 
-**Live-verification status**, following this project's own standard of testing against real infrastructure before calling anything done: `gemini` and `openai` are long-verified. `ollama` was live-verified this release — fully local, no API key, tested end-to-end through real ingestion + real FAISS retrieval. `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but **not live-verified** against a real account (the same caveat already attached to the Pinecone vector backend).
+**Live-verification status**, following this project's own standard of testing against real infrastructure before calling anything done: `gemini` and `openai` are long-verified. `ollama` was live-verified this release — fully local, no API key, tested end-to-end through real ingestion + real FAISS retrieval. `mistral`, `together`, `cohere`, and `voyage` are code-complete based on public API documentation but **not live-verified** against a real account - the same category of caveat as the `PineconeBackend` vector backend (see Vector backends above).
 
 `provider="custom"` + `base_url=...` reaches any OpenAI-compatible embeddings endpoint not otherwise named above - a self-hosted server (vLLM, LM Studio, etc.), or a provider without dedicated code here yet. Several Chinese providers - Qwen/DashScope, Zhipu/GLM, Moonshot/Kimi - ship OpenAI-compatible modes and work via this path today. Mirrors `generation.py`'s existing `provider="custom"` support for chat models.
 
