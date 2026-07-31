@@ -8,6 +8,22 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.10.0]
+
+### Added
+
+- Query rewriting/expansion: `query_rewrite=` on `ask()` with three strategies grounded in established RAG research - `"contextual"` (resolves follow-up questions using session history, HyDE-adjacent single-call pattern cited in 2026 production case studies), `"hyde"` (Gao et al. 2022 - embeds a generated hypothetical answer instead of the raw query), and `"multi_query"` (Rackauckas 2023 RAG-Fusion - generates alternative phrasings, retrieves for each, merges via Reciprocal Rank Fusion).
+- New `ragleap.query_rewrite` module: `contextual_rewrite()`, `hyde_document()`, `multi_query_variants()`, `reciprocal_rank_fusion()`.
+- **Live-verified this release** with real Gemini calls: contextual rewrite correctly resolved a pronoun-laden follow-up ("it" -> "RagLeap"), HyDE generated an on-topic hypothetical passage, multi_query produced three genuinely distinct phrasings that all correctly retrieved the same chunk, RRF merge correctly ranked the doubly-retrieved chunk first. Full integration verified end-to-end (real embeddings, real FAISS retrieval, real generation) for all three strategies plus the no-rewrite backward-compat path.
+- Honest limitation documented, not hidden: `multi_query`'s generated variants can be "nearly identical and lacking in diversity" (a documented finding in the broader RAG-Fusion literature) and it costs `multi_query_n` retrieval calls instead of one - `contextual` and `hyde` are the cheap, fast options if that's what you want.
+- Every strategy fails open: if the extra rewrite LLM call itself fails, retrieval proceeds with the original, unmodified query - a broken rewrite step can never break retrieval entirely.
+- The final answer generation always uses the original query, never the rewritten form - rewriting only affects what gets retrieved.
+- The rewrite call's real token cost is recorded into the existing `CostTracker` infrastructure, contributing to `cumulative_cost_usd`.
+- `multi_query_n=3` param on `ask()` controls variant count for the `multi_query` strategy.
+- Result gains a `query_rewrite` field (strategy + rewritten_query/hyde_document/query_variants) only when `query_rewrite=` is passed - absent entirely otherwise, for backward compatibility.
+- Not supported on `ask_stream()`.
+- 19 new tests (159 -> 178 passing): isolated unit tests for `ragleap.query_rewrite` (via a lightweight stub generator for deterministic control), fail-open behavior coverage, and `ask()` plumbing tests via the existing fake-provider fixtures.
+
 ## [0.9.0]
 
 ### Breaking
