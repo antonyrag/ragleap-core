@@ -8,6 +8,21 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.11.0]
+
+### Added
+
+- Three new vector backends completing the originally-planned roadmap: `WeaviateBackend`, `QdrantBackend`, `MilvusBackend` - all implementing the `VectorBackend` interface, following the same SQLite-sidecar-plus-remote-vector-store pattern as `PineconeBackend`.
+- New `[weaviate]`, `[qdrant]`, `[milvus]` extras.
+- **Not live-verified** against real instances of any of the three (no accounts were available) - same honest caveat as `PineconeBackend`. Every method signature, class field, and return-type structure used in all three implementations was introspected directly against each package's actual installed source code (`weaviate-client==4.22.0`, `qdrant-client==1.18.0`, `pymilvus==3.0.1`) during development - not assumed from documentation. This is the same rigor that caught a real pre-ship bug in `PineconeBackend` (v0.10.1); applying it up front here rather than discovering issues later.
+- `WeaviateBackend`: vectors are "self-provided" (`Configure.Vectors.self_provided()`) since ragleap-rag always brings its own embeddings. Weaviate assigns its own UUIDs on insert (can't supply an arbitrary string ID directly like Pinecone), so a deterministic UUID derived from `document_id:chunk_index` is used - re-running the same insert stays idempotent. Distance is converted to a similarity-style score (`1.0 - distance`) for consistency with the other backends, which all return higher-is-better values.
+- `QdrantBackend`: `PointStruct.id`'s type hint technically allows arbitrary strings, but real runtime validation requires string IDs to actually parse as valid UUIDs (a well-documented gap between the type system and the server's actual behavior) - deterministic UUIDs used here too, for the same reason as Weaviate.
+- `MilvusBackend`: unlike the other three, Milvus's `id_type="string"` genuinely accepts arbitrary string primary keys directly - no UUID workaround needed, `document_id:chunk_index` is used as-is. `enable_dynamic_field=True` (the client's own default) means the caller-supplied metadata dict can be inserted directly as extra fields without pre-declaring a schema for them.
+- All three, like `PineconeBackend`, require `persist_directory=` (not optional like `FAISSBackend`) - a remote/cloud vector store persists data regardless of local process state, so a persistent SQLite sidecar for chunk text is mandatory to avoid orphaned vectors after a restart.
+- `supports_sparse()` is `False` for all three, even though Weaviate/Qdrant/Milvus all natively support sparse vectors/BM25/hybrid search - implementing that natively for each is a real, valuable future enhancement, deliberately not attempted here to keep initial scope honest and verifiable rather than guessing at a larger untested surface area.
+- 40 new tests across three files (198 -> 238 passing): each backend gets constructor validation, pure helper-function tests, SQLite CRUD in isolation, and mocked-client interaction tests confirming the right SDK methods get called with the right arguments and attribute-access patterns.
+- This completes the originally-planned vector backend roadmap (Pinecone, Weaviate, Qdrant, Milvus) - `ragleap-rag` now supports 6 vector storage options total: pgvector, FAISS, Pinecone, Weaviate, Qdrant, Milvus.
+
 ## [0.10.1]
 
 ### Added

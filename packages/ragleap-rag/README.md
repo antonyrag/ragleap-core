@@ -63,9 +63,12 @@ Currently available:
 | `PgVectorBackend` (default) | none needed | Yes - real Postgres full-text search | Battle-tested, the original implementation |
 | `FAISSBackend` | `pip install ragleap-rag[faiss]` | No - `ask(hybrid=True)` gracefully degrades to dense-only | Local, in-process, no API key. Pass `persist_directory=` for data that survives restarts - without it, everything is in-memory and lost on process exit. Metadata filtering is a post-filter (over-fetch then filter), not an indexed query - fine for small-to-medium datasets, less efficient than pgvector's JSONB GIN index at large scale. |
 | `PineconeBackend` | `pip install ragleap-rag[pinecone]` | No - `ask(hybrid=True)` gracefully degrades to dense-only | Managed, serverless. **Not live-verified** - no Pinecone account was available during development; code-complete against the real installed SDK's actual source (not just docs), but treat as best-effort until confirmed live. `persist_directory=` is **required** (not optional like FAISS) - Pinecone vectors persist remotely regardless of local state, so a SQLite sidecar for chunk text is mandatory to avoid orphaned vectors after a restart. `metadata_filter` uses Pinecone's real native filtering, not a post-filter. |
+| `WeaviateBackend` | `pip install ragleap-rag[weaviate]` | No (Weaviate natively supports BM25/hybrid search, but that's not wired in yet - a real future enhancement) | Managed cloud or self-hosted. **Not live-verified** - same caveat as Pinecone. `persist_directory=` required, same reasoning. Vectors are "self-provided" (bring-your-own-embeddings) - Weaviate's built-in vectorizer integrations aren't used. |
+| `QdrantBackend` | `pip install ragleap-rag[qdrant]` | No (Qdrant natively supports sparse vectors/hybrid search, not wired in yet) | Managed cloud or self-hosted. **Not live-verified** - same caveat. `persist_directory=` required, same reasoning. |
+| `MilvusBackend` | `pip install ragleap-rag[milvus]` | No (Milvus natively supports sparse/BM25/hybrid search, not wired in yet) | Managed (Zilliz Cloud) or self-hosted. **Not live-verified** - same caveat. `persist_directory=` required, same reasoning. Unlike the other three, Milvus accepts arbitrary string primary keys directly - no UUID workaround needed. |
 
 ```python
-from ragleap.vectorstores import PineconeBackend
+from ragleap.vectorstores import PineconeBackend  # or WeaviateBackend, QdrantBackend, MilvusBackend
 
 rag = RagLeap(
     database_url="postgresql://user:pass@localhost/mydb",
@@ -75,7 +78,9 @@ rag = RagLeap(
 )
 ```
 
-More backends (Weaviate, Qdrant, Milvus) are planned - see the project roadmap. Building your own is straightforward: implement the `ragleap.vectorstores.VectorBackend` abstract interface (`init_schema`, `insert_document`, `insert_chunk`, `search_dense`, `list_documents`, `delete_document`, `get_document_filename`, and optionally `search_sparse`/`search_hybrid`/`supports_sparse` if your backend can do keyword search).
+**Live-verification status for Pinecone/Weaviate/Qdrant/Milvus**: none of the four have been tested against a real account - no accounts were available during development. Each was still built with real rigor: every SDK method signature, class field, and return type used was introspected directly against the actual installed client package's source code (not assumed from documentation or memory), which caught a real bug pre-ship for `PineconeBackend` (dict-style access that would have failed at runtime against the SDK's actual `msgspec.Struct`-based response objects). Treat all four as best-effort until confirmed live by someone with a real account - the same honest standard already applied to `mistral`/`together`/`cohere`/`voyage` in the embedding module.
+
+Building your own backend is straightforward: implement the `ragleap.vectorstores.VectorBackend` abstract interface (`init_schema`, `insert_document`, `insert_chunk`, `search_dense`, `list_documents`, `delete_document`, `get_document_filename`, and optionally `search_sparse`/`search_hybrid`/`supports_sparse` if your backend can do keyword search).
 
 ## The three things that matter
 
