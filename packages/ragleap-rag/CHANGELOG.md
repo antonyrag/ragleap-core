@@ -8,6 +8,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
 - `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
+## [0.11.1]
+
+### Fixed
+- README's "How it fits together" architecture diagram was stale - hardcoded "PostgreSQL + pgvector" as the only storage layer (predates vector backend pluggability), and showed nothing about query rewriting, structured output, or cost tracking, all of which now sit in the actual request flow. Updated to reflect the real current architecture.
+
 ## [0.11.0]
 
 ### Added
