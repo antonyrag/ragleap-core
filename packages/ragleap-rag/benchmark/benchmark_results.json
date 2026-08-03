@@ -1,0 +1,62 @@
+{
+  "run_timestamp_utc": "2026-08-03T09:39:09.302714+00:00",
+  "ragleap_rag_version": "0.11.1",
+  "num_docs": 40,
+  "num_queries": 15,
+  "configs": {
+    "gemini_pgvector": {
+      "status": "ok",
+      "ingestion": {
+        "docs_ingested": 40,
+        "docs_failed": 0,
+        "total_seconds": 36.275,
+        "docs_per_second": 1.103
+      },
+      "queries": {
+        "queries_run": 8,
+        "queries_failed": 7,
+        "latency_p50_ms": 3934.4,
+        "latency_p95_ms": 6529.9,
+        "latency_mean_ms": 4253.0,
+        "avg_cost_usd": 0.003346,
+        "pricing_available": true
+      }
+    },
+    "gemini_faiss": {
+      "status": "ok",
+      "ingestion": {
+        "docs_ingested": 40,
+        "docs_failed": 0,
+        "total_seconds": 35.372,
+        "docs_per_second": 1.131
+      },
+      "queries": {
+        "queries_run": 0,
+        "queries_failed": 15,
+        "latency_p50_ms": null,
+        "latency_p95_ms": null,
+        "latency_mean_ms": null,
+        "avg_cost_usd": null,
+        "pricing_available": false
+      }
+    },
+    "ollama_local": {
+      "status": "ok",
+      "ingestion": {
+        "docs_ingested": 40,
+        "docs_failed": 0,
+        "total_seconds": 112.742,
+        "docs_per_second": 0.355
+      },
+      "queries": {
+        "queries_run": 15,
+        "queries_failed": 0,
+        "latency_p50_ms": 67028.3,
+        "latency_p95_ms": 84883.4,
+        "latency_mean_ms": 47243.8,
+        "avg_cost_usd": null,
+        "pricing_available": false
+      }
+    }
+  }
+}
