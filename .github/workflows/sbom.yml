@@ -1,0 +1,57 @@
+name: "Generate SBOM"
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "packages/ragleap-rag/pyproject.toml"
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 5 * * 1'
+
+jobs:
+  sbom:
+    name: Generate CycloneDX SBOM
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create clean venv and install ragleap-rag[all]
+        run: |
+          python -m venv /tmp/sbom-venv
+          /tmp/sbom-venv/bin/pip install --upgrade pip
+          /tmp/sbom-venv/bin/pip install "./packages/ragleap-rag[all]"
+          /tmp/sbom-venv/bin/pip install cyclonedx-bom
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: |
+          /tmp/sbom-venv/bin/cyclonedx-py environment /tmp/sbom-venv \
+            --pyproject packages/ragleap-rag/pyproject.toml \
+            --mc-type library \
+            --output-file packages/ragleap-rag/sbom.json \
+            --of JSON
+
+      - name: Upload SBOM as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ragleap-rag-sbom
+          path: packages/ragleap-rag/sbom.json
+          retention-days: 90
+
+      - name: Commit updated SBOM back to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add packages/ragleap-rag/sbom.json
+          git diff --cached --quiet && echo "No SBOM changes to commit" && exit 0
+          git commit -m "chore: regenerate SBOM [skip ci]"
+          git push
