@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Python dependencies for ragleap-rag package
+  - package-ecosystem: "pip"
+    directory: "/packages/ragleap-rag"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+
+  # GitHub Actions workflow dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ci"
