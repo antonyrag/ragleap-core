@@ -52,6 +52,20 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [ ] Open contributions with labeled good-first-issues
 - [ ] Community Discord
 - [ ] Plugin/extension system for custom document loaders or AI providers
+## Phase 6 — `ragleap-rag` hardening (in progress)
+
+`ragleap-rag` (the standalone PyPI library, `packages/ragleap-rag/`) went from v0.6.3 to v0.11.1 across this and prior sessions: Cost-First RAG, embedding provider expansion, structured/JSON output, query rewriting (contextual/HyDE/multi-query), removal of all hardcoded model defaults, and six vector backends (pgvector, FAISS, Pinecone, Weaviate, Qdrant, Milvus). This phase covers what's left before a confident v1.0.
+
+- [ ] `SECURITY.md` — vulnerability disclosure process
+- [ ] Dependency SBOM (`cyclonedx-bom` output) for supply-chain transparency
+- [ ] CodeQL + Dependabot enabled in CI, with status badges in the README
+- [ ] Real, measured benchmarks (ingestion throughput, query latency, cost per query) — run against real infrastructure and published as actually-measured numbers, not projected/estimated ones. No benchmark ships until it's been run for real; this project's whole differentiator is verified claims over marketing claims, and that standard applies here too.
+- [ ] Migration guide from LangChain/LlamaIndex — real, runnable code comparisons, not just a features table
+- [ ] Live verification of `PineconeBackend`, `WeaviateBackend`, `QdrantBackend`, `MilvusBackend` against real accounts (currently code-complete, verified against each SDK's actual installed source, but not run against a live service - see `packages/ragleap-rag/CHANGELOG.md` for the honest status of each)
+- [ ] Embedding provider live verification: `mistral`, `together`, `cohere`, `voyage` are code-complete but not live-tested against real accounts (only `gemini`/`openai`/`ollama` are)
+
+**Explicitly not planned for `ragleap-rag` itself**, consistent with its scope as a focused RAG library rather than a general orchestration framework: agent/tool-calling frameworks, multi-step orchestration, channel integrations (WhatsApp/Telegram/Discord/Voice - these already exist and work today in this repo's `channels/` directory, just not bundled into the `ragleap-rag` package specifically), and anything requiring a fundamentally different testing/release cadence than a retrieval library. If any of these get built as genuinely separate packages in the future, they'll be scoped and evaluated on their own merits when there's real capacity to build and verify them properly - not speculatively listed here as commitments.
+
 
 ## Not planned for RagLeap Core
 
