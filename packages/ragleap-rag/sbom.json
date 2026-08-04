@@ -488,7 +488,7 @@
       "version": "2026.7.22"
     },
     {
-      "bom-ref": "cffi==2.1.0",
+      "bom-ref": "cffi==2.1.1",
       "description": "Foreign Function Interface for Python calling C code.",
       "externalReferences": [
         {
@@ -531,9 +531,9 @@
         }
       ],
       "name": "cffi",
-      "purl": "pkg:pypi/cffi@2.1.0",
+      "purl": "pkg:pypi/cffi@2.1.1",
       "type": "library",
-      "version": "2.1.0"
+      "version": "2.1.1"
     },
     {
       "bom-ref": "chardet==5.2.0",
@@ -993,7 +993,7 @@
       "version": "2.0.0"
     },
     {
-      "bom-ref": "faiss-cpu==1.14.3",
+      "bom-ref": "faiss-cpu==1.15.0",
       "description": "A library for efficient similarity search and clustering of dense vectors.",
       "externalReferences": [
         {
@@ -1026,9 +1026,9 @@
         }
       ],
       "name": "faiss-cpu",
-      "purl": "pkg:pypi/faiss-cpu@1.14.3",
+      "purl": "pkg:pypi/faiss-cpu@1.15.0",
       "type": "library",
-      "version": "1.14.3"
+      "version": "1.15.0"
     },
     {
       "bom-ref": "filelock==3.32.2",
@@ -1271,7 +1271,7 @@
       "version": "0.16.0"
     },
     {
-      "bom-ref": "h2==4.4.0",
+      "bom-ref": "h2==4.4.1",
       "description": "Pure-Python HTTP/2 protocol implementation",
       "externalReferences": [
         {
@@ -1304,12 +1304,12 @@
         }
       ],
       "name": "h2",
-      "purl": "pkg:pypi/h2@4.4.0",
+      "purl": "pkg:pypi/h2@4.4.1",
       "type": "library",
-      "version": "4.4.0"
+      "version": "4.4.1"
     },
     {
-      "bom-ref": "hf-xet==1.5.2",
+      "bom-ref": "hf-xet==1.6.0",
       "description": "Fast transfer of large files with the Hugging Face Hub.",
       "externalReferences": [
         {
@@ -1342,9 +1342,9 @@
         }
       ],
       "name": "hf-xet",
-      "purl": "pkg:pypi/hf-xet@1.5.2",
+      "purl": "pkg:pypi/hf-xet@1.6.0",
       "type": "library",
-      "version": "1.5.2"
+      "version": "1.6.0"
     },
     {
       "bom-ref": "hpack==4.2.0",
@@ -2130,7 +2130,7 @@
       "version": "1.28.0"
     },
     {
-      "bom-ref": "openai==2.52.0",
+      "bom-ref": "openai==2.53.0",
       "description": "The official Python library for the openai API",
       "externalReferences": [
         {
@@ -2159,9 +2159,9 @@
         }
       ],
       "name": "openai",
-      "purl": "pkg:pypi/openai@2.52.0",
+      "purl": "pkg:pypi/openai@2.53.0",
       "type": "library",
-      "version": "2.52.0"
+      "version": "2.53.0"
     },
     {
       "bom-ref": "openpyxl==3.1.5",
@@ -4303,7 +4303,7 @@
       "dependsOn": [
         "pycparser==3.0"
       ],
-      "ref": "cffi==2.1.0"
+      "ref": "cffi==2.1.1"
     },
     {
       "ref": "chardet==5.2.0"
@@ -4324,7 +4324,7 @@
     },
     {
       "dependsOn": [
-        "cffi==2.1.0",
+        "cffi==2.1.1",
         "typing_extensions==4.16.0"
       ],
       "ref": "cryptography==50.0.0"
@@ -4378,7 +4378,7 @@
         "numpy==2.4.6",
         "packaging==26.2"
       ],
-      "ref": "faiss-cpu==1.14.3"
+      "ref": "faiss-cpu==1.15.0"
     },
     {
       "ref": "filelock==3.32.2"
@@ -4442,10 +4442,10 @@
         "hpack==4.2.0",
         "hyperframe==6.1.0"
       ],
-      "ref": "h2==4.4.0"
+      "ref": "h2==4.4.1"
     },
     {
-      "ref": "hf-xet==1.5.2"
+      "ref": "hf-xet==1.6.0"
     },
     {
       "ref": "hpack==4.2.0"
@@ -4465,7 +4465,7 @@
         "anyio==4.14.2",
         "certifi==2026.7.22",
         "h11==0.16.0",
-        "h2==4.4.0"
+        "h2==4.4.1"
       ],
       "ref": "httpcore==1.0.9"
     },
@@ -4474,7 +4474,7 @@
         "anyio==4.14.2",
         "certifi==2026.7.22",
         "click==8.4.2",
-        "h2==4.4.0",
+        "h2==4.4.1",
         "httpcore==1.0.9",
         "idna==3.18"
       ],
@@ -4487,7 +4487,7 @@
         "click==8.4.2",
         "filelock==3.32.2",
         "fsspec==2026.7.0",
-        "hf-xet==1.5.2",
+        "hf-xet==1.6.0",
         "httpx==0.28.1",
         "numpy==2.4.6",
         "packaging==26.2",
@@ -4616,7 +4616,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "openai==2.52.0"
+      "ref": "openai==2.53.0"
     },
     {
       "dependsOn": [
@@ -4854,13 +4854,13 @@
         "PyYAML==6.0.3",
         "anthropic==0.120.2",
         "beautifulsoup4==4.15.0",
-        "faiss-cpu==1.14.3",
+        "faiss-cpu==1.15.0",
         "google-genai==2.16.0",
         "huggingface_hub==1.26.0",
         "jsonschema==4.26.0",
         "odfpy==1.4.1",
         "onnxruntime==1.28.0",
-        "openai==2.52.0",
+        "openai==2.53.0",
         "openpyxl==3.1.5",
         "pillow==12.3.0",
         "pinecone==9.1.0",
@@ -4966,7 +4966,7 @@
     },
     {
       "dependsOn": [
-        "h2==4.4.0"
+        "h2==4.4.1"
       ],
       "ref": "urllib3==2.7.0"
     },
@@ -5034,9 +5034,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.11.1"
+      "version": "0.11.2"
     },
-    "timestamp": "2026-08-03T08:29:18.167845+00:00",
+    "timestamp": "2026-08-04T05:07:06.721256+00:00",
     "tools": {
       "components": [
         {
@@ -5140,7 +5140,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:fa81bb44-7bf8-48bd-9866-c667d209eb79",
+  "serialNumber": "urn:uuid:7188dadd-eb08-4689-8b22-edf227c5e005",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
