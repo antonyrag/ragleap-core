@@ -609,7 +609,7 @@ Architecture:
                                    shared across all worker processes
 ```
 
-Each worker process talks to the same Postgres database and, optionally, shares the Redis query cache (a separate concern from the Celery broker/backend, even if it's the same Redis server). Run `celery -A your_module worker --loglevel=info` to start a worker, then call `.delay(...)` from your web app to enqueue tasks without blocking the request.
+Each worker process talks to the same Postgres database and, optionally, shares the Redis query cache (a separate concern from the Celery broker/backend, even if it's the same Redis server). Run `celery -A your_module worker --loglevel=info` to start a worker, then call `.delay(...)` from your web app to enqueue tasks without blocking the request. This example omits `vector_backend=`, so it uses the default pgvector - swapping in FAISS, Pinecone, Weaviate, Qdrant, or Milvus works identically in this same Celery pattern, since only the RagLeap construction inside `get_rag()` changes.
 
 See `examples/05_celery_background_tasks.py` for the full runnable version.
 
