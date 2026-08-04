@@ -60,7 +60,7 @@ jobs:
 
       - name: Open PR with updated SBOM
         if: steps.sbom_diff.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.SBOM_PR_TOKEN }}
           commit-message: "chore: regenerate SBOM"
