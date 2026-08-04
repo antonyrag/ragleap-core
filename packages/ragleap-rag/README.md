@@ -615,8 +615,9 @@ See `examples/05_celery_background_tasks.py` for the full runnable version.
 
 ## How it fits together
              +------------------+
-             |   Your text or   |
-             |  .txt/.pdf/.docx |
+             | Text, 28 formats |
+             |  URLs, images,   |
+             |   audio, video   |
              +--------+---------+
                       |
              +--------v---------+
