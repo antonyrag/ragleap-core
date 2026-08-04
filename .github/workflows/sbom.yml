@@ -42,7 +42,7 @@ jobs:
             --of JSON
 
       - name: Upload SBOM as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ragleap-rag-sbom
           path: packages/ragleap-rag/sbom.json
