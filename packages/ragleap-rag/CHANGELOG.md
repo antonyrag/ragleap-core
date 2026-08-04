@@ -5,8 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-- `docs`: Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
-- `test`: comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
+## [0.11.2] - 2026-08-04
+
+### Fixed
+- The README's "How it fits together" diagram fix in v0.11.1 was incomplete: the ingestion box still only listed `.txt/.pdf/.docx`, omitting the real 28-format + URL + image + audio + video ingestion support that already exists (`ingest()`, `ingest_url()`, `ingest_image()`, `ingest_audio()`, `ingest_video()`). Corrected to reflect actual ingestion breadth.
+- The separate Celery background-task architecture diagram showed "PostgreSQL + pgvector" as if it were required for background/async usage. Clarified that this reflects only the example's default (it omits `vector_backend=`) — any of the 6 supported backends works identically in the same Celery pattern.
+
+### Documentation
+- Celery integration guide + runnable example ([#57](https://github.com/antonyrag/ragleap-core/pull/57))
+
+### Testing
+- Comprehensive pytest suite (67 tests) + CI integration — first automated testing this package has had ([#58](https://github.com/antonyrag/ragleap-core/pull/58))
 
 ## [0.11.1]
 

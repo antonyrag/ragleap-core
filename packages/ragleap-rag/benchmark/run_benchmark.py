@@ -31,7 +31,7 @@ from ragleap.vectorstores import PgVectorBackend, FAISSBackend
 # ---------------------------------------------------------------------------
 # Config — adjust these if your environment differs
 # ---------------------------------------------------------------------------
-PG_DSN_MAIN = "postgresql://ragleap_test_user:ragleap_test_pass@127.0.0.1:5432/ragleap_test"
+PG_DSN_MAIN = "postgresql://ragleap_test_user:ragleap_test_pass@127.0.0.1:5432/ragleap_bench_gemini"
 PG_DSN_OLLAMA = "postgresql://ragleap_test_user:ragleap_test_pass@127.0.0.1:5432/ragleap_bench_ollama"
 FAISS_DIR = "/tmp/ragleap_bench_faiss"
 
