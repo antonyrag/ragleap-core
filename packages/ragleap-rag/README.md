@@ -117,6 +117,24 @@ Every `ask()` response tells you which provider actually answered
 (`answer["usage"]`) — real numbers pulled from the provider's own
 response, not an estimate.
 
+## Retrieval-only
+
+Need chunks without paying for or waiting on a generation call?
+`retrieve()` runs the same embed -> search -> (optional rerank)
+pipeline `ask()` uses, and stops before generation:
+
+```python
+chunks = rag.retrieve("pricing plans", top_k=5, hybrid=True)
+# [{"chunk_id": ..., "text": ..., "document_name": ..., "similarity_score": ...}, ...]
+```
+
+Useful for building your own retrieval logic on top of ragleap-rag's
+tested pipeline — for example, `ragleap-graph`'s `GraphRetriever`
+combines this with knowledge-graph traversal. Does not support
+`query_rewrite=` or `session_id=` (those involve LLM calls and
+conversation-history orchestration that `ask()` owns) — pass an
+already-rewritten query string directly if you need that.
+
 ## Streaming
 
 ```python
@@ -714,8 +732,8 @@ retrieval is.
 `ragleap-rag` is the foundation layer of
 [ragleap-core](https://github.com/antonyrag/ragleap-core), a larger
 open-source, self-hosted AI platform (channels, knowledge graph,
-language detection, business integrations). Companion packages
-(`ragleap-graph`, `ragleap-integrations`) are in progress.
+language detection, business integrations). Companion package `ragleap-graph` (knowledge-graph-augmented
+retrieval) is published; `ragleap-integrations` is in progress.
 
 ## Status
 

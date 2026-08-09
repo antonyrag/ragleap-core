@@ -5,6 +5,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-08-08
+
+### Fixed
+- PyPI metadata (description, keywords) corrected. The previous draft description claimed "knowledge-graph integration via ragleap-graph" - backwards: ragleap-rag has zero dependency on or awareness of ragleap-graph; it is the other way around (ragleap-graph optionally depends on ragleap-rag, per retrieval.py's own docstring: "No knowledge-graph coupling here by design"). Corrected to describe ragleap-rag's real, standalone feature set accurately, with ragleap-graph mentioned only as an optional composable package - not an integration ragleap-rag itself has. Also removed the "neo4j" keyword, which implied a dependency that does not exist.
+
+## [0.12.0] - 2026-08-08
+
+### Added
+- `RagLeap.retrieve(query, top_k=5, hybrid=True, rerank=False, metadata_filter=None)` - retrieves chunks using the same embed -> search -> (optional rerank) pipeline as `ask()`, stopping before generation. Returns raw chunks, not an answer.
+- Added to give external callers a real, public, tested entry point to retrieval-only results, instead of needing an LLM generation call they don't want, or reaching into private internals (`_vector_backend`, `_embed_query_cached()`) across a package boundary. First concrete consumer: `ragleap-graph`'s upcoming `GraphRetriever` (v0.3.0), which combines this with graph traversal.
+- Does not support `query_rewrite=` or `session_id=` - those involve LLM calls and conversation-history orchestration that `ask()` owns; pass an already-rewritten query string directly if needed.
+- 6 new tests covering top_k, metadata_filter, hybrid/dense-only mode, rerank plumbing, empty-corpus behavior, and (critically) that `retrieve()` never triggers generation - verified via a test that makes the generator explode if called, so a future regression back to invoking `generate_answer()` fails loudly rather than just costing unnoticed extra tokens.
+
 ## [0.11.2] - 2026-08-04
 
 ### Fixed

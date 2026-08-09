@@ -45,7 +45,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.11.2"
+__version__ = "0.12.1"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -478,6 +478,52 @@ class RagLeap:
             self._memory.add_message(session_id, "assistant", result["answer"])
 
         return result
+
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 5,
+        hybrid: bool = True,
+        rerank: bool = False,
+        metadata_filter: Optional[Dict] = None,
+    ) -> List[Dict]:
+        """
+        Retrieve chunks for a query without generating an answer - the
+        same embed -> search -> (optional rerank) pipeline ask() uses,
+        stopping before generation. Useful for callers (e.g.
+        ragleap-graph's GraphRetriever) that want raw retrieved chunks
+        to combine with other retrieval signals themselves, without
+        paying for or waiting on an LLM generation call they don't need.
+
+        Does not support query_rewrite= or session_id= - those involve
+        LLM calls and conversation-history orchestration that ask()
+        owns. Pass an already-rewritten query string directly if needed.
+        """
+        query_embedding = self._embed_query_cached(query)
+        if query_embedding is None:
+            return []
+
+        pool_size = top_k * 4 if rerank else top_k
+        if hybrid:
+            chunks = self._vector_backend.search_hybrid(
+                query, query_embedding, top_k=pool_size, metadata_filter=metadata_filter
+            )
+        else:
+            chunks = self._vector_backend.search_dense(
+                query_embedding, top_k=pool_size, metadata_filter=metadata_filter
+            )
+
+        if rerank and chunks:
+            if self._reranker is None:
+                self._reranker = RerankerService()
+            chunks = self._reranker.rerank(query, chunks, top_k=top_k)
+
+        fire_event(
+            {"query": query, "hybrid": hybrid, "rerank": rerank, "top_k": top_k,
+             "chunks_retrieved": len(chunks), "streaming": False, "query_rewrite": None},
+            self._on_query, "on_query",
+        )
+        return chunks
 
     def ask_stream(
         self,
