@@ -5,6 +5,76 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0]
+
+### Added
+
+- Typed relation extraction (`ExtractionConfig(extract_relations=True)`) - identifies typed relationships between already-extracted entities (e.g. "Acme Corp" -[REPORTED]-> "Q3 revenue"), not just untyped co-occurrence. LLM-only feature - requires `method="llm"` (enforced by `ExtractionConfig` itself), since there is no regex equivalent for identifying relation types.
+- `LLMRelationExtractor` and `ExtractedRelation` - takes an already-known list of entities and identifies relations between them, rather than extracting entities itself. This constrains the LLM's subject/object choices to entities already extracted and normalized, reducing hallucinated entities and reusing existing, tested entity extraction rather than duplicating it. Skips the LLM call entirely (returns `[]`) when fewer than 2 entities are known, since a relation needs two entities to connect.
+- Defensive hallucination filtering: even though the prompt constrains subject/object to known entities, the parser drops (does not crash on) any relation referencing an entity name outside the known set, rather than trusting the model's compliance blindly. Self-relations (subject == object) are also dropped.
+- New Neo4j edge type `RELATES_AS {relation_type: ...}`, distinct from the existing untyped `CO_OCCURS_WITH` edges written by co-occurrence extraction - both can coexist on the same graph.
+- `GraphIndex.find_relations(entity_name, relation_type=None, namespace=None, limit=25)` - queries typed relations where `entity_name` is the subject. Only searches the subject/outgoing direction in this release; searching by object or both directions is a reasonable future addition, not built here to keep this release's scope honest and verifiable.
+- 8 new tests covering config validation, the fewer-than-2-entities LLM-call skip, valid relation parsing with UPPER_SNAKE_CASE normalization, hallucinated-entity filtering, self-relation filtering, and the all-providers-failed error path.
+
+### Verified
+
+- Real end-to-end live test: real Gemini call correctly identified two typed relations (`REPORTED`, `PARTNERED_WITH`) from real text, both written to a real isolated Neo4j instance (separate Docker container from production, ports 7690/7477), and correctly read back via `find_relations()`.
+
+### Known limitations
+
+- `find_relations()` only searches the subject/outgoing direction - it cannot currently find relations where `entity_name` is the object.
+- LLM-extracted relation object/subject names can be a shorter or differently-phrased version of the full entity than the co-occurrence entity extraction produced for the same underlying concept (e.g. "Q3" vs "Q3 revenue growth") - observed during the live test above. This is expected LLM extraction variance, not a bug in the relation-writing logic, but it means relation-derived entity names are not guaranteed to exactly match names from the regular entity-extraction path for the same document.
+- Relation extraction runs once per chunk (same granularity as entity extraction) - relations spanning multiple chunks of the same document are not identified.
+
+## [0.3.1]
+
+### Fixed
+
+- PyPI metadata (description, keywords) updated to reflect the real v0.3.0 feature set - LLM extraction, entity dedup, and GraphRetriever were shipped in v0.2.0/v0.3.0 but the description still only described v0.1.0's original scope (regex extraction + co-occurrence graphs). No code changes.
+
+## [0.3.0]
+
+### Added
+
+- `GraphRetriever` and `GraphRetrievalConfig` - fuses `ragleap-rag`'s vector search with `ragleap-graph`'s entity-based graph traversal into one retrieval call, with graph-path citations alongside chunk citations. Two modes: `"hybrid"` (vector search + graph expansion combined, the default) and `"graph_only"` (skip vector search entirely, pure entity/graph retrieval - e.g. "show all documents related to Customer X").
+- Built on `RagLeap.retrieve()` (new in `ragleap-rag` v0.12.0, added specifically to support this) rather than reaching into `ragleap-rag`'s private internals (`_vector_backend`, `_embed_query_cached()`) across a package boundary - see `ragleap-rag`'s own CHANGELOG v0.12.0 entry for the reasoning.
+- Built on `GraphIndex`'s existing, tested methods (`extract_query_entities`, `find_documents_by_entities`, `search_related_entities`) - no new Cypher queries written for this feature.
+- New `retrieval` extra (`pip install ragleap-graph[retrieval]`, requires `ragleap-rag>=0.12.0`) - separate from the existing `llm` extra, since `GraphRetriever` needs `RagLeap.retrieve()` regardless of whether LLM-based entity extraction is used.
+- 14 tests using lightweight fakes matching the real `RagLeap.retrieve()` and `GraphIndex` method contracts - covering both retrieval modes, config validation and passthrough (namespace, depth, domain_terms), citation composition, and the no-query-entities edge case (graph calls correctly skipped rather than called with an empty list).
+
+### Verified
+
+- Real end-to-end integration test: real Postgres (via `ragleap-rag`'s test database, with deterministic fake embeddings so no LLM API key is required), real isolated Neo4j (separate Docker container from production, ports 7690/7477, cleaned up after the test), and `GraphRetriever` wiring both together - confirmed a real ingested document is found via both vector search and graph traversal for the same query, with the two results correctly combined.
+
+### Known limitations
+
+- The regex extractor's capitalized-phrase pattern can pick up the first word of a query as a spurious entity if it happens to be capitalized (e.g. "What did Acme Corp launch?" extracts both `"What"` and `"Acme Corp"` as query entities). This is the same class of pattern-matching imprecision already documented in the v0.2.0 entry below (regex fragmentation), not a new `GraphRetriever`-specific bug - confirmed during the live integration test above.
+- `GraphRetriever` does not currently deduplicate or rank graph-derived results against vector-derived results if the same document appears in both `chunks` and `graph_context.related_documents` - both are returned as-is, and combining/re-ranking them is left to the caller for now.
+
+## [0.2.0]
+
+### Added
+
+- Optional LLM-based entity extraction (`ExtractionConfig(method="llm", provider=...)`), alongside the existing regex path. Regex stays the default - zero behavior change on upgrade for existing users.
+- Built on `ragleap-rag`'s `GenerationService.generate_answer(response_format=...)` rather than a hand-rolled provider client - reuses its existing cross-provider structured-output handling (Gemini native schema, Anthropic forced tool-use, OpenAI-compatible json_schema/json_object fallback) instead of duplicating that logic.
+- `ragleap-rag` added as an optional dependency via a new `llm` extra (`pip install ragleap-graph[llm]`) - not a hard dependency, so regex-only users install nothing extra.
+- `EntityDeduplicator`: merges near-duplicate entity names (e.g. "Acme Corp" / "ACME Corp.") via string-similarity threshold before nodes are written to Neo4j. Opt-in via `ExtractionConfig(dedup_enabled=True)`, independent of extraction method - works for both regex- and LLM-extracted names.
+- `GraphIndex(extraction=ExtractionConfig(...))` - new optional constructor parameter wiring the above into `upsert_document()`.
+
+### Fixed
+
+- **Real false-positive caught during development**: the initial dedup threshold (0.85) incorrectly merged "Neo4j" and "Neo 4j" as the same entity. Tested against 0.85/0.90/0.92/0.95 and confirmed 0.92 as the measured point where the false positive clears without breaking true-positive merges (e.g. "T.C. Antony" / "TC Antony"). Default threshold set to 0.92, not guessed.
+- **Real test-harness bug caught before merge**: the test suite's provider mock relied on module-cache busting keyed to the wrong module path (`extraction` instead of `ragleap_graph.extraction`), so five LLM-extraction tests were silently making real network calls to Gemini/OpenAI-compatible endpoints instead of using the mock - caught because those calls failed on missing API keys in the dev environment, not because the mock was verified working. Fixed by correcting the cache-bust key and adding a canary assertion that fails loudly if the mock doesn't actually take effect, so this class of bug can't recur silently.
+
+### Verified
+
+- `LLMEntityExtractor` proven end-to-end against a real Gemini call (`gemini-3.6-flash`), not just mocked responses.
+- `_apply_entity_dedup()` proven end-to-end against a real, isolated Neo4j write (separate Docker container from production, ports 7689/7476, cleaned up after the test) - confirmed real entity nodes are correctly merged/written.
+
+### Known limitations
+
+- `EntityDeduplicator` merges spelling variants of an already-extracted entity name (e.g. "Acme Corp" vs "ACME Corp."); it does NOT fix fragmentation caused by the regex extractor splitting a single real-world entity into multiple disconnected candidates in the first place. Concretely: on input containing "ACME Corp.", the regex extractor's acronym rule and capitalized-phrase rule independently produce "ACME" and "Corp" as two separate candidates (neither matches the other's pattern), alongside the correct "Acme Corp" from elsewhere in the text - three overlapping entities where there should be one. Dedup correctly declines to merge these (similarity ~0.67, below the 0.92 threshold) because bridging that gap via looser substring/prefix matching would risk wrongly merging genuinely distinct entities (e.g. "Apple" with "Apple Music"). Confirmed via a real live test: `method="llm"` on the identical input correctly recognizes "Acme Corp" and "ACME Corp." as one entity from context, producing 3 clean entities instead of regex's 3 fragmented ones. This is a real, structural limitation of pattern-based extraction, not a dedup bug - documented here rather than silently worked around.
+
 ## [0.1.0]
 
 ### Added
@@ -20,3 +90,4 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - 26 tests: pure-logic tests (entity normalization, extraction, `max_depth` validation) requiring no live Neo4j, driver-unavailable graceful-degradation tests for every public method, and one live end-to-end integration test (write, query three ways, verified self-cleanup — 0 nodes left behind) that runs automatically when real `NEO4J_URI`/`NEO4J_USER`/`NEO4J_PASSWORD` credentials are present, and skips cleanly otherwise.
 - CI: dedicated `ragleap-graph-tests` job with a real Neo4j service container, mirroring `ragleap-rag-tests`' pattern — confirmed passing in GitHub's own CI environment, not just locally.
 - **This is the first package in the ragleap ecosystem with genuine, complete live verification from day one** — unlike several `ragleap-rag` vector backends, which shipped honestly labeled "code-complete but unverified" due to no account access. Real Neo4j access was already available, so every method here has actually been proven to work end-to-end, not just tested in isolation.
+- **Second real bug found and fixed during implementation**: `search_related_entities()` originally validated `max_depth` *after* checking driver availability, so invalid `max_depth` input silently returned `[]` instead of raising — when it should raise regardless of connection state. Caught by a real test failure. Fixed by validating `max_depth` first, before any driver-availability check.

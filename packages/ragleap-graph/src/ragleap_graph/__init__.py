@@ -32,9 +32,23 @@ try:
 except ImportError:
     GraphDatabase = None
 
+# v0.2.0: optional LLM-based entity extraction and dedup. Importing these
+# is always safe with zero new hard dependencies - extraction.py itself
+# only requires ragleap-rag if method="llm" is actually selected at
+# ExtractionConfig construction time.
+from ragleap_graph.extraction import (
+    ExtractionConfig,
+    ExtractedEntity,
+    EntityDeduplicator,
+    LLMEntityExtractor,
+    ExtractedRelation,
+    LLMRelationExtractor,
+)
+from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
+
 logger = logging.getLogger(__name__)
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -68,9 +82,31 @@ class GraphIndex:
     connectivity before relying on it.
     """
 
-    def __init__(self, config: Optional[GraphConfig] = None):
+    def __init__(
+        self,
+        config: Optional[GraphConfig] = None,
+        extraction: Optional[ExtractionConfig] = None,
+    ):
         self.config = config or GraphConfig()
         self.driver = None
+
+        # v0.2.0: entity-extraction strategy. Defaults to ExtractionConfig()
+        # which is method="regex", dedup_enabled=False - identical behavior
+        # to v0.1.0 for anyone not explicitly opting in.
+        self.extraction = extraction or ExtractionConfig()
+        self._llm_extractor = None
+        if self.extraction.method == "llm":
+            # Constructed eagerly (not lazily on first use) so a
+            # misconfigured provider fails at GraphIndex construction
+            # time, not silently mid-upsert.
+            self._llm_extractor = LLMEntityExtractor(self.extraction)
+
+        # v0.4.0: optional typed relation extraction. Requires
+        # extraction.method="llm" (enforced by ExtractionConfig itself) -
+        # there is no regex equivalent for identifying relation types.
+        self._relation_extractor = None
+        if self.extraction.extract_relations:
+            self._relation_extractor = LLMRelationExtractor(self.extraction)
 
         if GraphDatabase is None:
             logger.warning(
@@ -198,6 +234,31 @@ class GraphIndex:
             query, max_entities=max_entities, domain_terms=domain_terms
         )
 
+    def _collect_entities_for_chunk(
+        self, text: str, max_entities: int, domain_terms: Optional[List[str]]
+    ) -> List[str]:
+        """
+        Dispatch entity extraction for one chunk of text, per the
+        configured self.extraction.method.
+
+        v0.1.0 behavior (method="regex", the default) is completely
+        unchanged - this just wraps the existing call. method="llm"
+        routes through LLMEntityExtractor instead, returning entity
+        names only (types are not currently stored in the graph schema -
+        that is a v0.3.0-scope change, not this one).
+        """
+        if self.extraction.method == "llm":
+            if self._llm_extractor is None:  # pragma: no cover - defensive
+                raise RuntimeError(
+                    "extraction.method=\'llm\' but no LLMEntityExtractor was "
+                    "constructed - this should not happen; please report a bug."
+                )
+            entities = self._llm_extractor.extract(text, domain_terms=domain_terms)
+            return [e.name for e in entities][:max_entities]
+        return self._extract_entity_candidates_from_text(
+            text, max_entities=max_entities, domain_terms=domain_terms
+        )
+
     # ------------------------------------------------------------------
     # Core graph operations
     # ------------------------------------------------------------------
@@ -234,6 +295,7 @@ class GraphIndex:
             "document_id": str(document_id),
             "entities_indexed": 0,
             "relationships_indexed": 0,
+            "relations_indexed": 0,
             "error": None,
         }
 
@@ -243,13 +305,14 @@ class GraphIndex:
 
         entity_counter: Counter = Counter()
         pair_counter: Counter = Counter()
+        relation_counter: Counter = Counter()
 
         for chunk in chunks or []:
             text = (chunk.get("text") or "").strip()
             if not text:
                 continue
 
-            entities = self._extract_entity_candidates_from_text(
+            entities = self._collect_entities_for_chunk(
                 text, max_entities=12, domain_terms=domain_terms
             )
             if not entities:
@@ -272,6 +335,19 @@ class GraphIndex:
                         continue
                     pair = tuple(sorted((a, b), key=lambda s: s.lower()))
                     pair_counter[pair] += 1
+
+            if self._relation_extractor is not None:
+                relations = self._relation_extractor.extract(
+                    text, known_entities=unique_entities, domain_terms=domain_terms
+                )
+                for rel in relations:
+                    key = (rel.subject, rel.relation_type, rel.object)
+                    relation_counter[key] += 1
+
+        if self.extraction.dedup_enabled and entity_counter:
+            entity_counter, pair_counter, relation_counter = self._apply_entity_dedup(
+                entity_counter, pair_counter, relation_counter
+            )
 
         top_entities = entity_counter.most_common(max_entities)
         top_pairs = pair_counter.most_common(max_pairs)
@@ -323,6 +399,23 @@ class GraphIndex:
                         weight=float(weight),
                     )
                     summary["relationships_indexed"] += 1
+
+                for (subject, relation_type, obj), weight in relation_counter.most_common(max_pairs):
+                    session.run(
+                        """
+                        MATCH (es:Entity {name: $subject, namespace: $namespace})
+                        MATCH (eo:Entity {name: $object, namespace: $namespace})
+                        MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)
+                        ON CREATE SET r.weight = $weight
+                        ON MATCH SET r.weight = coalesce(r.weight, 0) + $weight
+                        """,
+                        subject=subject.lower(),
+                        object=obj.lower(),
+                        relation_type=relation_type,
+                        namespace=ns,
+                        weight=float(weight),
+                    )
+                    summary["relations_indexed"] += 1
 
             summary["success"] = True
             return summary
@@ -464,6 +557,74 @@ class GraphIndex:
             logger.error(f"Related-entity search error: {e}", exc_info=True)
             return []
 
+    def find_relations(
+        self,
+        entity_name: str,
+        relation_type: Optional[str] = None,
+        namespace: Optional[str] = None,
+        limit: int = 25,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find typed relations where entity_name is the subject (v0.4.0+).
+
+        Only searches outgoing relations from entity_name (subject side) -
+        searching both directions, or by object, is a reasonable future
+        addition not built here to keep this method's scope honest and
+        verifiable rather than guessing at a larger untested surface area.
+
+        Requires relations to have been written via
+        ExtractionConfig(extract_relations=True) during upsert_document() -
+        returns [] (not an error) if no typed relations exist, same as
+        every other query method here when there is simply nothing to find.
+
+        relation_type= optionally filters to one relation type (e.g.
+        "REPORTED"); omit to return all relation types for entity_name.
+        """
+        if not self.driver:
+            logger.warning("Neo4j driver not available")
+            return []
+
+        normalized = self._normalize_entity_name(entity_name)
+        if not normalized:
+            return []
+
+        ns = namespace or ""
+
+        try:
+            with self.driver.session() as session:
+                query = """
+                    MATCH (s:Entity {name: $subject, namespace: $namespace})
+                          -[r:RELATES_AS]->(o:Entity {namespace: $namespace})
+                    WHERE $relation_type IS NULL OR r.relation_type = $relation_type
+                    RETURN s.display_name AS subject,
+                           r.relation_type AS relation_type,
+                           o.display_name AS object,
+                           coalesce(r.weight, 1.0) AS weight
+                    ORDER BY weight DESC
+                    LIMIT $limit
+                """
+                result = session.run(
+                    query,
+                    subject=normalized.lower(),
+                    namespace=ns,
+                    relation_type=relation_type,
+                    limit=max(1, int(limit)),
+                )
+
+                relations = []
+                for row in result:
+                    relations.append({
+                        "subject": row["subject"],
+                        "relation_type": row["relation_type"],
+                        "object": row["object"],
+                        "weight": float(row["weight"]),
+                    })
+                return relations
+
+        except Exception as e:
+            logger.error(f"Relation search error: {e}", exc_info=True)
+            return []
+
     def document_entities(
         self,
         document_id: str,
@@ -518,6 +679,56 @@ class GraphIndex:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _apply_entity_dedup(
+        self, entity_counter: Counter, pair_counter: Counter, relation_counter: Optional[Counter] = None
+    ) -> Tuple[Counter, Counter, Counter]:
+        """
+        Merge near-duplicate entity names (e.g. "Acme Corp" / "ACME Corp.")
+        into one canonical node before writing to Neo4j, using
+        EntityDeduplicator at the configured self.extraction.dedup_threshold.
+
+        Only called when self.extraction.dedup_enabled is True - this
+        is opt-in and independent of extraction method (works for both
+        regex- and LLM-extracted entity names).
+
+        relation_counter is optional (v0.4.0+) since not every caller
+        has typed relations to remap - defaults to an empty Counter if
+        omitted, so callers without relation extraction enabled don't
+        need to pass anything new.
+        """
+        relation_counter = relation_counter if relation_counter is not None else Counter()
+
+        dedup = EntityDeduplicator(threshold=self.extraction.dedup_threshold)
+        mapping = dedup.resolve(list(entity_counter.keys()))
+
+        merged_entities: Counter = Counter()
+        for name, weight in entity_counter.items():
+            canonical = mapping.get(name, name)
+            merged_entities[canonical] += weight
+
+        merged_pairs: Counter = Counter()
+        for (a, b), weight in pair_counter.items():
+            ca = mapping.get(a, a)
+            cb = mapping.get(b, b)
+            if ca == cb:
+                # Both sides of the pair merged into the same canonical
+                # entity - no self-loop edge, just drop it.
+                continue
+            pair = tuple(sorted((ca, cb), key=lambda s: s.lower()))
+            merged_pairs[pair] += weight
+
+        merged_relations: Counter = Counter()
+        for (subject, relation_type, obj), weight in relation_counter.items():
+            c_subject = mapping.get(subject, subject)
+            c_object = mapping.get(obj, obj)
+            if c_subject == c_object:
+                # Both sides merged into the same canonical entity -
+                # a self-relation is meaningless, drop it.
+                continue
+            merged_relations[(c_subject, relation_type, c_object)] += weight
+
+        return merged_entities, merged_pairs, merged_relations
+
     def _normalize_entity_list(self, entity_names: List[str]) -> List[str]:
         normalized = []
         seen = set()
@@ -533,4 +744,16 @@ class GraphIndex:
         return normalized
 
 
-__all__ = ["GraphConfig", "GraphIndex", "__version__"]
+__all__ = [
+    "GraphConfig",
+    "GraphIndex",
+    "ExtractionConfig",
+    "ExtractedEntity",
+    "EntityDeduplicator",
+    "LLMEntityExtractor",
+    "ExtractedRelation",
+    "LLMRelationExtractor",
+    "GraphRetriever",
+    "GraphRetrievalConfig",
+    "__version__",
+]
