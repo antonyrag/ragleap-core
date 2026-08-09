@@ -1,3 +1,5 @@
+import pytest
+
 """Tests for the active VectorBackend's retrieval methods - dense (fake
 embeddings, plumbing only), sparse (real Postgres full-text search,
 genuinely meaningful), and hybrid RRF fusion. Accesses rag's internal
@@ -67,3 +69,78 @@ def test_backend_reports_sparse_support(rag):
     this isn't a formality, ask()/ask_stream() could check it before
     assuming hybrid mode does anything beyond dense search."""
     assert rag._vector_backend.supports_sparse() is True
+
+
+def test_retrieve_returns_chunks_without_generating_answer(rag, monkeypatch):
+    """retrieve() must never call generation - verify by making the
+    generator explode if invoked, so a silent regression back to
+    calling generate_answer() fails loudly instead of just costing
+    extra tokens unnoticed."""
+    from ragleap.generation import GenerationService
+
+    def _explode(self, *args, **kwargs):
+        raise AssertionError("retrieve() must not call generate_answer()")
+
+    monkeypatch.setattr(GenerationService, "generate_answer", _explode)
+
+    rag.ingest_text(filename="a.txt", text="This document specifically discusses giraffes.")
+    chunks = rag.retrieve("giraffes", top_k=1)
+
+    assert len(chunks) == 1
+    assert chunks[0]["document_name"] == "a.txt"
+    assert "text" in chunks[0]
+    assert "answer" not in chunks[0]
+
+
+def test_retrieve_respects_top_k(rag):
+    rag.ingest_text(filename="a.txt", text="Alpha content one.")
+    rag.ingest_text(filename="b.txt", text="Alpha content two.")
+    rag.ingest_text(filename="c.txt", text="Alpha content three.")
+
+    chunks = rag.retrieve("Alpha content", top_k=2)
+    assert len(chunks) <= 2
+
+
+def test_retrieve_respects_metadata_filter(rag):
+    rag.ingest_text(filename="a.txt", text="Content about pricing plans.", metadata={"tenant": "acme"})
+    rag.ingest_text(filename="b.txt", text="Content about pricing plans.", metadata={"tenant": "globex"})
+
+    chunks = rag.retrieve("pricing plans", top_k=5, metadata_filter={"tenant": "acme"})
+    assert len(chunks) == 1
+    assert chunks[0]["document_name"] == "a.txt"
+
+
+def test_retrieve_dense_only_when_hybrid_false(rag):
+    rag.ingest_text(filename="a.txt", text="Some content about widgets.")
+    chunks = rag.retrieve("widgets", top_k=5, hybrid=False)
+    # Dense-only path shouldn't tag results as hybrid_rrf.
+    assert all(c.get("retrieval_method") != "hybrid_rrf" for c in chunks)
+
+
+def test_retrieve_no_documents_returns_empty(rag):
+    """Note: NOT testing "no semantic match" with an ingested document -
+    the rag fixture uses fake deterministic pseudo-embeddings with no
+    real semantic signal (see conftest.py), so with only one document
+    in the corpus, dense search always returns it as nearest-neighbor
+    regardless of query content. That is expected fake-embedder
+    behavior, not a retrieve() bug - caught by an earlier, wrongly-
+    written version of this test. Testing the unambiguous case instead:
+    zero ingested documents must return zero chunks."""
+    chunks = rag.retrieve("anything", top_k=5)
+    assert chunks == []
+
+
+def test_retrieve_with_rerank_does_not_crash(rag):
+    """rerank=True lazily constructs a RerankerService - just verify
+    the plumbing doesn't break, not reranking quality (out of scope
+    here, already covered in test_reranking.py). Skips cleanly if the
+    optional 'rerank' extra isn't installed, matching the pattern
+    already established in test_reranking.py - CI doesn't install this
+    extra by default, and that is correct: it is optional, not required."""
+    pytest.importorskip("onnxruntime")
+    pytest.importorskip("tokenizers")
+    pytest.importorskip("huggingface_hub")
+
+    rag.ingest_text(filename="a.txt", text="Some content for reranking test.")
+    chunks = rag.retrieve("content", top_k=3, rerank=True)
+    assert isinstance(chunks, list)
