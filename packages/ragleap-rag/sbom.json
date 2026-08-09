@@ -179,7 +179,7 @@
       "version": "0.8.0"
     },
     {
-      "bom-ref": "anthropic==0.120.2",
+      "bom-ref": "anthropic==0.121.0",
       "description": "The official Python library for the anthropic API",
       "externalReferences": [
         {
@@ -202,9 +202,9 @@
         }
       ],
       "name": "anthropic",
-      "purl": "pkg:pypi/anthropic@0.120.2",
+      "purl": "pkg:pypi/anthropic@0.121.0",
       "type": "library",
-      "version": "0.120.2"
+      "version": "0.121.0"
     },
     {
       "bom-ref": "anyio==4.14.2",
@@ -843,7 +843,7 @@
       "version": "11.11.0"
     },
     {
-      "bom-ref": "dateparser==1.4.1",
+      "bom-ref": "dateparser==1.4.2",
       "description": "Date parsing library designed to parse dates from HTML pages",
       "externalReferences": [
         {
@@ -866,9 +866,9 @@
         }
       ],
       "name": "dateparser",
-      "purl": "pkg:pypi/dateparser@1.4.1",
+      "purl": "pkg:pypi/dateparser@1.4.2",
       "type": "library",
-      "version": "1.4.1"
+      "version": "1.4.2"
     },
     {
       "bom-ref": "defusedxml==0.7.1",
@@ -1158,7 +1158,7 @@
       "version": "2026.7.0"
     },
     {
-      "bom-ref": "google-auth==2.56.2",
+      "bom-ref": "google-auth==2.56.3",
       "description": "Google Authentication Library",
       "externalReferences": [
         {
@@ -1182,12 +1182,12 @@
           "value": "requests"
         }
       ],
-      "purl": "pkg:pypi/google-auth@2.56.2",
+      "purl": "pkg:pypi/google-auth@2.56.3",
       "type": "library",
-      "version": "2.56.2"
+      "version": "2.56.3"
     },
     {
-      "bom-ref": "google-genai==2.16.0",
+      "bom-ref": "google-genai==2.17.0",
       "description": "GenAI Python SDK",
       "externalReferences": [
         {
@@ -1205,9 +1205,9 @@
         }
       ],
       "name": "google-genai",
-      "purl": "pkg:pypi/google-genai@2.16.0",
+      "purl": "pkg:pypi/google-genai@2.17.0",
       "type": "library",
-      "version": "2.16.0"
+      "version": "2.17.0"
     },
     {
       "bom-ref": "grpcio==1.78.0",
@@ -1512,7 +1512,7 @@
       "version": "0.28.1"
     },
     {
-      "bom-ref": "huggingface_hub==1.26.0",
+      "bom-ref": "huggingface_hub==1.27.0",
       "description": "Client library to download and publish models, datasets and other repos on the huggingface.co hub",
       "externalReferences": [
         {
@@ -1536,9 +1536,9 @@
         }
       ],
       "name": "huggingface_hub",
-      "purl": "pkg:pypi/huggingface-hub@1.26.0",
+      "purl": "pkg:pypi/huggingface-hub@1.27.0",
       "type": "library",
-      "version": "1.26.0"
+      "version": "1.27.0"
     },
     {
       "bom-ref": "hyperframe==6.1.0",
@@ -2256,7 +2256,7 @@
       "version": "0.17.6"
     },
     {
-      "bom-ref": "packaging==26.2",
+      "bom-ref": "packaging==26.3",
       "description": "Core utilities for Python packages",
       "externalReferences": [
         {
@@ -2277,9 +2277,9 @@
         }
       ],
       "name": "packaging",
-      "purl": "pkg:pypi/packaging@26.2",
+      "purl": "pkg:pypi/packaging@26.3",
       "type": "library",
-      "version": "26.2"
+      "version": "26.3"
     },
     {
       "bom-ref": "pandas==3.0.5",
@@ -2406,7 +2406,7 @@
       "version": "9.1.0"
     },
     {
-      "bom-ref": "pip==26.2",
+      "bom-ref": "pip==26.2.1",
       "description": "The PyPA recommended tool for installing Python packages.",
       "externalReferences": [
         {
@@ -2439,9 +2439,9 @@
         }
       ],
       "name": "pip",
-      "purl": "pkg:pypi/pip@26.2",
+      "purl": "pkg:pypi/pip@26.2.1",
       "type": "library",
-      "version": "26.2"
+      "version": "26.2.1"
     },
     {
       "bom-ref": "pip-requirements-parser==32.0.1",
@@ -2900,7 +2900,7 @@
       "version": "3.3.2"
     },
     {
-      "bom-ref": "pypdf==6.14.2",
+      "bom-ref": "pypdf==6.15.0",
       "description": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
       "externalReferences": [
         {
@@ -2933,9 +2933,9 @@
         }
       ],
       "name": "pypdf",
-      "purl": "pkg:pypi/pypdf@6.14.2",
+      "purl": "pkg:pypi/pypdf@6.15.0",
       "type": "library",
-      "version": "6.14.2"
+      "version": "6.15.0"
     },
     {
       "bom-ref": "pytesseract==0.3.13",
@@ -3137,7 +3137,7 @@
       "version": "2026.3.post1"
     },
     {
-      "bom-ref": "qdrant-client==1.18.0",
+      "bom-ref": "qdrant-client==1.19.0",
       "description": "Client library for the Qdrant vector search engine",
       "externalReferences": [
         {
@@ -3166,9 +3166,9 @@
         }
       ],
       "name": "qdrant-client",
-      "purl": "pkg:pypi/qdrant-client@1.18.0",
+      "purl": "pkg:pypi/qdrant-client@1.19.0",
       "type": "library",
-      "version": "1.18.0"
+      "version": "1.19.0"
     },
     {
       "bom-ref": "redis==8.1.0",
@@ -3577,7 +3577,7 @@
       "version": "2.4.0"
     },
     {
-      "bom-ref": "soupsieve==2.9.1",
+      "bom-ref": "soupsieve==2.9.2",
       "description": "A modern CSS selector implementation for Beautiful Soup.",
       "externalReferences": [
         {
@@ -3595,9 +3595,9 @@
         }
       ],
       "name": "soupsieve",
-      "purl": "pkg:pypi/soupsieve@2.9.1",
+      "purl": "pkg:pypi/soupsieve@2.9.2",
       "type": "library",
-      "version": "2.9.1"
+      "version": "2.9.2"
     },
     {
       "bom-ref": "striprtf==0.0.32",
@@ -4244,14 +4244,14 @@
         "anyio==4.14.2",
         "distro==1.9.0",
         "docstring_parser==0.18.0",
-        "google-auth==2.56.2",
+        "google-auth==2.56.3",
         "httpx==0.28.1",
         "jiter==0.16.0",
         "pydantic==2.13.4",
         "sniffio==1.3.1",
         "typing_extensions==4.16.0"
       ],
-      "ref": "anthropic==0.120.2"
+      "ref": "anthropic==0.121.0"
     },
     {
       "dependsOn": [
@@ -4262,7 +4262,7 @@
     },
     {
       "dependsOn": [
-        "dateparser==1.4.1",
+        "dateparser==1.4.2",
         "python-dateutil==2.9.0.post0",
         "pytz==2026.3.post1",
         "tzdata==2026.3"
@@ -4285,7 +4285,7 @@
         "chardet==5.2.0",
         "charset-normalizer==3.4.9",
         "lxml==6.1.1",
-        "soupsieve==2.9.1",
+        "soupsieve==2.9.2",
         "typing_extensions==4.16.0"
       ],
       "ref": "beautifulsoup4==4.15.0"
@@ -4334,7 +4334,7 @@
         "chardet==5.2.0",
         "cyclonedx-python-lib==11.11.0",
         "packageurl-python==0.17.6",
-        "packaging==26.2",
+        "packaging==26.3",
         "pip-requirements-parser==32.0.1"
       ],
       "ref": "cyclonedx-bom==7.3.1"
@@ -4359,7 +4359,7 @@
         "regex==2026.7.19",
         "tzlocal==5.4.4"
       ],
-      "ref": "dateparser==1.4.1"
+      "ref": "dateparser==1.4.2"
     },
     {
       "ref": "defusedxml==0.7.1"
@@ -4376,7 +4376,7 @@
     {
       "dependsOn": [
         "numpy==2.4.6",
-        "packaging==26.2"
+        "packaging==26.3"
       ],
       "ref": "faiss-cpu==1.15.0"
     },
@@ -4404,18 +4404,18 @@
       "dependsOn": [
         "cryptography==50.0.0",
         "grpcio==1.78.0",
-        "packaging==26.2",
+        "packaging==26.3",
         "pyasn1_modules==0.4.2",
         "requests==2.34.2",
         "urllib3==2.7.0"
       ],
-      "ref": "google-auth==2.56.2"
+      "ref": "google-auth==2.56.3"
     },
     {
       "dependsOn": [
         "anyio==4.14.2",
         "distro==1.9.0",
-        "google-auth==2.56.2",
+        "google-auth==2.56.3",
         "httpx==0.28.1",
         "pillow==12.3.0",
         "protobuf==6.33.6",
@@ -4426,7 +4426,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "google-genai==2.16.0"
+      "ref": "google-genai==2.17.0"
     },
     {
       "dependsOn": [
@@ -4453,7 +4453,7 @@
     {
       "dependsOn": [
         "charset-normalizer==3.4.9",
-        "dateparser==1.4.1",
+        "dateparser==1.4.2",
         "lxml==6.1.1",
         "python-dateutil==2.9.0.post0",
         "urllib3==2.7.0"
@@ -4490,14 +4490,14 @@
         "hf-xet==1.6.0",
         "httpx==0.28.1",
         "numpy==2.4.6",
-        "packaging==26.2",
+        "packaging==26.3",
         "pillow==12.3.0",
         "requests==2.34.2",
         "tqdm==4.70.0",
         "typing_extensions==4.16.0",
         "urllib3==2.7.0"
       ],
-      "ref": "huggingface_hub==1.26.0"
+      "ref": "huggingface_hub==1.27.0"
     },
     {
       "ref": "hyperframe==6.1.0"
@@ -4597,7 +4597,7 @@
       "dependsOn": [
         "flatbuffers==25.12.19",
         "numpy==2.4.6",
-        "packaging==26.2",
+        "packaging==26.3",
         "protobuf==6.33.6"
       ],
       "ref": "onnxruntime==1.28.0"
@@ -4634,7 +4634,7 @@
       "ref": "packageurl-python==0.17.6"
     },
     {
-      "ref": "packaging==26.2"
+      "ref": "packaging==26.3"
     },
     {
       "dependsOn": [
@@ -4656,7 +4656,7 @@
     {
       "dependsOn": [
         "defusedxml==0.7.1",
-        "packaging==26.2",
+        "packaging==26.3",
         "pyarrow==25.0.0",
         "setuptools==79.0.1"
       ],
@@ -4672,13 +4672,13 @@
     },
     {
       "dependsOn": [
-        "packaging==26.2",
+        "packaging==26.3",
         "pyparsing==3.3.2"
       ],
       "ref": "pip-requirements-parser==32.0.1"
     },
     {
-      "ref": "pip==26.2"
+      "ref": "pip==26.2.1"
     },
     {
       "dependsOn": [
@@ -4753,11 +4753,11 @@
         "pillow==12.3.0",
         "typing_extensions==4.16.0"
       ],
-      "ref": "pypdf==6.14.2"
+      "ref": "pypdf==6.15.0"
     },
     {
       "dependsOn": [
-        "packaging==26.2",
+        "packaging==26.3",
         "pillow==12.3.0"
       ],
       "ref": "pytesseract==0.3.13"
@@ -4803,7 +4803,7 @@
         "pydantic==2.13.4",
         "urllib3==2.7.0"
       ],
-      "ref": "qdrant-client==1.18.0"
+      "ref": "qdrant-client==1.19.0"
     },
     {
       "dependsOn": [
@@ -4852,11 +4852,11 @@
       "dependsOn": [
         "EbookLib==0.20",
         "PyYAML==6.0.3",
-        "anthropic==0.120.2",
+        "anthropic==0.121.0",
         "beautifulsoup4==4.15.0",
         "faiss-cpu==1.15.0",
-        "google-genai==2.16.0",
-        "huggingface_hub==1.26.0",
+        "google-genai==2.17.0",
+        "huggingface_hub==1.27.0",
         "jsonschema==4.26.0",
         "odfpy==1.4.1",
         "onnxruntime==1.28.0",
@@ -4867,11 +4867,11 @@
         "psycopg2-binary==2.9.12",
         "pyarrow==25.0.0",
         "pymilvus==3.0.1",
-        "pypdf==6.14.2",
+        "pypdf==6.15.0",
         "pytesseract==0.3.13",
         "python-docx==1.2.0",
         "python-pptx==1.0.2",
-        "qdrant-client==1.18.0",
+        "qdrant-client==1.19.0",
         "redis==8.1.0",
         "requests==2.34.2",
         "striprtf==0.0.32",
@@ -4888,8 +4888,8 @@
     {
       "dependsOn": [
         "filelock==3.32.2",
-        "packaging==26.2",
-        "pip==26.2"
+        "packaging==26.3",
+        "pip==26.2.1"
       ],
       "ref": "setuptools==79.0.1"
     },
@@ -4903,7 +4903,7 @@
       "ref": "sortedcontainers==2.4.0"
     },
     {
-      "ref": "soupsieve==2.9.1"
+      "ref": "soupsieve==2.9.2"
     },
     {
       "ref": "striprtf==0.0.32"
@@ -4916,7 +4916,7 @@
     },
     {
       "dependsOn": [
-        "huggingface_hub==1.26.0",
+        "huggingface_hub==1.27.0",
         "numpy==2.4.6",
         "requests==2.34.2"
       ],
@@ -4978,7 +4978,7 @@
         "Authlib==1.7.2",
         "grpcio==1.78.0",
         "httpx==0.28.1",
-        "packaging==26.2",
+        "packaging==26.3",
         "protobuf==6.33.6",
         "pydantic==2.13.4",
         "validators==0.35.0"
@@ -5001,7 +5001,7 @@
   "metadata": {
     "component": {
       "bom-ref": "root-component",
-      "description": "A fast, honest, self-hosted RAG engine \u2014 hybrid dense+sparse retrieval, streaming, provider fallback, and real token usage reporting. BYOK, no vendor lock-in.",
+      "description": "Self-hosted RAG engine: hybrid dense+sparse retrieval, 28-format ingestion (docs, URLs, images, audio, video), 6 vector backends, 8 embedding providers, 12+ generation providers with automatic fallback, query rewriting (HyDE/contextual/multi-query), structured JSON output, real per-call cost tracking, and standalone retrieval via retrieve(). Composable with the optional ragleap-graph package for knowledge-graph-augmented retrieval. BYOK, no vendor lock-in, no hardcoded model defaults.",
       "externalReferences": [
         {
           "comment": "from pyproject urls: Documentation",
@@ -5034,9 +5034,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.11.2"
+      "version": "0.12.1"
     },
-    "timestamp": "2026-08-04T05:07:06.721256+00:00",
+    "timestamp": "2026-08-09T10:53:53.467082+00:00",
     "tools": {
       "components": [
         {
@@ -5140,7 +5140,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:7188dadd-eb08-4689-8b22-edf227c5e005",
+  "serialNumber": "urn:uuid:9b2f52aa-b4f9-4dbb-ad26-0fb6188b8ec6",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
