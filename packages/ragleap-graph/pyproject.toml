@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-graph"
-version = "0.1.0"
-description = "Knowledge-graph-augmented retrieval for RAG systems — entity extraction, co-occurrence graphs, and graph-based document retrieval via Neo4j. Framework-agnostic, optional multi-tenant namespacing."
+version = "0.4.0"
+description = "Knowledge-graph-augmented retrieval for RAG systems: Neo4j-backed entity extraction (regex or LLM-based), co-occurrence graphs, entity deduplication, and GraphRetriever for hybrid vector+graph retrieval via the optional ragleap-rag integration. Framework-agnostic, optional multi-tenant namespacing, no hardcoded models or vocabulary."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
     { name = "Antony", email = "antony@ragleap.com" }
 ]
-keywords = ["knowledge-graph", "rag", "neo4j", "entity-extraction", "graph-retrieval"]
+keywords = ["knowledge-graph", "rag", "neo4j", "entity-extraction", "graph-retrieval", "entity-resolution", "deduplication", "hybrid-retrieval", "llm", "graph-rag"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -29,6 +29,8 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
+llm = ["ragleap-rag>=0.11.0"]
+retrieval = ["ragleap-rag>=0.12.0"]
 
 [project.urls]
 Homepage = "https://github.com/antonyrag/ragleap-core"
