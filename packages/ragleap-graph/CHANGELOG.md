@@ -5,6 +5,27 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0]
+
+### Added
+
+- Optional entity typing/ontology guidance (`ExtractionConfig(entity_types=[...])`) - lets callers guide LLM entity extraction toward domain-specific categories (e.g. "Customer", "Product", "Ticket") instead of generic categories like "ORG"/"PERSON". Passed as guidance in the extraction prompt, same convention as the existing `domain_terms=` parameter - not enforced/validated, the model uses its own judgment for entities that don't fit any given category.
+- Entity type is now stored on the graph: `:Entity` nodes gain an `entity_type` property (previously computed by `LLMEntityExtractor` since v0.2.0 but discarded before reaching Neo4j - this closes that gap). Regex-extracted entities are stored with `entity_type="UNKNOWN"`, since regex has no semantic understanding to draw a type from.
+- Re-upserting a document does not downgrade a real type to `"UNKNOWN"`: a later regex-only upsert of the same document won't overwrite an already-recorded LLM-derived type, via `coalesce(NULLIF($entity_type, "UNKNOWN"), e.entity_type, "UNKNOWN")` in the write query.
+- `GraphIndex.find_entities_by_type(entity_type, namespace=None, limit=25)` - queries entities by their stored type.
+- `_collect_entities_for_chunk()` now returns `(name, entity_type)` pairs instead of bare names - internal signature change, not part of the public API. Verified via a regression test that the set of entity *names* produced by the regex path is byte-identical before and after this change; only the return shape changed, not the extraction logic itself.
+- 8 new tests: config defaults, prompt-guidance passthrough, response type-field regression guard, regex-path UNKNOWN-typing, the names-unchanged regression guard, and `find_entities_by_type()` edge cases.
+
+### Verified
+
+- Real end-to-end live test: real Gemini call with `entity_types=["Customer", "Product"]` guidance correctly typed "Acme Corp" as `Customer` and "Neo4j Enterprise" as `Product`, both written to a real isolated Neo4j instance and correctly retrieved via `find_entities_by_type()`.
+
+### Known limitations
+
+- No schema *enforcement* - `entity_types=` is guidance only, the model can and will assign types outside the given list when nothing fits; there's no validation or rejection of out-of-vocabulary types.
+- No relationship-type ontology constraints (e.g. "a REPORTED relation can only go Customer -> Product") - relation types (v0.4.0) and entity types (v0.5.0) aren't currently cross-validated against each other.
+- `find_entities_by_type()` does an exact string match on `entity_type` - "Customer" and "customer" are treated as different types, since entity_type is stored exactly as the model (or "UNKNOWN") produced it, with no additional normalization applied.
+
 ## [0.4.0]
 
 ### Added

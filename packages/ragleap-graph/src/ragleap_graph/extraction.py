@@ -76,6 +76,7 @@ class ExtractionConfig:
     dedup_threshold: float = 0.92
     max_entities_per_chunk: int = 25
     extract_relations: bool = False
+    entity_types: Optional[list[str]] = None
 
     def __post_init__(self) -> None:
         if self.extract_relations and self.method != "llm":
@@ -211,12 +212,19 @@ class LLMEntityExtractor:
         return self._parse_result(result)
 
     def _build_instruction(self, domain_terms: Optional[list[str]]) -> str:
+        base = "Extract all named entities from the given text."
+        if self._config.entity_types:
+            types_joined = ", ".join(self._config.entity_types)
+            base += (
+                f" Where an entity fits one of these categories, use that "
+                f"category as its type: {types_joined}. Use your own "
+                f"judgment for entities that do not fit any of these."
+            )
         if not domain_terms:
-            return "Extract all named entities from the given text."
+            return base
         joined = ", ".join(domain_terms)
-        return (
-            "Extract all named entities from the given text. Pay "
-            f"particular attention to these known domain terms if present: {joined}."
+        return base + (
+            f" Pay particular attention to these known domain terms if present: {joined}."
         )
 
     def _parse_result(self, result: dict[str, Any]) -> list[ExtractedEntity]:

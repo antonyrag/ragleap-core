@@ -475,3 +475,67 @@ def test_relation_extractor_raises_when_all_providers_failed():
     extractor = LLMRelationExtractor(config)
     with pytest.raises(RuntimeError, match="all configured providers"):
         extractor.extract("text", known_entities=["A", "B"])
+
+
+# ---------------------------------------------------------------------------
+# ExtractionConfig.entity_types (v0.5.0) - mocked GenerationService
+# ---------------------------------------------------------------------------
+
+def test_extraction_config_entity_types_defaults_to_none():
+    from ragleap_graph.extraction import ExtractionConfig
+    config = ExtractionConfig()
+    assert config.entity_types is None
+
+
+def test_llm_extractor_passes_entity_types_into_instruction():
+    """Verify entity_types= actually reaches the prompt sent to the
+    provider - not just accepted and silently dropped."""
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+
+    captured = {}
+
+    class CapturingService(FakeGenerationService):
+        def generate_answer(self, query, chunks, response_format=None, temperature=None, **kw):
+            captured["query"] = query
+            return {
+                "answer": json.dumps({"entities": []}),
+                "provider_used": "gemini",
+                "structured": {"entities": []},
+                "structured_valid": True,
+                "structured_enforcement": "native",
+            }
+
+    import ragleap_graph.extraction as extraction_module
+    extraction_module.GenerationService = CapturingService
+
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        entity_types=["Customer", "Product", "Ticket"],
+    )
+    LLMEntityExtractor(config).extract("some text")
+    assert "Customer" in captured["query"]
+    assert "Product" in captured["query"]
+    assert "Ticket" in captured["query"]
+
+
+def test_llm_extractor_still_returns_type_field_from_response():
+    """Regression guard: entity_types= guidance must not break the
+    existing per-entity type field already returned by extract() since
+    v0.2.0 - it just influences what values that field tends to hold."""
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Acme Corp", "type": "Customer"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Acme Corp", "type": "Customer"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        entity_types=["Customer", "Product"],
+    )
+    entities = LLMEntityExtractor(config).extract("Acme Corp is a customer.")
+    assert len(entities) == 1
+    assert entities[0].type == "Customer"
