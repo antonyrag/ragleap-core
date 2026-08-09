@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -236,28 +236,32 @@ class GraphIndex:
 
     def _collect_entities_for_chunk(
         self, text: str, max_entities: int, domain_terms: Optional[List[str]]
-    ) -> List[str]:
+    ) -> List[Tuple[str, str]]:
         """
         Dispatch entity extraction for one chunk of text, per the
-        configured self.extraction.method.
+        configured self.extraction.method. Returns (name, entity_type)
+        pairs (v0.5.0+) - entity_type is "UNKNOWN" for the regex path
+        (no semantic understanding to draw a type from), or whatever
+        LLMEntityExtractor determined (e.g. "ORG", "PERSON", or a
+        caller-supplied category from ExtractionConfig.entity_types=)
+        for the LLM path.
 
-        v0.1.0 behavior (method="regex", the default) is completely
-        unchanged - this just wraps the existing call. method="llm"
-        routes through LLMEntityExtractor instead, returning entity
-        names only (types are not currently stored in the graph schema -
-        that is a v0.3.0-scope change, not this one).
+        v0.1.0 regex behavior is otherwise completely unchanged - same
+        candidates, just paired with a constant "UNKNOWN" type now
+        instead of being returned as bare strings.
         """
         if self.extraction.method == "llm":
             if self._llm_extractor is None:  # pragma: no cover - defensive
                 raise RuntimeError(
-                    "extraction.method=\'llm\' but no LLMEntityExtractor was "
+                    "extraction.method='llm' but no LLMEntityExtractor was "
                     "constructed - this should not happen; please report a bug."
                 )
             entities = self._llm_extractor.extract(text, domain_terms=domain_terms)
-            return [e.name for e in entities][:max_entities]
-        return self._extract_entity_candidates_from_text(
+            return [(e.name, e.type) for e in entities][:max_entities]
+        names = self._extract_entity_candidates_from_text(
             text, max_entities=max_entities, domain_terms=domain_terms
         )
+        return [(name, "UNKNOWN") for name in names]
 
     # ------------------------------------------------------------------
     # Core graph operations
@@ -306,27 +310,34 @@ class GraphIndex:
         entity_counter: Counter = Counter()
         pair_counter: Counter = Counter()
         relation_counter: Counter = Counter()
+        entity_type_map: Dict[str, str] = {}
 
         for chunk in chunks or []:
             text = (chunk.get("text") or "").strip()
             if not text:
                 continue
 
-            entities = self._collect_entities_for_chunk(
+            entity_type_pairs = self._collect_entities_for_chunk(
                 text, max_entities=12, domain_terms=domain_terms
             )
-            if not entities:
+            if not entity_type_pairs:
                 continue
 
             unique_entities = []
             seen_local = set()
-            for ent in entities:
+            for ent, ent_type in entity_type_pairs:
                 key = ent.lower()
                 if key in seen_local:
                     continue
                 seen_local.add(key)
                 unique_entities.append(ent)
                 entity_counter[ent] += 1
+                # First type seen for a given entity name wins - later
+                # chunks mentioning the same entity don't override an
+                # already-recorded type. Simple, deterministic tie-break;
+                # entities are normalized/deduped by name already, so a
+                # genuinely different type for the "same" name is rare.
+                entity_type_map.setdefault(key, ent_type)
 
             for i in range(len(unique_entities)):
                 for j in range(i + 1, len(unique_entities)):
@@ -367,11 +378,13 @@ class GraphIndex:
                 )
 
                 for entity_name, weight in top_entities:
+                    entity_type = entity_type_map.get(entity_name.lower(), "UNKNOWN")
                     session.run(
                         """
                         MATCH (d:Document {id: $document_id, namespace: $namespace})
                         MERGE (e:Entity {name: $name_lower, namespace: $namespace})
                         ON CREATE SET e.display_name = $name
+                        SET e.entity_type = coalesce(NULLIF($entity_type, "UNKNOWN"), e.entity_type, "UNKNOWN")
                         MERGE (d)-[r:CONTAINS]->(e)
                         ON CREATE SET r.weight = $weight
                         ON MATCH SET r.weight = coalesce(r.weight, 0) + $weight
@@ -380,6 +393,7 @@ class GraphIndex:
                         namespace=ns,
                         name_lower=entity_name.lower(),
                         name=entity_name,
+                        entity_type=entity_type,
                         weight=float(weight),
                     )
                     summary["entities_indexed"] += 1
@@ -661,6 +675,60 @@ class GraphIndex:
 
         except Exception as e:
             logger.error(f"Document entity lookup error: {e}", exc_info=True)
+            return []
+
+    def find_entities_by_type(
+        self,
+        entity_type: str,
+        namespace: Optional[str] = None,
+        limit: int = 25,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find entities of a given type (v0.5.0+), e.g. "ORG", "PERSON",
+        or a caller-supplied category from ExtractionConfig.entity_types=.
+
+        Only meaningful for entities extracted via method="llm" - regex
+        extraction has no semantic understanding to draw a type from, so
+        entities from that path are always stored with entity_type
+        "UNKNOWN" and will only show up here if entity_type="UNKNOWN" is
+        searched for explicitly.
+        """
+        if not self.driver:
+            logger.warning("Neo4j driver not available")
+            return []
+
+        if not entity_type or not entity_type.strip():
+            return []
+
+        ns = namespace or ""
+
+        try:
+            with self.driver.session() as session:
+                result = session.run(
+                    """
+                    MATCH (e:Entity {namespace: $namespace})
+                    WHERE e.entity_type = $entity_type
+                    RETURN e.name AS entity_id,
+                           e.display_name AS entity_name,
+                           e.entity_type AS entity_type
+                    LIMIT $limit
+                    """,
+                    namespace=ns,
+                    entity_type=entity_type,
+                    limit=max(1, int(limit)),
+                )
+
+                entities = []
+                for row in result:
+                    entities.append({
+                        "entity_id": row["entity_id"],
+                        "entity_name": row["entity_name"],
+                        "entity_type": row["entity_type"],
+                    })
+                return entities
+
+        except Exception as e:
+            logger.error(f"Entity-by-type search error: {e}", exc_info=True)
             return []
 
     def health_check(self) -> bool:

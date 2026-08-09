@@ -249,3 +249,37 @@ def test_live_full_roundtrip():
                 ns=TEST_NAMESPACE,
             )
         graph.close()
+
+
+# ---------------------------------------------------------------------------
+# Entity typing (v0.5.0)
+# ---------------------------------------------------------------------------
+
+def test_collect_entities_for_chunk_regex_path_returns_unknown_type(graph_no_driver):
+    """Regex extraction has no semantic understanding to draw a type
+    from - every entity must be paired with 'UNKNOWN', not left
+    untyped or crashing."""
+    text = "Acme Corp reported strong Q3 revenue with ALARA compliance."
+    result = graph_no_driver._collect_entities_for_chunk(text, max_entities=12, domain_terms=None)
+    assert len(result) > 0
+    assert all(isinstance(pair, tuple) and len(pair) == 2 for pair in result)
+    assert all(entity_type == "UNKNOWN" for _, entity_type in result)
+
+
+def test_collect_entities_for_chunk_regex_path_names_match_old_behavior(graph_no_driver):
+    """Regression guard: the set of entity NAMES extracted by the regex
+    path must be identical before and after the (name, type) tuple
+    change - only the return shape changed, not the extraction logic."""
+    text = "Acme Corp reported strong Q3 revenue with ALARA compliance."
+    old_style_names = graph_no_driver._extract_entity_candidates_from_text(text, max_entities=12)
+    new_style_names = [name for name, _ in graph_no_driver._collect_entities_for_chunk(text, max_entities=12, domain_terms=None)]
+    assert old_style_names == new_style_names
+
+
+def test_find_entities_by_type_empty_without_driver(graph_no_driver):
+    assert graph_no_driver.find_entities_by_type("ORG") == []
+
+
+def test_find_entities_by_type_empty_string_returns_empty(graph_no_driver):
+    assert graph_no_driver.find_entities_by_type("") == []
+    assert graph_no_driver.find_entities_by_type("   ") == []
