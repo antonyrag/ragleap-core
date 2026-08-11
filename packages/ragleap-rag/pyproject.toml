@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-rag"
-version = "0.12.1"
+version = "0.12.2"
 description = "Self-hosted RAG engine: hybrid dense+sparse retrieval, 28-format ingestion (docs, URLs, images, audio, video), 6 vector backends, 8 embedding providers, 12+ generation providers with automatic fallback, query rewriting (HyDE/contextual/multi-query), structured JSON output, real per-call cost tracking, and standalone retrieval via retrieve(). Composable with the optional ragleap-graph package for knowledge-graph-augmented retrieval. BYOK, no vendor lock-in, no hardcoded model defaults."
 readme = "README.md"
 license = "MIT"
@@ -63,7 +63,7 @@ all = ["google-genai>=0.3.0", "anthropic>=0.34.0", "openai>=1.40.0", "onnxruntim
 [project.urls]
 Homepage = "https://github.com/antonyrag/ragleap-core"
 Repository = "https://github.com/antonyrag/ragleap-core"
-Documentation = "https://docs.ragleap.com"
+Documentation = "https://packages.ragleap.com/docs/ragleap-rag.html"
 Issues = "https://github.com/antonyrag/ragleap-core/issues"
 
 [tool.hatch.build.targets.wheel]
