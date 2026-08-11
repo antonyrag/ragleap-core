@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.2]
+### Fixed
+- Regex entity extraction (`_extract_entity_candidates_from_text()`, backing `extract_query_entities()`) no longer extracts common sentence-initial words ("What", "Who", "The", auxiliary verbs, etc.) as spurious single-word entity candidates. English capitalizes the first word of any sentence regardless of whether it's a proper noun, so a query like "What did Acme Corp launch?" previously produced `["What", "Acme Corp"]` instead of just `["Acme Corp"]`. Fix is narrowly scoped: only exact single-word matches against a fixed stopword list (`_SENTENCE_INITIAL_STOPWORDS`) are dropped, so a genuine multi-word entity that happens to start with one of these words is unaffected. Documented as a known limitation since v0.1.0; closed here.
+### Verified
+- Regression test added first, confirmed failing against the pre-fix code (`assert "What" not in result` failed against real output `['What', 'Acme Corp']`), then confirmed passing after the fix. Full suite re-run afterward: 75 passed, 2 skipped (skips are the standard live-credential guards, unrelated to this change) - zero regressions.
+
+## [0.5.1]
+### Fixed
+- PyPI `Documentation` URL was missing entirely from `[project.urls]` - this package had no Documentation link on its PyPI page at all. Added, pointing to this package's reference page on packages.ragleap.com (a documentation site for this package ecosystem, separate from docs.ragleap.com which covers only the commercial RagLeap platform and has zero content about this package).
+- Metadata-only patch, no code changes.
+
 ## [0.5.0]
 
 ### Added
