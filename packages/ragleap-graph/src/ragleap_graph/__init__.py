@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
