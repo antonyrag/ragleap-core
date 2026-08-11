@@ -137,6 +137,21 @@ def test_extract_query_entities_delegates_correctly(graph_no_driver):
     assert "Acme Corp" in result
 
 
+def test_extract_query_entities_excludes_sentence_initial_stopwords(graph_no_driver):
+    """Regression test: capitalized question words ("What", "Who", "The", ...)
+    should not be extracted as entities just because English capitalizes the
+    first word of a sentence. Documented as a known limitation prior to this
+    fix - see CHANGELOG.
+    """
+    result = graph_no_driver.extract_query_entities("What did Acme Corp launch?")
+    assert "Acme Corp" in result
+    assert "What" not in result
+
+    result2 = graph_no_driver.extract_query_entities("Who founded Acme Corp?")
+    assert "Acme Corp" in result2
+    assert "Who" not in result2
+
+
 # ---------------------------------------------------------------------------
 # max_depth validation (the security fix — real Cypher-injection guard)
 # ---------------------------------------------------------------------------

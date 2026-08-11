@@ -48,12 +48,27 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
 # guards against malformed/malicious input reaching the query text.
 MAX_ALLOWED_DEPTH = 10
+
+# v0.5.2: single-word candidates dropped from regex entity extraction.
+# English capitalizes the first word of any sentence regardless of
+# whether it's a proper noun, so naive capitalized-word matching
+# extracts spurious entities like "What" from "What did Acme Corp
+# launch?" alongside the genuine "Acme Corp". Narrow by design: only
+# filters exact single-word matches equal to one of these, so a real
+# multi-word entity that happens to start with one of these words is
+# unaffected.
+_SENTENCE_INITIAL_STOPWORDS = frozenset({
+    "What", "Who", "When", "Where", "Why", "How", "Which",
+    "The", "This", "That", "These", "Those",
+    "Is", "Are", "Was", "Were", "Do", "Does", "Did",
+    "Can", "Could", "Would", "Should", "Will", "May", "Might",
+})
 
 
 @dataclass
@@ -201,8 +216,13 @@ class GraphIndex:
         # 1) Acronyms and all-caps entities.
         candidates.extend(re.findall(r"\b[A-Z]{2,}(?:-[A-Z0-9]+)?\b", text))
         # 2) Capitalized word sequences (person/org/concept-like phrases).
+        raw_phrase_candidates = re.findall(
+            r"\b(?:[A-Z][a-z]{2,})(?:\s+[A-Z][a-z]{2,}){0,2}\b", text
+        )
+        # 2b) Drop exact single-word sentence-initial stopwords (see
+        # _SENTENCE_INITIAL_STOPWORDS docstring above _extract_entity_candidates_from_text).
         candidates.extend(
-            re.findall(r"\b(?:[A-Z][a-z]{2,})(?:\s+[A-Z][a-z]{2,}){0,2}\b", text)
+            c for c in raw_phrase_candidates if c not in _SENTENCE_INITIAL_STOPWORDS
         )
         # 3) Optional caller-supplied domain terms that may appear lowercase.
         if domain_terms:
