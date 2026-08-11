@@ -783,7 +783,7 @@
       "version": "7.3.1"
     },
     {
-      "bom-ref": "cyclonedx-python-lib==11.11.0",
+      "bom-ref": "cyclonedx-python-lib==11.11.1",
       "description": "Python library for CycloneDX",
       "externalReferences": [
         {
@@ -838,9 +838,9 @@
           "value": "validation"
         }
       ],
-      "purl": "pkg:pypi/cyclonedx-python-lib@11.11.0",
+      "purl": "pkg:pypi/cyclonedx-python-lib@11.11.1",
       "type": "library",
-      "version": "11.11.0"
+      "version": "11.11.1"
     },
     {
       "bom-ref": "dateparser==1.4.2",
@@ -2611,7 +2611,7 @@
       "version": "2.1.0"
     },
     {
-      "bom-ref": "pyarrow==25.0.0",
+      "bom-ref": "pyarrow==25.0.1",
       "description": "Python library for Apache Arrow",
       "externalReferences": [
         {
@@ -2644,9 +2644,9 @@
         }
       ],
       "name": "pyarrow",
-      "purl": "pkg:pypi/pyarrow@25.0.0",
+      "purl": "pkg:pypi/pyarrow@25.0.1",
       "type": "library",
-      "version": "25.0.0"
+      "version": "25.0.1"
     },
     {
       "bom-ref": "pyasn1==0.6.4",
@@ -3793,7 +3793,7 @@
       "version": "2.2.0"
     },
     {
-      "bom-ref": "typing-inspection==0.4.2",
+      "bom-ref": "typing-inspection==0.4.3",
       "description": "Runtime typing introspection tools",
       "externalReferences": [
         {
@@ -3826,9 +3826,9 @@
         }
       ],
       "name": "typing-inspection",
-      "purl": "pkg:pypi/typing-inspection@0.4.2",
+      "purl": "pkg:pypi/typing-inspection@0.4.3",
       "type": "library",
-      "version": "0.4.2"
+      "version": "0.4.3"
     },
     {
       "bom-ref": "typing_extensions==4.16.0",
@@ -4332,7 +4332,7 @@
     {
       "dependsOn": [
         "chardet==5.2.0",
-        "cyclonedx-python-lib==11.11.0",
+        "cyclonedx-python-lib==11.11.1",
         "packageurl-python==0.17.6",
         "packaging==26.3",
         "pip-requirements-parser==32.0.1"
@@ -4350,7 +4350,7 @@
         "sortedcontainers==2.4.0",
         "typing_extensions==4.16.0"
       ],
-      "ref": "cyclonedx-python-lib==11.11.0"
+      "ref": "cyclonedx-python-lib==11.11.1"
     },
     {
       "dependsOn": [
@@ -4393,7 +4393,7 @@
       "dependsOn": [
         "numpy==2.4.6",
         "pandas==3.0.5",
-        "pyarrow==25.0.0",
+        "pyarrow==25.0.1",
         "requests==2.34.2",
         "tqdm==4.70.0",
         "urllib3==2.7.0"
@@ -4644,7 +4644,7 @@
         "numpy==2.4.6",
         "odfpy==1.4.1",
         "openpyxl==3.1.5",
-        "pyarrow==25.0.0",
+        "pyarrow==25.0.1",
         "python-dateutil==2.9.0.post0",
         "pytz==2026.3.post1",
         "tzdata==2026.3",
@@ -4657,7 +4657,7 @@
       "dependsOn": [
         "defusedxml==0.7.1",
         "packaging==26.3",
-        "pyarrow==25.0.0",
+        "pyarrow==25.0.1",
         "setuptools==79.0.1"
       ],
       "ref": "pillow==12.3.0"
@@ -4699,7 +4699,7 @@
       "ref": "py-serializable==2.1.0"
     },
     {
-      "ref": "pyarrow==25.0.0"
+      "ref": "pyarrow==25.0.1"
     },
     {
       "ref": "pyasn1==0.6.4"
@@ -4717,7 +4717,7 @@
       "dependsOn": [
         "annotated-types==0.8.0",
         "pydantic_core==2.46.4",
-        "typing-inspection==0.4.2",
+        "typing-inspection==0.4.3",
         "typing_extensions==4.16.0",
         "tzdata==2026.3"
       ],
@@ -4736,7 +4736,7 @@
         "orjson==3.11.9",
         "pandas==3.0.5",
         "protobuf==6.33.6",
-        "pyarrow==25.0.0",
+        "pyarrow==25.0.1",
         "python-dotenv==1.2.2",
         "requests==2.34.2",
         "setuptools==79.0.1",
@@ -4865,7 +4865,7 @@
         "pillow==12.3.0",
         "pinecone==9.1.0",
         "psycopg2-binary==2.9.12",
-        "pyarrow==25.0.0",
+        "pyarrow==25.0.1",
         "pymilvus==3.0.1",
         "pypdf==6.15.0",
         "pytesseract==0.3.13",
@@ -4947,7 +4947,7 @@
       "dependsOn": [
         "typing_extensions==4.16.0"
       ],
-      "ref": "typing-inspection==0.4.2"
+      "ref": "typing-inspection==0.4.3"
     },
     {
       "ref": "typing_extensions==4.16.0"
@@ -5006,7 +5006,7 @@
         {
           "comment": "from pyproject urls: Documentation",
           "type": "documentation",
-          "url": "https://docs.ragleap.com"
+          "url": "https://packages.ragleap.com/docs/ragleap-rag.html"
         },
         {
           "comment": "from pyproject urls: Issues",
@@ -5034,9 +5034,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.12.1"
+      "version": "0.12.2"
     },
-    "timestamp": "2026-08-10T06:07:25.406225+00:00",
+    "timestamp": "2026-08-11T10:57:55.757320+00:00",
     "tools": {
       "components": [
         {
@@ -5135,12 +5135,12 @@
           ],
           "name": "cyclonedx-python-lib",
           "type": "library",
-          "version": "11.11.0"
+          "version": "11.11.1"
         }
       ]
     }
   },
-  "serialNumber": "urn:uuid:86055c2e-75ee-472b-8a3e-a98eee55e62f",
+  "serialNumber": "urn:uuid:74ddb321-2176-43ff-aca7-982d0a50ed4c",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
