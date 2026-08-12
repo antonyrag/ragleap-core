@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -396,6 +396,34 @@ class GraphIndex:
                     namespace=ns,
                     title=title or "",
                 )
+                # v0.5.4: delete this document's existing CONTAINS edges
+                # before rewriting them. Two real bugs this fixes:
+                # (1) re-upserting identical content used to double the
+                # weight every time (ON MATCH SET weight = weight + new,
+                # contradicting the "idempotent, safe to re-run" claim);
+                # (2) re-upserting changed content left stale CONTAINS
+                # edges to entities no longer mentioned - they never got
+                # cleaned up. Delete-then-rewrite fixes both: CONTAINS is
+                # a clean 1:1 document->entity link, so wiping and
+                # rebuilding per document is safe.
+                #
+                # NOT applied to CO_OCCURS_WITH/RELATES_AS - those
+                # aggregate weight across MULTIPLE different documents by
+                # design (that's the point of co-occurrence weighting),
+                # and there is currently no per-document contribution
+                # tracking that would let us subtract just this
+                # document's share without affecting others. Fixing that
+                # properly needs a real schema addition, not a quick
+                # patch here - tracked as a known limitation.
+                session.run(
+                    """
+                    MATCH (d:Document {id: $document_id, namespace: $namespace})
+                          -[r:CONTAINS]->()
+                    DELETE r
+                    """,
+                    document_id=str(document_id),
+                    namespace=ns,
+                )
 
                 for entity_name, weight in top_entities:
                     entity_type = entity_type_map.get(entity_name.lower(), "UNKNOWN")
@@ -406,8 +434,7 @@ class GraphIndex:
                         ON CREATE SET e.display_name = $name
                         SET e.entity_type = coalesce(NULLIF($entity_type, "UNKNOWN"), e.entity_type, "UNKNOWN")
                         MERGE (d)-[r:CONTAINS]->(e)
-                        ON CREATE SET r.weight = $weight
-                        ON MATCH SET r.weight = coalesce(r.weight, 0) + $weight
+                        SET r.weight = $weight
                         """,
                         document_id=str(document_id),
                         namespace=ns,

@@ -267,6 +267,67 @@ def test_live_full_roundtrip():
 
 
 @pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_upsert_document_contains_is_actually_idempotent():
+    """
+    Regression test for two real bugs found in upsert_document() (v0.5.4):
+    1. Weight-doubling: re-upserting identical content doubled CONTAINS
+       weight every time, contradicting the docstring's "idempotent -
+       safe to re-run" claim.
+    2. Stale entities: re-upserting a document whose content changed to
+       no longer mention an entity left the old CONTAINS edge in place
+       forever - never cleaned up.
+    Scoped to CONTAINS only - CO_OCCURS_WITH/RELATES_AS still aggregate
+    weight across multiple documents by design and are not covered by
+    this fix (see the code comment at the fix site).
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+    try:
+        graph.upsert_document(
+            "idempotent-doc-1", "Test", [{"text": "Acme Corp is great."}],
+            namespace=TEST_NAMESPACE,
+        )
+        graph.upsert_document(
+            "idempotent-doc-1", "Test", [{"text": "Acme Corp is great."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            row = session.run(
+                "MATCH (:Document {id: $id, namespace: $ns})"
+                "-[c:CONTAINS]->(:Entity {name: $name}) RETURN c.weight AS w",
+                id="idempotent-doc-1", ns=TEST_NAMESPACE, name="acme corp",
+            ).single()
+            assert row["w"] == 1.0
+
+        graph.upsert_document(
+            "idempotent-doc-2", "Test2",
+            [{"text": "Globex Corp announced results."}],
+            namespace=TEST_NAMESPACE,
+        )
+        graph.upsert_document(
+            "idempotent-doc-2", "Test2",
+            [{"text": "No companies mentioned here now."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            names = {
+                row["name"] for row in session.run(
+                    "MATCH (:Document {id: $id, namespace: $ns})"
+                    "-[:CONTAINS]->(e:Entity) RETURN e.display_name AS name",
+                    id="idempotent-doc-2", ns=TEST_NAMESPACE,
+                )
+            }
+            assert "Globex Corp" not in names
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
 def test_find_relations_direction_parameter():
     """
     Regression test for find_relations(direction=) (v0.5.3). Known
