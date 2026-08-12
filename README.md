@@ -12,6 +12,19 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 
 > **Not to be confused with `install.ragleap.com`** — that's a separate, paid, license-gated self-hosted product (Free tier with a license key, up to Enterprise). `ragleap-core` (this repo) is MIT-licensed, completely free, and never requires a license key. If you cloned this repo, you're in the right place for a genuinely free, open-source RAG engine.
 
+## Install
+
+```bash
+pip install ragleap-rag
+```
+
+Add `ragleap-graph` too if you want Neo4j-backed knowledge graph retrieval:
+```bash
+pip install ragleap-rag ragleap-graph
+```
+
+Or run the full self-hosted app (channels, web chat UI, Docker Compose) — see [Quickstart](#quickstart) below. Browse every package at [packages.ragleap.com](https://packages.ragleap.com). Try it hands-on with the runnable scripts in [examples/](examples/) — `01_ingest_and_query.py` (upload a document, ask a question via the API) and `02_test_channel_directly.py` (test channel answering logic without real bot credentials).
+
 ## If a RAG chatbot answers questions, RagLeap runs your business
 
 Most open-source RAG projects give you a toolkit — you still have to build the app, wire up a UI, add memory, and connect every channel yourself. RagLeap Core gives you a working chat engine out of the box, and the full RagLeap platform turns it into an AI that actually operates a business.
