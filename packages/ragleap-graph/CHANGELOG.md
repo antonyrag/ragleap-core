@@ -5,6 +5,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.4]
+### Fixed
+- `upsert_document()`'s docstring claimed writes were "idempotent - safe to re-run," which was false for two real reasons: (1) re-upserting identical content doubled `CONTAINS` edge weight every single call (`ON MATCH SET weight = weight + new` instead of replacing it); (2) re-upserting a document whose content changed to no longer mention an entity left the old `CONTAINS` edge in place forever, with no cleanup path. Fixed by deleting a document's existing `CONTAINS` edges before rewriting them on each upsert - safe because `CONTAINS` is a clean 1:1 document-to-entity link.
+### Known limitation (not fixed here, scoped out deliberately)
+- `CO_OCCURS_WITH` and `RELATES_AS` still have the same weight-doubling issue, but the fix above does not apply to them: those edges deliberately aggregate weight across *multiple different documents* that share entities - that's the actual point of co-occurrence weighting. There is currently no per-document contribution tracking, so there's no way to subtract just one document's share on re-upsert without corrupting other documents' contributions. Fixing this properly needs a real schema addition (per-document contribution tracking), not a quick patch - tracked as upcoming work, not glossed over.
+### Verified
+- Both bugs reproduced live before any code changed. Regression test added, initially failed on an unrelated Cypher parameter-escaping mistake in the test itself (not the fix) - caught and corrected before treating the test as valid. Full suite re-run: 78 passed, 1 skipped (Gemini-key skip, unrelated) - zero regressions.
+
 ## [0.5.3]
 ### Fixed
 - `find_relations()` only ever searched outgoing relations (entity_name as subject) - searching from the object side silently returned `[]` even when the entity was clearly involved in a real relation. Added `direction=` parameter: `"outgoing"` (default, unchanged), `"incoming"` (new), `"both"` (new, deduplicated via `startNode()`/`endNode()` rather than a UNION, so subject/object stay correctly labeled regardless of which direction matched). Closes a known limitation open since v0.4.0.
