@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.2"
+__version__ = "0.5.3"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -597,46 +597,78 @@ class GraphIndex:
         relation_type: Optional[str] = None,
         namespace: Optional[str] = None,
         limit: int = 25,
+        direction: str = "outgoing",
     ) -> List[Dict[str, Any]]:
         """
-        Find typed relations where entity_name is the subject (v0.4.0+).
-
-        Only searches outgoing relations from entity_name (subject side) -
-        searching both directions, or by object, is a reasonable future
-        addition not built here to keep this method's scope honest and
-        verifiable rather than guessing at a larger untested surface area.
-
+        Find typed relations involving entity_name (v0.4.0+;
+        direction= added v0.5.3, closing a known limitation).
+        direction="outgoing" (default, unchanged since v0.4.0):
+        entity_name is the subject, e.g.
+        (entity_name)-[:PARTNERED_WITH]->(other).
+        direction="incoming": entity_name is the object, e.g.
+        (other)-[:PARTNERED_WITH]->(entity_name). Previously, searching
+        from the object side silently returned [] even when the entity
+        was clearly involved in a real relation - this was the actual
+        bug, not just a missing feature.
+        direction="both": relations in either direction, deduplicated.
         Requires relations to have been written via
         ExtractionConfig(extract_relations=True) during upsert_document() -
         returns [] (not an error) if no typed relations exist, same as
         every other query method here when there is simply nothing to find.
-
         relation_type= optionally filters to one relation type (e.g.
         "REPORTED"); omit to return all relation types for entity_name.
         """
+        if direction not in ("outgoing", "incoming", "both"):
+            raise ValueError(
+                f'direction must be "outgoing", "incoming", or "both", got {direction!r}'
+            )
         if not self.driver:
             logger.warning("Neo4j driver not available")
             return []
-
         normalized = self._normalize_entity_name(entity_name)
         if not normalized:
             return []
-
         ns = namespace or ""
-
         try:
             with self.driver.session() as session:
-                query = """
-                    MATCH (s:Entity {name: $subject, namespace: $namespace})
-                          -[r:RELATES_AS]->(o:Entity {namespace: $namespace})
-                    WHERE $relation_type IS NULL OR r.relation_type = $relation_type
-                    RETURN s.display_name AS subject,
-                           r.relation_type AS relation_type,
-                           o.display_name AS object,
-                           coalesce(r.weight, 1.0) AS weight
-                    ORDER BY weight DESC
-                    LIMIT $limit
-                """
+                if direction == "outgoing":
+                    query = """
+                        MATCH (s:Entity {name: $subject, namespace: $namespace})
+                              -[r:RELATES_AS]->(o:Entity {namespace: $namespace})
+                        WHERE $relation_type IS NULL OR r.relation_type = $relation_type
+                        RETURN s.display_name AS subject,
+                               r.relation_type AS relation_type,
+                               o.display_name AS object,
+                               coalesce(r.weight, 1.0) AS weight
+                        ORDER BY weight DESC
+                        LIMIT $limit
+                    """
+                elif direction == "incoming":
+                    query = """
+                        MATCH (o:Entity {name: $subject, namespace: $namespace})
+                              <-[r:RELATES_AS]-(s:Entity {namespace: $namespace})
+                        WHERE $relation_type IS NULL OR r.relation_type = $relation_type
+                        RETURN s.display_name AS subject,
+                               r.relation_type AS relation_type,
+                               o.display_name AS object,
+                               coalesce(r.weight, 1.0) AS weight
+                        ORDER BY weight DESC
+                        LIMIT $limit
+                    """
+                else:
+                    query = """
+                        MATCH (a:Entity {namespace: $namespace})
+                              -[r:RELATES_AS]-(b:Entity {namespace: $namespace})
+                        WHERE (a.name = $subject OR b.name = $subject)
+                          AND ($relation_type IS NULL OR r.relation_type = $relation_type)
+                        WITH DISTINCT startNode(r) AS s, endNode(r) AS o, r
+                        RETURN s.display_name AS subject,
+                               r.relation_type AS relation_type,
+                               o.display_name AS object,
+                               coalesce(r.weight, 1.0) AS weight
+                        ORDER BY weight DESC
+                        LIMIT $limit
+                    """
                 result = session.run(
                     query,
                     subject=normalized.lower(),
@@ -644,7 +676,6 @@ class GraphIndex:
                     relation_type=relation_type,
                     limit=max(1, int(limit)),
                 )
-
                 relations = []
                 for row in result:
                     relations.append({
@@ -654,7 +685,6 @@ class GraphIndex:
                         "weight": float(row["weight"]),
                     })
                 return relations
-
         except Exception as e:
             logger.error(f"Relation search error: {e}", exc_info=True)
             return []

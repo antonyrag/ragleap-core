@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.3]
+### Fixed
+- `find_relations()` only ever searched outgoing relations (entity_name as subject) - searching from the object side silently returned `[]` even when the entity was clearly involved in a real relation. Added `direction=` parameter: `"outgoing"` (default, unchanged), `"incoming"` (new), `"both"` (new, deduplicated via `startNode()`/`endNode()` rather than a UNION, so subject/object stay correctly labeled regardless of which direction matched). Closes a known limitation open since v0.4.0.
+### Verified
+- Zero prior test coverage existed for `find_relations()` at all, including the existing outgoing-only behavior - backfilled that alongside the new direction tests. Regression test writes `RELATES_AS` edges directly via Cypher (deterministic, no live LLM call needed since this method doesn't touch extraction), confirmed failing first (`TypeError: unexpected keyword argument 'direction'`), then confirmed passing after the fix, including an explicit assertion that the old default behavior still returns `[]` when searching from the object side without `direction="incoming"` - proving the fix is additive, not a silent behavior change. Full suite re-run: 77 passed, 1 skipped (Gemini-key skip, unrelated) - zero regressions.
+
 ## [0.5.2]
 ### Fixed
 - Regex entity extraction (`_extract_entity_candidates_from_text()`, backing `extract_query_entities()`) no longer extracts common sentence-initial words ("What", "Who", "The", auxiliary verbs, etc.) as spurious single-word entity candidates. English capitalizes the first word of any sentence regardless of whether it's a proper noun, so a query like "What did Acme Corp launch?" previously produced `["What", "Acme Corp"]` instead of just `["Acme Corp"]`. Fix is narrowly scoped: only exact single-word matches against a fixed stopword list (`_SENTENCE_INITIAL_STOPWORDS`) are dropped, so a genuine multi-word entity that happens to start with one of these words is unaffected. Documented as a known limitation since v0.1.0; closed here.

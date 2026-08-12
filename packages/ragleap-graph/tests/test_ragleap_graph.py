@@ -266,6 +266,81 @@ def test_live_full_roundtrip():
         graph.close()
 
 
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_find_relations_direction_parameter():
+    """
+    Regression test for find_relations(direction=) (v0.5.3). Known
+    limitation prior to this fix: find_relations() only ever searched
+    outgoing relations - "Globex Industries" would find nothing even
+    though it's clearly the object of a real relation.
+
+    Writes RELATES_AS edges directly via Cypher (bypassing LLM
+    extraction, which find_relations() doesn't touch anyway) so this
+    test is deterministic and only needs NEO4J_URI, not GEMINI_API_KEY.
+
+    Graph: (Acme Corp)-[:PARTNERED_WITH]->(Globex Industries)
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+    try:
+        with graph.driver.session() as session:
+            session.run(
+                """
+                MERGE (a:Entity {name: $subj, namespace: $ns})
+                ON CREATE SET a.display_name = $subj_display, a.entity_type = "UNKNOWN"
+                MERGE (b:Entity {name: $obj, namespace: $ns})
+                ON CREATE SET b.display_name = $obj_display, b.entity_type = "UNKNOWN"
+                MERGE (a)-[r:RELATES_AS {relation_type: $rel}]->(b)
+                SET r.weight = 1.0
+                """,
+                subj="acme corp", subj_display="Acme Corp",
+                obj="globex industries", obj_display="Globex Industries",
+                rel="PARTNERED_WITH",
+                ns=TEST_NAMESPACE,
+            )
+
+        # Existing behavior (default direction="outgoing") - unchanged, must still work
+        outgoing = graph.find_relations("Acme Corp", namespace=TEST_NAMESPACE)
+        assert len(outgoing) == 1
+        assert outgoing[0]["subject"] == "Acme Corp"
+        assert outgoing[0]["object"] == "Globex Industries"
+
+        # The actual bug: searching from the object side with default
+        # direction finds nothing, even though Globex Industries is
+        # clearly involved in a real relation.
+        outgoing_from_object = graph.find_relations("Globex Industries", namespace=TEST_NAMESPACE)
+        assert outgoing_from_object == []
+
+        # New: direction="incoming" - the fix
+        incoming = graph.find_relations(
+            "Globex Industries", namespace=TEST_NAMESPACE, direction="incoming"
+        )
+        assert len(incoming) == 1
+        assert incoming[0]["subject"] == "Acme Corp"
+        assert incoming[0]["object"] == "Globex Industries"
+
+        # New: direction="both" finds the relation from either side
+        both_from_subject = graph.find_relations(
+            "Acme Corp", namespace=TEST_NAMESPACE, direction="both"
+        )
+        assert len(both_from_subject) == 1
+        both_from_object = graph.find_relations(
+            "Globex Industries", namespace=TEST_NAMESPACE, direction="both"
+        )
+        assert len(both_from_object) == 1
+
+        # Invalid direction value should raise, not silently misbehave
+        with pytest.raises(ValueError):
+            graph.find_relations("Acme Corp", namespace=TEST_NAMESPACE, direction="sideways")
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
 # ---------------------------------------------------------------------------
 # Entity typing (v0.5.0)
 # ---------------------------------------------------------------------------
