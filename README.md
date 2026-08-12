@@ -227,6 +227,19 @@ Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or 
 - `examples/01_ingest_and_query.py` — upload a document and ask a question via the API
 - `examples/02_test_channel_directly.py` — test the WhatsApp/Telegram/Discord answering logic without real bot credentials
 
+## Just want the RAG engine as a Python library?
+
+If you don't need the full Docker app — WhatsApp/Telegram/Discord/Voice adapters, the web chat UI, all of it — the core retrieval engine is also published as standalone, pip-installable Python packages:
+
+```bash
+pip install --index-url https://packages.ragleap.com/simple/ ragleap-rag
+```
+
+- **`ragleap-rag`** — the chunking → embedding → retrieval → generation pipeline as a library. Pluggable embeddings (12+ providers), 6 vector backends (FAISS, PgVector, Pinecone, Weaviate, Qdrant, Milvus), cross-encoder reranking, and more.
+- **`ragleap-graph`** — Neo4j-backed knowledge graph retrieval, usable standalone or alongside `ragleap-rag`.
+
+Both are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
+
 ## Supported LLM Providers (BYOK)
 
 RagLeap Core is bring-your-own-key only there is no system-provided key for any provider. Set `LLM_PROVIDER` in `.env` to choose which one to use for the generation (chat) step. Embeddings currently always use Gemini (`gemini-embedding-001`), regardless of `LLM_PROVIDER`.
