@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1]
+### Added
+- `GraphRetriever.retrieve()`'s `graph_context.related_documents` entries now include an `already_in_vector_results` boolean flag. Closes a known limitation: a document could genuinely surface through both vector search (as a chunk) and graph traversal (as a related document), with no way for the caller to know about the overlap. Deliberately flags rather than removes overlapping entries - removing them would silently discard real graph-relationship context (matched entities, graph score) that's still useful even for a document also present in the chunk list.
+### Verified
+- Regression test added first using the existing `FakeRag`/`FakeGraph` test doubles (no live services needed - `GraphRetriever` has no I/O of its own), confirmed failing (`KeyError: 'already_in_vector_results'`), then confirmed passing after the fix. Full suite re-run: 81 passed, 1 skipped (unrelated), zero regressions.
+
 ## [0.6.0]
 ### Fixed
 - `CO_OCCURS_WITH` and `RELATES_AS` had the same weight-doubling idempotency bug fixed for `CONTAINS` in v0.5.4, but couldn't use the same fix directly: these edges deliberately aggregate weight across multiple different documents that share entities, and there was no per-document contribution tracking to subtract just one document's share on re-upsert without corrupting other documents' contributions.
