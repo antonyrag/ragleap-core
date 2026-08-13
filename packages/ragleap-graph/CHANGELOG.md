@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.2]
+### Fixed
+- `find_entities_by_type()` did exact-string-match only, so `"Customer"` and `"customer"` were treated as different types even though `entity_type` is stored exactly as the model produced it, with no casing normalization at write time - a caller had no reliable way to predict the exact stored casing without already knowing it. Now case-insensitive (`toLower()` comparison on both sides in the Cypher query).
+### Verified
+- Reproduced live before any code changed. Regression test added, confirmed failing (`assert 0 == 1`), then confirmed passing after the fix, covering exact/lowercase/uppercase input against a single stored `"Customer"` type. Full suite re-run: 82 passed, 1 skipped (unrelated) - zero regressions.
+
 ## [0.6.1]
 ### Added
 - `GraphRetriever.retrieve()`'s `graph_context.related_documents` entries now include an `already_in_vector_results` boolean flag. Closes a known limitation: a document could genuinely surface through both vector search (as a chunk) and graph traversal (as a related document), with no way for the caller to know about the overlap. Deliberately flags rather than removes overlapping entries - removing them would silently discard real graph-relationship context (matched entities, graph score) that's still useful even for a document also present in the chunk list.

@@ -454,6 +454,43 @@ def test_co_occurs_with_per_document_contribution_tracking():
 
 
 @pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_find_entities_by_type_is_case_insensitive():
+    """
+    Regression test for a known limitation: find_entities_by_type()
+    did exact-string-match only, so "Customer" and "customer" were
+    treated as different types even though entity_type is stored
+    exactly as the LLM (or "UNKNOWN") produced it, with no normalization
+    applied at write time - a caller has no reliable way to predict the
+    exact casing without already knowing it.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+    try:
+        with graph.driver.session() as session:
+            session.run(
+                "MERGE (e:Entity {name: $name, namespace: $ns}) "
+                "SET e.display_name = $display, e.entity_type = $et",
+                name="acme corp", ns=TEST_NAMESPACE, display="Acme Corp", et="Customer",
+            )
+
+        exact = graph.find_entities_by_type("Customer", namespace=TEST_NAMESPACE)
+        assert len(exact) == 1
+
+        lower = graph.find_entities_by_type("customer", namespace=TEST_NAMESPACE)
+        assert len(lower) == 1
+
+        upper = graph.find_entities_by_type("CUSTOMER", namespace=TEST_NAMESPACE)
+        assert len(upper) == 1
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
 def test_find_relations_direction_parameter():
     """
     Regression test for find_relations(direction=) (v0.5.3). Known

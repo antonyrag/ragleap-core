@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -870,6 +870,13 @@ class GraphIndex:
         entities from that path are always stored with entity_type
         "UNKNOWN" and will only show up here if entity_type="UNKNOWN" is
         searched for explicitly.
+
+        Matching is case-insensitive (v0.6.2+) - searching "customer"
+        finds entities stored with entity_type "Customer" or "CUSTOMER".
+        entity_type is stored exactly as the model produced it, with no
+        casing normalization at write time, so exact-match-only search
+        was previously unreliable for a caller who didn't already know
+        the precise stored casing.
         """
         if not self.driver:
             logger.warning("Neo4j driver not available")
@@ -885,7 +892,7 @@ class GraphIndex:
                 result = session.run(
                     """
                     MATCH (e:Entity {namespace: $namespace})
-                    WHERE e.entity_type = $entity_type
+                    WHERE toLower(e.entity_type) = toLower($entity_type)
                     RETURN e.name AS entity_id,
                            e.display_name AS entity_name,
                            e.entity_type AS entity_type
