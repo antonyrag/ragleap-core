@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.5.4"
+__version__ = "0.6.0"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -445,38 +445,139 @@ class GraphIndex:
                     )
                     summary["entities_indexed"] += 1
 
+                # v0.6.0: per-document contribution tracking for
+                # CO_OCCURS_WITH, closing the same idempotency gap fixed
+                # for CONTAINS in v0.5.4. Neo4j relationship properties
+                # can't be nested maps, so per-document contributions are
+                # tracked as separate :PairWeight nodes (one per
+                # namespace+entity_a+entity_b+document_id), and the
+                # shared CO_OCCURS_WITH edge weight is recomputed as the
+                # sum of all contributing documents' PairWeight nodes
+                # whenever this document's contribution changes. This
+                # correctly supports re-upserting the same document
+                # (old contribution replaced, not added on top) while
+                # still correctly aggregating signal from genuinely
+                # different documents that share entities.
+                old_pairs_result = session.run(
+                    """
+                    MATCH (pw:PairWeight {namespace: $namespace, document_id: $document_id})
+                    RETURN pw.entity_a AS a, pw.entity_b AS b
+                    """,
+                    namespace=ns,
+                    document_id=str(document_id),
+                )
+                old_pairs = {(row["a"], row["b"]) for row in old_pairs_result}
+
+                session.run(
+                    """
+                    MATCH (pw:PairWeight {namespace: $namespace, document_id: $document_id})
+                    DELETE pw
+                    """,
+                    namespace=ns,
+                    document_id=str(document_id),
+                )
+
+                current_pairs = set()
                 for (a, b), weight in top_pairs:
+                    a_lower, b_lower = a.lower(), b.lower()
+                    current_pairs.add((a_lower, b_lower))
                     session.run(
                         """
+                        MERGE (pw:PairWeight {namespace: $namespace, document_id: $document_id, entity_a: $a, entity_b: $b})
+                        SET pw.weight = $weight
+                        """,
+                        namespace=ns,
+                        document_id=str(document_id),
+                        a=a_lower,
+                        b=b_lower,
+                        weight=float(weight),
+                    )
+
+                for (a, b) in old_pairs | current_pairs:
+                    session.run(
+                        """
+                        MATCH (pw:PairWeight {namespace: $namespace, entity_a: $a, entity_b: $b})
+                        WITH sum(pw.weight) AS total
                         MATCH (ea:Entity {name: $a, namespace: $namespace})
                         MATCH (eb:Entity {name: $b, namespace: $namespace})
-                        MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
-                        ON CREATE SET r.weight = $weight
-                        ON MATCH SET r.weight = coalesce(r.weight, 0) + $weight
+                        FOREACH (_ IN CASE WHEN total > 0 THEN [1] ELSE [] END |
+                            MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+                            SET r.weight = total
+                        )
+                        FOREACH (_ IN CASE WHEN total = 0 THEN [1] ELSE [] END |
+                            MERGE (ea)-[r2:CO_OCCURS_WITH]-(eb)
+                            DELETE r2
+                        )
                         """,
-                        a=a.lower(),
-                        b=b.lower(),
                         namespace=ns,
-                        weight=float(weight),
+                        a=a,
+                        b=b,
                     )
                     summary["relationships_indexed"] += 1
 
+                # Same pattern for RELATES_AS.
+                old_relations_result = session.run(
+                    """
+                    MATCH (rw:RelationWeight {namespace: $namespace, document_id: $document_id})
+                    RETURN rw.subject AS subject, rw.relation_type AS relation_type, rw.object AS object
+                    """,
+                    namespace=ns,
+                    document_id=str(document_id),
+                )
+                old_relations = {
+                    (row["subject"], row["relation_type"], row["object"])
+                    for row in old_relations_result
+                }
+
+                session.run(
+                    """
+                    MATCH (rw:RelationWeight {namespace: $namespace, document_id: $document_id})
+                    DELETE rw
+                    """,
+                    namespace=ns,
+                    document_id=str(document_id),
+                )
+
+                current_relations = set()
                 for (subject, relation_type, obj), weight in relation_counter.most_common(max_pairs):
+                    subj_lower, obj_lower = subject.lower(), obj.lower()
+                    current_relations.add((subj_lower, relation_type, obj_lower))
                     session.run(
                         """
-                        MATCH (es:Entity {name: $subject, namespace: $namespace})
-                        MATCH (eo:Entity {name: $object, namespace: $namespace})
-                        MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)
-                        ON CREATE SET r.weight = $weight
-                        ON MATCH SET r.weight = coalesce(r.weight, 0) + $weight
+                        MERGE (rw:RelationWeight {namespace: $namespace, document_id: $document_id, subject: $subject, relation_type: $relation_type, object: $object})
+                        SET rw.weight = $weight
                         """,
-                        subject=subject.lower(),
-                        object=obj.lower(),
-                        relation_type=relation_type,
                         namespace=ns,
+                        document_id=str(document_id),
+                        subject=subj_lower,
+                        relation_type=relation_type,
+                        object=obj_lower,
                         weight=float(weight),
                     )
+
+                for (subject, relation_type, obj) in old_relations | current_relations:
+                    session.run(
+                        """
+                        MATCH (rw:RelationWeight {namespace: $namespace, subject: $subject, relation_type: $relation_type, object: $object})
+                        WITH sum(rw.weight) AS total
+                        MATCH (es:Entity {name: $subject, namespace: $namespace})
+                        MATCH (eo:Entity {name: $object, namespace: $namespace})
+                        FOREACH (_ IN CASE WHEN total > 0 THEN [1] ELSE [] END |
+                            MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)
+                            SET r.weight = total
+                        )
+                        FOREACH (_ IN CASE WHEN total = 0 THEN [1] ELSE [] END |
+                            MERGE (es)-[r2:RELATES_AS {relation_type: $relation_type}]->(eo)
+                            DELETE r2
+                        )
+                        """,
+                        namespace=ns,
+                        subject=subject,
+                        relation_type=relation_type,
+                        object=obj,
+                    )
                     summary["relations_indexed"] += 1
+
 
             summary["success"] = True
             return summary

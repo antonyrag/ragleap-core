@@ -5,6 +5,16 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0]
+### Fixed
+- `CO_OCCURS_WITH` and `RELATES_AS` had the same weight-doubling idempotency bug fixed for `CONTAINS` in v0.5.4, but couldn't use the same fix directly: these edges deliberately aggregate weight across multiple different documents that share entities, and there was no per-document contribution tracking to subtract just one document's share on re-upsert without corrupting other documents' contributions.
+### Added
+- Per-document contribution tracking via two new internal node types, `PairWeight` and `RelationWeight` (one per namespace+pair/relation+document_id). On each `upsert_document()` call, a document's own prior contributions are deleted and rewritten, then affected edges' aggregate weight is recomputed as the sum of all contributing documents' `PairWeight`/`RelationWeight` nodes. If a pair/relation's total contribution drops to zero (the last contributing document stopped mentioning it), the `CO_OCCURS_WITH`/`RELATES_AS` edge is deleted rather than left at a stale non-zero weight.
+### Verified
+- Three real behaviors proven live, not just one: (1) re-upserting identical content no longer doubles weight, (2) a genuinely different document sharing the same pair/relation correctly aggregates weight (proves the fix doesn't break the legitimate cross-document aggregation this is for), (3) removing a document's contribution correctly drops the aggregate weight rather than leaving it stale.
+- `CO_OCCURS_WITH` tested with direct Cypher-seeded data (deterministic, no live LLM call needed). `RELATES_AS` tested with a real Ollama call (`qwen2.5:0.5b`, no API key needed, avoiding dependency on the Gemini key) since relation extraction requires a real LLM completion.
+- Full suite re-run: 80 passed, 1 skipped (Gemini-key skip, unrelated to this fix) - zero regressions.
+
 ## [0.5.4]
 ### Fixed
 - `upsert_document()`'s docstring claimed writes were "idempotent - safe to re-run," which was false for two real reasons: (1) re-upserting identical content doubled `CONTAINS` edge weight every single call (`ON MATCH SET weight = weight + new` instead of replacing it); (2) re-upserting a document whose content changed to no longer mention an entity left the old `CONTAINS` edge in place forever, with no cleanup path. Fixed by deleting a document's existing `CONTAINS` edges before rewriting them on each upsert - safe because `CONTAINS` is a clean 1:1 document-to-entity link.

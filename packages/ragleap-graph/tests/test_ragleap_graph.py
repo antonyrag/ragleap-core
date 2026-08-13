@@ -218,6 +218,13 @@ NEO4J_USER = os.environ.get("NEO4J_USER")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD")
 HAS_LIVE_NEO4J = bool(NEO4J_URI and NEO4J_USER and NEO4J_PASSWORD)
 
+ollama_available = True
+try:
+    import requests
+    requests.get("http://localhost:11434/api/tags", timeout=1).raise_for_status()
+except Exception:
+    ollama_available = False
+
 TEST_NAMESPACE = "ragleap_graph_pytest"
 
 
@@ -318,6 +325,125 @@ def test_upsert_document_contains_is_actually_idempotent():
                 )
             }
             assert "Globex Corp" not in names
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(
+    not (HAS_LIVE_NEO4J and ollama_available),
+    reason="Needs both live Neo4j credentials and Ollama running on localhost:11434",
+)
+def test_relates_as_per_document_contribution_tracking():
+    """
+    Same idempotency fix as test_co_occurs_with_per_document_contribution_tracking,
+    for RELATES_AS instead (v0.6.0). Uses real Ollama (qwen2.5:0.5b, same
+    model this project's own benchmarks use for local inference) rather
+    than Gemini, since this method requires a real LLM call for relation
+    extraction and Ollama needs no API key.
+    """
+    from ragleap import ProviderConfig
+    from ragleap_graph import ExtractionConfig
+
+    provider = ProviderConfig(provider="ollama", model="qwen2.5:0.5b")
+    extraction = ExtractionConfig(method="llm", provider=provider, extract_relations=True)
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config, extraction=extraction)
+    try:
+        graph.upsert_document(
+            "relates-doc-1", "Test",
+            [{"text": "Acme Corp partnered with Globex Corp last year."}],
+            namespace=TEST_NAMESPACE,
+        )
+        graph.upsert_document(
+            "relates-doc-1", "Test",
+            [{"text": "Acme Corp partnered with Globex Corp last year."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            rows = session.run(
+                "MATCH (:Entity)-[r:RELATES_AS]->(:Entity) "
+                "WHERE r.relation_type IS NOT NULL "
+                "RETURN r.relation_type AS rt, r.weight AS w"
+            ).data()
+            assert len(rows) >= 1, "expected at least one RELATES_AS edge from real extraction"
+            assert all(row["w"] == 1.0 for row in rows), (
+                f"weight should be 1.0 after identical re-upsert, got: {rows}"
+            )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_co_occurs_with_per_document_contribution_tracking():
+    """
+    Regression test for the same idempotency class of bug as CONTAINS
+    (fixed in v0.5.4), now for CO_OCCURS_WITH (v0.6.0). Three real
+    behaviors this proves, not just one:
+    1. Re-upserting identical content does NOT double the weight
+       (previously did - the actual bug).
+    2. A genuinely different document sharing the same entity pair DOES
+       correctly aggregate weight (proves the fix doesn't break the
+       legitimate cross-document aggregation CO_OCCURS_WITH is for).
+    3. Removing a document's contribution (re-upserting with content
+       that no longer mentions the pair) correctly drops the aggregate
+       weight, rather than leaving stale contribution behind.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+    try:
+        graph.upsert_document(
+            "cooccur-doc-a", "Test",
+            [{"text": "Acme Corp and Globex Corp are rivals."}],
+            namespace=TEST_NAMESPACE,
+        )
+        graph.upsert_document(
+            "cooccur-doc-a", "Test",
+            [{"text": "Acme Corp and Globex Corp are rivals."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            row = session.run(
+                "MATCH (:Entity {name: $a})-[c:CO_OCCURS_WITH]-(:Entity {name: $b}) "
+                "RETURN c.weight AS w",
+                a="acme corp", b="globex corp",
+            ).single()
+            assert row["w"] == 1.0
+
+        graph.upsert_document(
+            "cooccur-doc-b", "Test2",
+            [{"text": "Acme Corp and Globex Corp compete fiercely."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            row = session.run(
+                "MATCH (:Entity {name: $a})-[c:CO_OCCURS_WITH]-(:Entity {name: $b}) "
+                "RETURN c.weight AS w",
+                a="acme corp", b="globex corp",
+            ).single()
+            assert row["w"] == 2.0
+
+        graph.upsert_document(
+            "cooccur-doc-b", "Test2",
+            [{"text": "Totally unrelated content now, no companies."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            row = session.run(
+                "MATCH (:Entity {name: $a})-[c:CO_OCCURS_WITH]-(:Entity {name: $b}) "
+                "RETURN c.weight AS w",
+                a="acme corp", b="globex corp",
+            ).single()
+            assert row["w"] == 1.0
     finally:
         with graph.driver.session() as session:
             session.run(
