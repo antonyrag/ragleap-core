@@ -203,6 +203,37 @@ def test_namespace_passed_through_to_graph_methods():
     assert graph.search_related_calls[0]["namespace"] == "acme-tenant"
 
 
+def test_related_documents_flagged_when_overlapping_vector_chunks():
+    """
+    Regression test for a known limitation: GraphRetriever returned
+    chunks (vector results) and related_documents (graph results) as
+    fully separate lists, with no way for the caller to know a document
+    surfaced through BOTH paths - real, meaningful overlap information
+    that was silently discarded rather than exposed. Fixed by adding
+    an already_in_vector_results flag to each related_documents entry,
+    rather than removing overlapping entries outright - the caller
+    still gets full graph-relationship context (matched entities, graph
+    score) even for documents also present in the chunk list, just now
+    knows about the overlap.
+    """
+    rag = FakeRag(chunks=[
+        {"chunk_id": "c1", "text": "Acme Corp news.", "document_id": "d1",
+         "document_name": "a.pdf", "chunk_index": 0},
+    ])
+    graph = FakeGraph(related_documents=[
+        {"document_id": "d1", "document_name": "a.pdf", "matched_entities": 1,
+         "graph_score": 1.0, "matched_entity_names": ["Acme Corp"]},
+        {"document_id": "d9", "document_name": "b.pdf", "matched_entities": 1,
+         "graph_score": 1.0, "matched_entity_names": ["Globex Corp"]},
+    ])
+    retriever = GraphRetriever(graph=graph, rag=rag, config=GraphRetrievalConfig())
+    result = retriever.retrieve("test query")
+    related = result["graph_context"]["related_documents"]
+    by_id = {d["document_id"]: d for d in related}
+    assert by_id["d1"]["already_in_vector_results"] is True
+    assert by_id["d9"]["already_in_vector_results"] is False
+
+
 def test_domain_terms_passed_through_to_extract_query_entities():
     rag = FakeRag()
     graph = FakeGraph()

@@ -129,6 +129,18 @@ class GraphRetriever:
             chunks = self._rag.retrieve(query, top_k=top_k, metadata_filter=metadata_filter)
             retrieval_method = "hybrid_vector_graph"
 
+        # Flag, don't remove: a document can genuinely surface through
+        # both vector search (as a chunk) and graph traversal (as a
+        # related document) - that overlap is real signal, not noise.
+        # Removing the graph-side entry would silently discard its
+        # matched-entity/graph-score context. Flagging lets the caller
+        # decide whether to filter, de-emphasize, or just note it.
+        chunk_document_ids = {
+            c.get("document_id") for c in chunks if c.get("document_id") is not None
+        }
+        for doc in graph_context["related_documents"]:
+            doc["already_in_vector_results"] = doc.get("document_id") in chunk_document_ids
+
         citations = self._build_citations(chunks, graph_context)
 
         return {
