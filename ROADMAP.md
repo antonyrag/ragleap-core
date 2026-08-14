@@ -46,6 +46,7 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [x] Real token usage reporting + context-size budget trimming
 - [x] Web chat widget
 - [x] AI Employees runtime — single-tenant, BYOK role-based agents: 9 default roles, business profile (owner-filled + auto-learned), pgvector-backed learned memory (`core/employees/`). Wired into `core/chat.py` and the `/chat`/`/chat/stream` API routes via #133.
+- [x] n8n workflow automation — single-tenant webhook triggers (`core/workflows.py`), wired into whatsapp/telegram/discord channel adapters. Voice channel not yet wired (different protocol shape). See #141.
 
 ## Phase 5 — Community (in progress)
 
@@ -76,7 +77,7 @@ These remain part of the commercial hosted product at [ragleap.com](https://ragl
 - Multi-tenant AI Employees orchestration — per-workspace seeding at scale (single-tenant AI Employees runtime is open in this repo, see Phase 4)
 - Manager AI (executive-assistant layer with cross-channel reach) — the assistant persona itself is a real candidate to open eventually, but it's entangled with locked features (analytics, team permissions, database connections) that genuinely are SaaS-only; needs its own scoping pass before any code starts, not committed to a timeline yet
 - Persistent memory that spans sessions and channels (this repo's memory is per-conversation)
-- n8n workflow automation triggered from conversations
+- Multi-tenant n8n workflow routing (per-workspace) and Voice channel coverage (single-tenant text-channel automation is open in this repo, see Phase 4)
 - Multi-tenant billing and subscription management
 - Observability & hallucination detection dashboard
 - Managed hosting, support, and SLAs
