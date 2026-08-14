@@ -14,6 +14,10 @@ from core.ingest import ingest_document
 from core.parsers import extract_text
 from core.chat import ask, ask_stream
 from core.integrations import service as integrations_service
+from core.employees import profile as employee_profile
+from core.employees import roles as employee_roles
+from core.employees import skills as employee_skills
+from core.employees import learning as employee_learning
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
@@ -42,6 +46,27 @@ class ChatResponse(BaseModel):
 class UploadResponse(BaseModel):
     document_id: str
     chunks_stored: int
+
+
+class ProfileUpdateRequest(BaseModel):
+    business_name: str | None = None
+    industry: str | None = None
+    description: str | None = None
+    products_services: str | None = None
+    target_customers: str | None = None
+    working_hours: str | None = None
+    location: str | None = None
+    tone_preference: str | None = None
+    primary_language: str | None = None
+    owner_instructions: str | None = None
+
+
+class RoleUpdateRequest(BaseModel):
+    display_name: str | None = None
+    channels: list[str] | None = None
+    skill_tags: list[str] | None = None
+    personality: str | None = None
+    is_active: bool | None = None
 
 
 class DataSourceCreateRequest(BaseModel):
@@ -319,3 +344,53 @@ def sync_integration(data_source_id: str):
     if not result.get("success") and result.get("error") == "Data source not found":
         raise HTTPException(status_code=404, detail="Data source not found")
     return result
+
+
+@app.get("/profile")
+def get_business_profile():
+    return employee_profile.get_profile()
+
+
+@app.patch("/profile")
+def update_business_profile(req: ProfileUpdateRequest):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    updated = employee_profile.update_profile(**updates)
+    if "owner_instructions" in updates:
+        employee_learning.learn_from_owner_instruction(updates["owner_instructions"])
+    return updated
+
+
+@app.post("/profile/learn")
+def trigger_auto_learn():
+    employee_learning.auto_learn_from_all()
+    return employee_profile.get_profile()
+
+
+@app.get("/employees")
+def list_employee_roles(active_only: bool = False):
+    employee_roles.seed_default_roles()
+    return {"roles": employee_roles.list_roles(active_only=active_only)}
+
+
+@app.get("/employees/{role}")
+def get_employee_role(role: str):
+    r = employee_roles.get_role(role)
+    if r is None:
+        raise HTTPException(status_code=404, detail=f"Role '{role}' not found.")
+    return r
+
+
+@app.patch("/employees/{role}")
+def update_employee_role(role: str, req: RoleUpdateRequest):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    return employee_roles.upsert_role(role, **updates)
+
+
+@app.get("/employees/{role}/context")
+def get_employee_context(role: str, query: str | None = None, top_k: int = 8):
+    return {
+        "role": role,
+        "personality": employee_skills.get_role_personality(role),
+        "context": employee_skills.get_role_skills(role=role, query=query, top_k=top_k),
+        "capability_summary": employee_skills.get_capability_summary(),
+    }
