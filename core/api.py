@@ -18,6 +18,7 @@ from core.employees import profile as employee_profile
 from core.employees import roles as employee_roles
 from core.employees import skills as employee_skills
 from core.employees import learning as employee_learning
+from core import workflows
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
@@ -59,6 +60,22 @@ class ProfileUpdateRequest(BaseModel):
     tone_preference: str | None = None
     primary_language: str | None = None
     owner_instructions: str | None = None
+
+
+class WorkflowCreateRequest(BaseModel):
+    name: str
+    webhook_url: str
+    description: str = ""
+    channels: list[str] = []
+    is_active: bool = False
+
+
+class WorkflowUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    webhook_url: str | None = None
+    channels: list[str] | None = None
+    is_active: bool | None = None
 
 
 class RoleUpdateRequest(BaseModel):
@@ -398,3 +415,41 @@ def get_employee_context(role: str, query: str | None = None, top_k: int = 8):
         "context": employee_skills.get_role_skills(role=role, query=query, top_k=top_k),
         "capability_summary": employee_skills.get_capability_summary(),
     }
+
+
+@app.get("/n8n-workflows")
+def list_n8n_workflows(channel: str | None = None, active_only: bool = False):
+    return {"workflows": workflows.list_workflows(channel=channel, active_only=active_only)}
+
+
+@app.post("/n8n-workflows")
+def create_n8n_workflow(req: WorkflowCreateRequest):
+    return workflows.create_workflow(
+        name=req.name, webhook_url=req.webhook_url, description=req.description,
+        channels=req.channels, is_active=req.is_active,
+    )
+
+
+@app.get("/n8n-workflows/{workflow_id}")
+def get_n8n_workflow(workflow_id: str):
+    wf = workflows.get_workflow(workflow_id)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found.")
+    return wf
+
+
+@app.patch("/n8n-workflows/{workflow_id}")
+def update_n8n_workflow(workflow_id: str, req: WorkflowUpdateRequest):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    wf = workflows.update_workflow(workflow_id, **updates)
+    if wf is None:
+        raise HTTPException(status_code=404, detail="Workflow not found.")
+    return wf
+
+
+@app.delete("/n8n-workflows/{workflow_id}")
+def delete_n8n_workflow(workflow_id: str):
+    deleted = workflows.delete_workflow(workflow_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Workflow not found.")
+    return {"deleted": True}
