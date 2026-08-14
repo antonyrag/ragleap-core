@@ -45,7 +45,7 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [x] Provider fallback chain
 - [x] Real token usage reporting + context-size budget trimming
 - [x] Web chat widget
-- [x] AI Employees runtime — single-tenant, BYOK role-based agents: 9 default roles, business profile (owner-filled + auto-learned), pgvector-backed learned memory (`core/employees/`). Not yet wired into `core/chat.py` — see tracked issue.
+- [x] AI Employees runtime — single-tenant, BYOK role-based agents: 9 default roles, business profile (owner-filled + auto-learned), pgvector-backed learned memory (`core/employees/`). Wired into `core/chat.py` and the `/chat`/`/chat/stream` API routes via #133.
 
 ## Phase 5 — Community (in progress)
 
