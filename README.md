@@ -97,6 +97,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | ⚡ **Streaming responses** | Answers stream token-by-token instead of waiting for the full response |
 | 🔁 **Provider fallback** | Automatically retries with a backup LLM provider if the primary fails |
 | 💰 **Token usage reporting** | Real per-call token counts from the provider, plus context-size budget trimming |
+| 🧑‍💼 **AI Employees** | Role-based agents (9 default roles) with persistent business-context memory, wired into `/chat` via `role=<role>` |
 ## Architecture
 
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
@@ -169,7 +170,8 @@ ragleap-core/
 │   ├── generation.py      # 19-provider BYOK generation (Gemini, OpenAI, Anthropic, etc.)
 │   ├── ingest.py          # chunk -> embed -> store pipeline
 │   ├── parsers.py         # PDF/DOCX/TXT text extraction
-│   └── api.py             # FastAPI app — /health, /upload, /chat, /webhook/*
+│   ├── employees/         # AI Employees — roles, business profile, learned memory
+│   └── api.py             # FastAPI app — /health, /upload, /chat, /profile, /employees, /webhook/*
 ├── channels/              # Messaging + voice channel adapters
 │   ├── whatsapp/          # Twilio + Gupshup
 │   ├── telegram/
@@ -497,7 +499,7 @@ same live API.
 - [x] Bring-your-own-API-key support (19 providers)
 - [x] WhatsApp, Telegram, Discord, and Voice channel adapters (single-tenant)
 - [x] Knowledge Graph (Neo4j), language detection, database/CRM integrations
-- [ ] Contribution guide and good-first-issue labels
+- [x] Contribution guide and good-first-issue labels — 8+ issues labeled, with a real external contributor active on #134
 - [ ] Community Discord
 
 See [ROADMAP.md](ROADMAP.md) for the full phase-by-phase history.
