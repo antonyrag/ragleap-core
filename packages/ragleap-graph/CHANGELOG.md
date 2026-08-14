@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.3]
+### Fixed
+- `entity_types=` was guidance only, not enforced: if the model returned a type outside the caller-supplied list (even with prompt guidance nudging it toward that list), the out-of-vocabulary type was accepted as-is. Now enforced: any type not in `entity_types=` is coerced to `"UNKNOWN"`, the same value regex-extracted entities already use when there's no reliable type available - consistent behavior, not a new special case. Enforcement only applies when `entity_types=` is actually set; without it, any type the model returns is still accepted as-is (unchanged default).
+### Verified
+- Regression test added first, confirmed failing (`assert 'Employee' == 'UNKNOWN'`), then confirmed passing after the fix. A second regression-guard test confirms the unchanged default behavior (no `entity_types=` set) still accepts any type. Full suite re-run: 84 passed, 1 skipped (unrelated) - zero regressions.
+
 ## [0.6.2]
 ### Fixed
 - `find_entities_by_type()` did exact-string-match only, so `"Customer"` and `"customer"` were treated as different types even though `entity_type` is stored exactly as the model produced it, with no casing normalization at write time - a caller had no reliable way to predict the exact stored casing without already knowing it. Now case-insensitive (`toLower()` comparison on both sides in the Cypher query).

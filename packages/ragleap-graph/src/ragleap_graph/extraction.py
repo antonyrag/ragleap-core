@@ -259,7 +259,21 @@ class LLMEntityExtractor:
             if not name or name.lower() in seen:
                 continue
             seen.add(name.lower())
-            entities.append(ExtractedEntity(name=name, type=str(item.get("type", "UNKNOWN"))))
+            raw_type = str(item.get("type", "UNKNOWN"))
+            # v0.6.3: entity_types= is now enforced, not just guidance.
+            # A model can and will occasionally return a type outside
+            # the caller-supplied list even with prompt guidance -
+            # coerce those to "UNKNOWN" rather than accepting an
+            # arbitrary out-of-vocabulary value, consistent with how
+            # regex-extracted entities already use "UNKNOWN" when there
+            # is no reliable type available. Only applies when
+            # entity_types= is actually set - without it, any type the
+            # model returns is accepted as-is (unchanged default).
+            if self._config.entity_types and raw_type not in self._config.entity_types:
+                entity_type = "UNKNOWN"
+            else:
+                entity_type = raw_type
+            entities.append(ExtractedEntity(name=name, type=entity_type))
         return entities
 
 

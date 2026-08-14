@@ -539,3 +539,150 @@ def test_llm_extractor_still_returns_type_field_from_response():
     entities = LLMEntityExtractor(config).extract("Acme Corp is a customer.")
     assert len(entities) == 1
     assert entities[0].type == "Customer"
+
+
+def test_llm_extractor_coerces_out_of_vocabulary_type_to_unknown():
+    """
+    Regression test for a known limitation: entity_types= was guidance
+    only, not enforced - if the model returned a type outside the
+    caller-supplied list, that out-of-vocabulary type was accepted
+    as-is rather than being flagged. Now enforced: any type not in the
+    entity_types= list is coerced to "UNKNOWN", the same value
+    regex-extracted entities already use when there's no semantic type
+    available - consistent, not a new special case.
+    """
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Jane Doe", "type": "Employee"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Jane Doe", "type": "Employee"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        entity_types=["Customer", "Product"],
+    )
+    entities = LLMEntityExtractor(config).extract("Jane Doe works here.")
+    assert len(entities) == 1
+    assert entities[0].type == "UNKNOWN"
+
+
+def test_llm_extractor_without_entity_types_accepts_any_type():
+    """Regression guard: enforcement only applies when entity_types= is
+    actually set. Without it, any type the model returns is accepted
+    as-is - the existing, unchanged default path."""
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Jane Doe", "type": "Employee"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Jane Doe", "type": "Employee"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+    )
+    entities = LLMEntityExtractor(config).extract("Jane Doe works here.")
+    assert len(entities) == 1
+    assert entities[0].type == "Employee"
+
+
+def test_llm_extractor_coerces_out_of_vocabulary_type_to_unknown():
+    """
+    Regression test for a known limitation: entity_types= was guidance
+    only, not enforced - if the model returned a type outside the
+    caller-supplied list, that out-of-vocabulary type was accepted
+    as-is rather than being flagged. Now enforced: any type not in the
+    entity_types= list is coerced to "UNKNOWN", the same value
+    regex-extracted entities already use when there's no semantic type
+    available - consistent, not a new special case.
+    """
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Jane Doe", "type": "Employee"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Jane Doe", "type": "Employee"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        entity_types=["Customer", "Product"],
+    )
+    entities = LLMEntityExtractor(config).extract("Jane Doe works here.")
+    assert len(entities) == 1
+    assert entities[0].type == "UNKNOWN"
+
+
+def test_llm_extractor_without_entity_types_accepts_any_type():
+    """Regression guard: enforcement only applies when entity_types= is
+    actually set. Without it, any type the model returns is accepted
+    as-is - the existing, unchanged default path."""
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Jane Doe", "type": "Employee"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Jane Doe", "type": "Employee"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+    )
+    entities = LLMEntityExtractor(config).extract("Jane Doe works here.")
+    assert len(entities) == 1
+    assert entities[0].type == "Employee"
+
+
+def test_llm_extractor_coerces_out_of_vocabulary_type_to_unknown():
+    """
+    Regression test for a known limitation: entity_types= was guidance
+    only, not enforced - if the model returned a type outside the
+    caller-supplied list, that out-of-vocabulary type was accepted
+    as-is rather than being flagged. Now enforced: any type not in the
+    entity_types= list is coerced to "UNKNOWN", the same value
+    regex-extracted entities already use when there's no semantic type
+    available - consistent, not a new special case.
+    """
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Jane Doe", "type": "Employee"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Jane Doe", "type": "Employee"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        entity_types=["Customer", "Product"],
+    )
+    entities = LLMEntityExtractor(config).extract("Jane Doe works here.")
+    assert len(entities) == 1
+    assert entities[0].type == "UNKNOWN"
+
+
+def test_llm_extractor_without_entity_types_accepts_any_type():
+    """Regression guard: enforcement only applies when entity_types= is
+    actually set. Without it, any type the model returns is accepted
+    as-is - the existing, unchanged default path."""
+    from ragleap_graph.extraction import ExtractionConfig, LLMEntityExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"entities": [{"name": "Jane Doe", "type": "Employee"}]}),
+        "provider_used": "gemini",
+        "structured": {"entities": [{"name": "Jane Doe", "type": "Employee"}]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+    )
+    entities = LLMEntityExtractor(config).extract("Jane Doe works here.")
+    assert len(entities) == 1
+    assert entities[0].type == "Employee"
