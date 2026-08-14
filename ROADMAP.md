@@ -50,7 +50,7 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 ## Phase 5 — Community (in progress)
 
 - [ ] Public launch (Hacker News / Product Hunt)
-- [ ] Open contributions with labeled good-first-issues
+- [x] Open contributions with labeled good-first-issues — 8+ issues labeled (help wanted / good first issue across #24-29, #134, #135), with a real external contributor actively working #134
 - [ ] Community Discord
 - [ ] Plugin/extension system for custom document loaders or AI providers
 ## Phase 6 — `ragleap-rag` hardening (in progress)
@@ -74,7 +74,7 @@ These remain part of the commercial hosted product at [ragleap.com](https://ragl
 
 - Multi-tenant channel routing (this repo's channel adapters are single-tenant, one bot/config per deployment)
 - Multi-tenant AI Employees orchestration — per-workspace seeding at scale (single-tenant AI Employees runtime is open in this repo, see Phase 4)
-- Manager AI (executive-assistant layer with cross-channel reach)
+- Manager AI (executive-assistant layer with cross-channel reach) — the assistant persona itself is a real candidate to open eventually, but it's entangled with locked features (analytics, team permissions, database connections) that genuinely are SaaS-only; needs its own scoping pass before any code starts, not committed to a timeline yet
 - Persistent memory that spans sessions and channels (this repo's memory is per-conversation)
 - n8n workflow automation triggered from conversations
 - Multi-tenant billing and subscription management
