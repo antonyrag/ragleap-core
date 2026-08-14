@@ -86,3 +86,60 @@ CREATE TABLE IF NOT EXISTS synced_context_data (
 CREATE INDEX IF NOT EXISTS synced_context_data_lookup_idx
     ON synced_context_data (data_source_id, user_identifier);
 
+
+CREATE TABLE IF NOT EXISTS business_profile (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    business_name         TEXT NOT NULL DEFAULT '',
+    industry              TEXT NOT NULL DEFAULT '',
+    description           TEXT NOT NULL DEFAULT '',
+    products_services     TEXT NOT NULL DEFAULT '',
+    target_customers      TEXT NOT NULL DEFAULT '',
+    working_hours         TEXT NOT NULL DEFAULT '',
+    location              TEXT NOT NULL DEFAULT '',
+    tone_preference       TEXT NOT NULL DEFAULT 'friendly',
+    primary_language      TEXT NOT NULL DEFAULT 'en',
+    additional_languages  JSONB NOT NULL DEFAULT '[]',
+    owner_instructions    TEXT NOT NULL DEFAULT '',
+    auto_learned_profile  TEXT NOT NULL DEFAULT '',
+    skill_version         INTEGER NOT NULL DEFAULT 0,
+    is_profile_complete   BOOLEAN NOT NULL DEFAULT false,
+    last_learned_at       TIMESTAMPTZ,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS employee_roles (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role             TEXT NOT NULL UNIQUE,
+    display_name     TEXT NOT NULL DEFAULT '',
+    is_active        BOOLEAN NOT NULL DEFAULT true,
+    channels         JSONB NOT NULL DEFAULT '[]',
+    skill_tags       JSONB NOT NULL DEFAULT '[]',
+    personality      TEXT NOT NULL DEFAULT '',
+    skills_summary   TEXT NOT NULL DEFAULT '',
+    last_learned_at  TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS employee_memory (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    text_content       TEXT NOT NULL,
+    summary            TEXT NOT NULL DEFAULT '',
+    tags               JSONB NOT NULL DEFAULT '[]',
+    importance         REAL NOT NULL DEFAULT 0.7,
+    source             TEXT NOT NULL DEFAULT 'interaction',
+    permanent          BOOLEAN NOT NULL DEFAULT false,
+    review_after_days  INTEGER NOT NULL DEFAULT 180,
+    content_hash       TEXT NOT NULL,
+    embedding          vector(3072),
+    token_count        INTEGER NOT NULL DEFAULT 0,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS employee_memory_embedding_idx
+    ON employee_memory USING hnsw ((embedding::halfvec(3072)) halfvec_cosine_ops);
+CREATE INDEX IF NOT EXISTS employee_memory_tags_idx
+    ON employee_memory USING GIN (tags);
+CREATE INDEX IF NOT EXISTS employee_memory_hash_idx
+    ON employee_memory (content_hash, source);
