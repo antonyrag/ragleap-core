@@ -98,6 +98,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | 🔁 **Provider fallback** | Automatically retries with a backup LLM provider if the primary fails |
 | 💰 **Token usage reporting** | Real per-call token counts from the provider, plus context-size budget trimming |
 | 🧑‍💼 **AI Employees** | Role-based agents (9 default roles) with persistent business-context memory, wired into `/chat` via `role=<role>` |
+| 🔗 **n8n workflow automation** | Fire a webhook after the AI replies on WhatsApp/Telegram/Discord — no-code automations triggered directly from a conversation |
 ## Architecture
 
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
@@ -108,7 +109,6 @@ RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it
 |                                                                |
 |  [locked] Manager AI — private executive assistant           |
 |  [locked] Multi-tenant AI Employees + Manager AI integration |
-|  [locked] n8n Workflow Automation                            |
 |  [locked] Persistent Memory (cross-channel, cross-session)   |
 |  [locked] Multi-tenant Billing, Teams & Permissions           |
 |  [locked] Audit History / Compliance logging                 |
@@ -171,7 +171,8 @@ ragleap-core/
 │   ├── ingest.py          # chunk -> embed -> store pipeline
 │   ├── parsers.py         # PDF/DOCX/TXT text extraction
 │   ├── employees/         # AI Employees — roles, business profile, learned memory
-│   └── api.py             # FastAPI app — /health, /upload, /chat, /profile, /employees, /webhook/*
+│   ├── workflows.py       # n8n workflow automation — webhook triggers
+│   └── api.py             # FastAPI app — /health, /upload, /chat, /profile, /employees, /n8n-workflows, /webhook/*
 ├── channels/              # Messaging + voice channel adapters
 │   ├── whatsapp/          # Twilio + Gupshup
 │   ├── telegram/
@@ -198,7 +199,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
 | **Advanced AI Settings** | Model selection (Gemini/OpenAI/Claude), temperature tuning, bring-your-own-key per provider, and automatic failover across a fallback key pool |
 | **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
-| **n8n Workflows** | Trigger no-code automations directly from a conversation, across every channel |
+| **n8n Workflows** | Single-tenant webhook triggers (WhatsApp/Telegram/Discord) are open in this repo's `core/workflows.py`; the hosted platform adds multi-tenant per-workspace routing and Voice channel coverage |
 | **222+ Languages** | This repo includes language detection (langdetect, ~55 languages) across all channels; the hosted platform extends this to 222+ languages with per-user persisted preferences |
 | **Integrations & Database Connectors** | This repo includes 9 raw connectors (MySQL, PostgreSQL, MongoDB, REST API, Salesforce, HubSpot, Shopify, Google Sheets, Stripe) with on-demand sync; the hosted platform adds AI-suggested automations per channel and developer-level custom automation workflows on top |
 | **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
