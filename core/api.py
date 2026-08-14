@@ -139,6 +139,7 @@ def chat(
     system_prompt: str | None = None,
     max_tokens: int | None = None,
     hybrid: bool = True,
+    role: str | None = None,
 ):
     """
     Ask a question grounded in previously ingested documents.
@@ -155,6 +156,7 @@ def chat(
         result = ask(
             question, top_k=top_k, temperature=temperature,
             system_prompt=system_prompt, max_tokens=max_tokens, hybrid=hybrid,
+            role=role,
         )
         return {
             "answer": result["answer"],
@@ -178,6 +180,7 @@ def chat_stream(
     system_prompt: str | None = None,
     max_tokens: int | None = None,
     hybrid: bool = True,
+    role: str | None = None,
 ):
     """
     Same as /chat, but streams the answer text back as it's generated
@@ -192,6 +195,7 @@ def chat_stream(
             for piece in ask_stream(
                 question, top_k=top_k, temperature=temperature,
                 system_prompt=system_prompt, max_tokens=max_tokens, hybrid=hybrid,
+                role=role,
             ):
                 yield piece
         except Exception as exc:

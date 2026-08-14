@@ -9,8 +9,10 @@ from typing import Iterator, Optional
 
 from core.embedding import EmbeddingService
 from core.retrieval import VectorRetrievalService
-from core.generation import GenerationService
+from core.generation import GenerationService, SYSTEM_PROMPT as DEFAULT_SYSTEM_PROMPT
 from core.language import language_detector
+from core.employees import skills as employee_skills
+from core.employees import memory as employee_memory
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,75 @@ def _prepare(query: str, top_k: int, hybrid: bool):
     return chunks, detected_language, False
 
 
+def _build_system_prompt(role: Optional[str], query: str, base_system_prompt: Optional[str]) -> Optional[str]:
+    """
+    When a role is given, layers the role's personality and role-scoped
+    context (owner instructions, business profile, learned patterns) on
+    top of a grounding instruction that explicitly treats BOTH the role
+    context and the retrieved document chunks as valid context to answer
+    from. Without a role, behaves exactly as before (returns
+    base_system_prompt as-is, including None).
+
+    Note: the plain DEFAULT_SYSTEM_PROMPT says to answer "using ONLY the
+    provided context" — when a model reads that alongside role/business
+    info elsewhere in the prompt, it correctly interprets "context" as
+    meaning only the retrieved-chunks block, and ignores the role info
+    entirely. So when a role is set, the grounding instruction itself is
+    rewritten to be explicit that both sources are legitimate context —
+    this was verified to matter in testing (identical answers with/without
+    role until this fix).
+    """
+    if not role:
+        return base_system_prompt
+
+    personality = employee_skills.get_role_personality(role)
+    role_context = employee_skills.get_role_skills(role=role, query=query)
+
+    grounding = base_system_prompt or (
+        "You are a helpful assistant. Answer questions using the business "
+        "context and role information below AND the retrieved document "
+        "context. If the answer isn't in either, say clearly that you "
+        "don't have that information — do not make things up. Always be "
+        "concise and cite which document your answer came from when the "
+        "answer draws on a document."
+    )
+
+    parts = []
+    if role_context and "OWNER INSTRUCTIONS" in role_context:
+        owner_block, _, rest = role_context.partition("\n\n")
+        parts.append(
+            "MANDATORY: The following owner instructions must be followed in "
+            "every response, regardless of whether the specific fact is also "
+            "found in the retrieved documents:\n" + owner_block
+        )
+        role_context = rest
+    if personality:
+        parts.append(personality)
+    if role_context:
+        parts.append("Business and role context (treat as authoritative, alongside retrieved documents):\n" + role_context)
+    parts.append(grounding)
+    return "\n\n".join(parts)
+
+
+def _augment_query_with_reminder(role, query):
+    """
+    Appends a short, position-close reminder of mandatory owner
+    instructions directly next to the question. Long system prompts
+    suffer from recency bias -- a model tends to weight instructions
+    near the question/context block more heavily than ones stated once
+    near the top of a long prompt. Verified in testing: identical owner
+    instructions in the system prompt were silently ignored until moved
+    here. Only used for the prompt sent to generation -- retrieval/
+    embedding already ran on the original, unmodified query.
+    """
+    if not role:
+        return query
+    owner_text = employee_memory.get_owner_instructions()
+    if not owner_text:
+        return query
+    return query + "\n\n(Reminder -- you must follow this regardless of what else is in the context: " + owner_text.replace("=== OWNER INSTRUCTIONS (obey always) ===\n", "") + ")"
+
+
 def ask(
     query: str,
     top_k: int = 5,
@@ -54,6 +125,7 @@ def ask(
     system_prompt: Optional[str] = None,
     max_tokens: Optional[int] = None,
     hybrid: bool = True,
+    role: Optional[str] = None,
 ) -> dict:
     """
     Answer a question grounded in previously ingested documents.
@@ -63,6 +135,8 @@ def ask(
     system_prompt: overrides the default grounded-QA instructions.
     max_tokens: overrides the default max output length for this call.
     hybrid: use dense+sparse fused retrieval (default) vs. dense-only.
+    role: optional AI Employee role (see core/employees/) — layers the
+        role's personality and learned business context into the prompt.
     """
     generator = GenerationService()
     chunks, detected_language, embedding_failed = _prepare(query, top_k, hybrid)
@@ -75,8 +149,10 @@ def ask(
             "detected_language": detected_language,
         }
 
+    effective_system_prompt = _build_system_prompt(role, query, system_prompt)
+    generation_query = _augment_query_with_reminder(role, query)
     result = generator.generate_answer(
-        query, chunks, temperature=temperature, system_prompt=system_prompt, max_tokens=max_tokens
+        generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt, max_tokens=max_tokens
     )
     result["chunks_used"] = len(chunks)
     result["detected_language"] = detected_language
@@ -90,6 +166,7 @@ def ask_stream(
     system_prompt: Optional[str] = None,
     max_tokens: Optional[int] = None,
     hybrid: bool = True,
+    role: Optional[str] = None,
 ) -> Iterator[str]:
     """
     Same as ask(), but yields the answer text incrementally as it's
@@ -104,8 +181,10 @@ def ask_stream(
         yield "Sorry, I couldn't process your question (embedding failed)."
         return
 
+    effective_system_prompt = _build_system_prompt(role, query, system_prompt)
+    generation_query = _augment_query_with_reminder(role, query)
     yield from generator.generate_answer_stream(
-        query, chunks, temperature=temperature, system_prompt=system_prompt, max_tokens=max_tokens
+        generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt, max_tokens=max_tokens
     )
 
 
