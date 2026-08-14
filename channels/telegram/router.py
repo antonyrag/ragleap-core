@@ -13,6 +13,7 @@ import logging
 import requests
 
 from core.chat import ask
+from core.workflows import call_n8n_workflows
 
 logger = logging.getLogger(__name__)
 
@@ -94,4 +95,10 @@ def handle_incoming_message(chat_id, message_text: str) -> str:
         answer = "Sorry, something went wrong answering your question. Please try again."
 
     send_telegram_message(chat_id, answer)
+
+    try:
+        call_n8n_workflows(channel="telegram", message=message_text, ai_reply=answer)
+    except Exception as e:
+        logger.warning(f"n8n workflow trigger failed (non-fatal): {e}")
+
     return answer

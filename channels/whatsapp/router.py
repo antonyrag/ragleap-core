@@ -16,6 +16,7 @@ import logging
 import requests
 
 from core.chat import ask
+from core.workflows import call_n8n_workflows
 
 logger = logging.getLogger(__name__)
 
@@ -133,4 +134,10 @@ def handle_incoming_message(from_phone: str, message_text: str) -> str:
         answer = "Sorry, something went wrong answering your question. Please try again."
 
     send_whatsapp_message(from_phone, answer)
+
+    try:
+        call_n8n_workflows(channel="whatsapp", message=message_text, ai_reply=answer)
+    except Exception as e:
+        logger.warning(f"n8n workflow trigger failed (non-fatal): {e}")
+
     return answer

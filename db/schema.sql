@@ -143,3 +143,21 @@ CREATE INDEX IF NOT EXISTS employee_memory_tags_idx
     ON employee_memory USING GIN (tags);
 CREATE INDEX IF NOT EXISTS employee_memory_hash_idx
     ON employee_memory (content_hash, source);
+
+-- n8n workflow automation. Single-tenant — no workspace scoping.
+-- Fires a webhook after the AI replies on a matching channel; caller
+-- (channel adapter) supplies channel/message/ai_reply, this module never
+-- raises — a broken workflow config should never break the main chat flow.
+CREATE TABLE IF NOT EXISTS n8n_workflows (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    webhook_url TEXT NOT NULL,
+    channels    JSONB NOT NULL DEFAULT '[]',
+    is_active   BOOLEAN NOT NULL DEFAULT false,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS n8n_workflows_active_idx
+    ON n8n_workflows (is_active);
