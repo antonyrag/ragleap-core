@@ -106,7 +106,7 @@ RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it
 |                  RagLeap (Hosted Platform)                   |
 |                                                                |
 |  [locked] Manager AI — private executive assistant           |
-|  [locked] AI Employees — role-based persistent memory        |
+|  [locked] Multi-tenant AI Employees + Manager AI integration |
 |  [locked] n8n Workflow Automation                            |
 |  [locked] Persistent Memory (cross-channel, cross-session)   |
 |  [locked] Multi-tenant Billing, Teams & Permissions           |
@@ -190,7 +190,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | Area | What it adds |
 |---|---|
 | **Manager AI** | A private executive assistant for the owner — sees documents, analytics, team permissions, and database connections; can send emails, generate reports, and manage settings by conversation, reachable via Web, WhatsApp, Telegram, or phone call |
-| **AI Employees** | Specialized AI roles seeded per workspace, each with its own permanent memory, so support and sales conversations draw on different context automatically |
+| **AI Employees** | Single-tenant runtime (9 roles, pgvector-backed learned memory) is open in this repo's `core/employees/`; the hosted platform adds multi-tenant per-workspace seeding and Manager AI integration on top |
 | **Voice AI** | Real inbound phone calls via Twilio — speech-to-text, RAG-grounded response, text-to-speech, with owner vs. customer call routing |
 | **Multi-channel bots (multi-tenant)** | WhatsApp (Twilio or Gupshup), Telegram, and Discord — single-tenant versions are in this repo; the hosted version adds multi-tenancy, per-workspace routing, and shared config across channels |
 | **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
