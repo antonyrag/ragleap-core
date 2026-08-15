@@ -121,6 +121,7 @@ flowchart TD
         ChatAPI --> TG["Telegram"]
         ChatAPI --> DC["Discord"]
         ChatAPI --> VC["Voice"]
+        ChatAPI --> Employees
 
         WA --> N8N["n8n Workflow Trigger (fires after AI reply)"]
         TG --> N8N
@@ -143,6 +144,7 @@ flowchart TD
         DC --> Provider
         VC --> Provider
 
+        Integrations["Data Source Integrations (MySQL, Postgres, Salesforce, etc.)"] --> RAG
         Ingest --> PG[("PostgreSQL + pgvector")]
         RAG --> PG
         Provider --> PG
