@@ -103,58 +103,53 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 
 RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
 
-```
-+-------------------------------------------------------------+
-|                  RagLeap (Hosted Platform)                   |
-|                                                                |
-|  [locked] Manager AI — private executive assistant           |
-|  [locked] Multi-tenant AI Employees + Manager AI integration |
-|  [locked] Persistent Memory (cross-channel, cross-session)   |
-|  [locked] Multi-tenant Billing, Teams & Permissions           |
-|  [locked] Audit History / Compliance logging                 |
-|  [locked] Embed Widget Control Center (white-label)           |
-|  [locked] Managed hosting, backups, SLA, support              |
-|                                                                |
-|                       built on top of                        |
-+-------------------------------------------------------------+
-                          |
-+-------------------------------------------------------------+
-|              RagLeap Core (this repo, open)                  |
-|                                                                |
-|                      +----------------+                       |
-|                      |  Web Chat UI   |                       |
-|                      +-------+--------+                       |
-|                              |                                |
-|                      +-------v--------+                       |
-|                      |   Chat API     |                       |
-|                      +-------+--------+                       |
-|                              |                                |
-|        +---------------------+---------------------+          |
-|        |          |          |          |                    |
-|  +-----v----+ +---v-----+ +--v------+ +-v-------+             |
-|  | WhatsApp | |Telegram | | Discord | |  Voice  |             |
-|  +----------+ +---------+ +---------+ +---------+             |
-|        |          |          |          |                    |
-|        +---------------------+---------------------+          |
-|                              |                                |
-|        +---------------------+---------------------+          |
-|        |                     |                     |          |
-|  +-----v-----+        +------v------+       +------v------+   |
-|  |  Document |        |     RAG     |       | AI Provider |   |
-|  |  Ingest   |        |   Retrieve  |       |   Adapter   |   |
-|  +-----+-----+        +------+------+       +------+------+   |
-|        |                     |                     |          |
-|        +---------------------+---------------------+          |
-|                              |                                |
-|                  +-----------v-----------+                    |
-|                  |  PostgreSQL + pgvector |                    |
-|                  +-----------+-----------+                    |
-|                              |                                |
-|                  +-----------v-----------+                    |
-|                  |    Neo4j (Knowledge   |                    |
-|                  |         Graph)         |                    |
-|                  +------------------------+                    |
-+-------------------------------------------------------------+
+```mermaid
+flowchart TD
+    subgraph Hosted["RagLeap — Hosted Platform (locked)"]
+        H1["Manager AI"]
+        H2["Multi-tenant AI Employees + Manager AI integration"]
+        H3["Persistent Memory (cross-channel, cross-session)"]
+        H4["Multi-tenant Billing, Teams & Permissions"]
+        H5["Audit History / Compliance logging"]
+        H6["Embed Widget Control Center (white-label)"]
+        H7["Managed hosting, backups, SLA, support"]
+    end
+
+    subgraph Core["RagLeap Core — this repo (open)"]
+        WebUI["Web Chat UI"] --> ChatAPI["Chat API"]
+        ChatAPI --> WA["WhatsApp"]
+        ChatAPI --> TG["Telegram"]
+        ChatAPI --> DC["Discord"]
+        ChatAPI --> VC["Voice"]
+
+        WA --> N8N["n8n Workflow Trigger (fires after AI reply)"]
+        TG --> N8N
+        DC --> N8N
+
+        Employees["AI Employees (role context, learned memory)"] --> Provider
+
+        WA --> Ingest["Document Ingest"]
+        TG --> Ingest
+        DC --> Ingest
+        VC --> Ingest
+
+        WA --> RAG["RAG Retrieve"]
+        TG --> RAG
+        DC --> RAG
+        VC --> RAG
+
+        WA --> Provider["AI Provider Adapter"]
+        TG --> Provider
+        DC --> Provider
+        VC --> Provider
+
+        Ingest --> PG[("PostgreSQL + pgvector")]
+        RAG --> PG
+        Provider --> PG
+        PG --> Neo[("Neo4j (Knowledge Graph)")]
+    end
+
+    Core -. built on top of .-> Hosted
 ```
 
 **[locked]** = commercial/hosted-only feature, not included in this repository. See below for the full breakdown.
