@@ -261,6 +261,29 @@ flowchart TD
 - 8 tool classes in `api/agent_tools.py` are fully implemented but called from nowhere in the codebase: `RAGQueryTool`, `DocumentReadTool`, `DocumentUploadTool`, `MemoryReadTool`, `MemoryWriteTool`, `MemorySearchTool`, `AgentStateReadTool`, `AgentStateWriteTool`. Notably, `RAGQueryTool` means Manager AI does **not** currently share live query access with the customer-facing RAG system, despite a tool existing for exactly that purpose.
 - `send_owner_whatsapp`, `send_owner_telegram`, `send_owner_sms` are each defined **twice** in `api/manager_actions.py`. `ACTION_REGISTRY` (the real dispatch table) is built before the second definitions appear, so it's permanently bound to the first, shorter versions — the second, longer versions are unreachable dead code, *unless* something imports them directly by name (confirmed: nothing currently does).
 
+### Manager AI — Layer 2: Autonomous Loop
+
+Beyond responding to owner messages, Manager AI can act on its own — within limits the owner explicitly configures. Three modes, per workspace: `off` (owner-initiated only, the default), `semi` (AI proposes, owner approves via a reply), `full` (AI executes directly and reports).
+
+```mermaid
+flowchart TD
+    Trigger["Autonomous trigger (e.g. EmailAgent.scan_and_plan(), a scheduled follow-up)"] --> Dispatch["execute_or_request()"]
+    Dispatch --> ModeCheck{"Mode? Action/channel allowlisted?"}
+    ModeCheck -->|"off, or not allowlisted"| Skip["Skipped"]
+    ModeCheck -->|full| Execute["Execute immediately via execute_fn()"]
+    Execute --> Log["log_autonomous_action() — bounded to last 200 entries in memory.knowledge"]
+    ModeCheck -->|semi| Pending["Store pending action, keyed by an 8-char action_id"]
+    Pending --> RequestApproval["request_approval() — sends 'Reply YES/NO {action_id}' to the owner's configured approval channel"]
+    RequestApproval --> OwnerReply{"Owner replies"}
+    OwnerReply -->|"YES {action_id}"| ExecutePending["_execute_pending_action() — dispatches to email/whatsapp/telegram/sms/voice"]
+    OwnerReply -->|"NO {action_id}"| Reject["Rejected — logged, cancelled, never executed"]
+    ExecutePending --> Log
+    Reject --> Log
+    Log --> DailyReport["generate_autonomy_daily_report() — daily summary of actions taken, grouped by type, failures flagged"]
+```
+
+**Verified live**, read in full from `api/autonomy_engine.py`. Two independent gates apply before mode even matters: an `actions` allowlist and a `channels` allowlist, both configurable per-workspace — so "full autonomy" doesn't mean unrestricted, it means unrestricted *within whatever the owner explicitly turned on*. The approval flow in `semi` mode is a genuine two-way protocol, not a one-shot notification: the owner's exact reply (`YES ABC123` / `NO ABC123`) is parsed and matched back to the specific pending action before anything executes.
+
 ### Action Dispatch — 70 named actions, one registry
 
 `api/manager_actions.py`'s `execute_action(action_type, workspace, params, memory)` dispatches by string name through `ACTION_REGISTRY`, a dict of ~70 real handler functions. Natural-language flexibility comes from **deliberate many-to-one aliasing** — e.g. `get_all_settings` is reachable via 5 different phrasings (`show_settings`, `current_settings`, `ai_settings_info`, `view_settings`), each mapped to the same function — not fuzzy matching.
