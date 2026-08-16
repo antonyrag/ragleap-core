@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.3"
+__version__ = "0.6.4"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -915,6 +915,89 @@ class GraphIndex:
         except Exception as e:
             logger.error(f"Entity-by-type search error: {e}", exc_info=True)
             return []
+
+    def find_lineage(
+        self,
+        entity_a: str,
+        entity_b: str,
+        relation_type: Optional[str] = None,
+        namespace: Optional[str] = None,
+        limit: int = 25,
+    ) -> List[Dict[str, Any]]:
+        """
+        Return per-document contributions to the edge(s) between entity_a
+        and entity_b, surfacing the :PairWeight (CO_OCCURS_WITH) and
+        :RelationWeight (RELATES_AS) tracking nodes introduced in v0.6.0
+        for idempotent weight aggregation. Previously had no public read
+        path - this exposes it.
+
+        entity_a/entity_b order does not matter - checked in both
+        directions for both relation kinds, since callers generally
+        won't know which side was extracted as subject vs. object.
+
+        Returns [] if the pair has never co-occurred or been related.
+        """
+        if not self.driver:
+            logger.warning("Neo4j driver not available")
+            return []
+        if not entity_a or not entity_a.strip() or not entity_b or not entity_b.strip():
+            return []
+        ns = namespace or ""
+        a_lower = entity_a.lower()
+        b_lower = entity_b.lower()
+        contributions: List[Dict[str, Any]] = []
+        try:
+            with self.driver.session() as session:
+                pair_result = session.run(
+                    """
+                    MATCH (pw:PairWeight {namespace: $namespace})
+                    WHERE (pw.entity_a = $a AND pw.entity_b = $b)
+                       OR (pw.entity_a = $b AND pw.entity_b = $a)
+                    RETURN pw.document_id AS document_id, pw.weight AS weight
+                    LIMIT $limit
+                    """,
+                    namespace=ns,
+                    a=a_lower,
+                    b=b_lower,
+                    limit=max(1, int(limit)),
+                )
+                for row in pair_result:
+                    contributions.append({
+                        "document_id": row["document_id"],
+                        "relation_type": "CO_OCCURS_WITH",
+                        "weight": row["weight"],
+                    })
+
+                relation_result = session.run(
+                    """
+                    MATCH (rw:RelationWeight {namespace: $namespace})
+                    WHERE ((rw.subject = $a AND rw.object = $b)
+                        OR (rw.subject = $b AND rw.object = $a))
+                      AND ($relation_type IS NULL OR rw.relation_type = $relation_type)
+                    RETURN rw.document_id AS document_id,
+                           rw.relation_type AS relation_name,
+                           rw.weight AS weight
+                    LIMIT $limit
+                    """,
+                    namespace=ns,
+                    a=a_lower,
+                    b=b_lower,
+                    relation_type=relation_type,
+                    limit=max(1, int(limit)),
+                )
+                for row in relation_result:
+                    contributions.append({
+                        "document_id": row["document_id"],
+                        "relation_type": "RELATES_AS",
+                        "relation_name": row["relation_name"],
+                        "weight": row["weight"],
+                    })
+
+            return contributions[:max(1, int(limit))]
+        except Exception as e:
+            logger.error(f"Lineage lookup error: {e}", exc_info=True)
+            return []
+
 
     def health_check(self) -> bool:
         """Return True if the Neo4j driver is connected and responsive."""

@@ -564,6 +564,83 @@ def test_find_relations_direction_parameter():
             )
         graph.close()
 
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_find_lineage():
+    """
+    Regression test for find_lineage() (v0.6.4). Previously the
+    PairWeight/RelationWeight tracking nodes introduced in v0.6.0 for
+    idempotent weight aggregation had no public read path - this test
+    proves find_lineage() actually surfaces them correctly.
+    Writes PairWeight/RelationWeight nodes directly via Cypher (bypassing
+    upsert_document(), which find_lineage() doesn't touch anyway) so this
+    test is deterministic and only needs NEO4J_URI.
+    Simulates two documents both mentioning (Acme Corp, Globex Industries)
+    with a CO_OCCURS_WITH signal, plus one document asserting a
+    RELATES_AS PARTNERED_WITH relation between the same pair.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+    try:
+        with graph.driver.session() as session:
+            session.run(
+                """
+                MERGE (pw:PairWeight {namespace: $ns, document_id: $doc1, entity_a: $a, entity_b: $b})
+                SET pw.weight = $w1
+                """,
+                ns=TEST_NAMESPACE, doc1="doc-1", a="acme corp", b="globex industries", w1=0.6,
+            )
+            session.run(
+                """
+                MERGE (pw:PairWeight {namespace: $ns, document_id: $doc2, entity_a: $a, entity_b: $b})
+                SET pw.weight = $w2
+                """,
+                ns=TEST_NAMESPACE, doc2="doc-2", a="acme corp", b="globex industries", w2=0.4,
+            )
+            session.run(
+                """
+                MERGE (rw:RelationWeight {namespace: $ns, document_id: $doc3, subject: $subj, relation_type: $rel, object: $obj})
+                SET rw.weight = $w3
+                """,
+                ns=TEST_NAMESPACE, doc3="doc-3", subj="acme corp", rel="PARTNERED_WITH", obj="globex industries", w3=1.0,
+            )
+
+        results = graph.find_lineage("Acme Corp", "Globex Industries", namespace=TEST_NAMESPACE)
+        assert len(results) == 3
+        co_occurs = [r for r in results if r["relation_type"] == "CO_OCCURS_WITH"]
+        relates = [r for r in results if r["relation_type"] == "RELATES_AS"]
+        assert len(co_occurs) == 2
+        assert {r["document_id"] for r in co_occurs} == {"doc-1", "doc-2"}
+        assert {r["weight"] for r in co_occurs} == {0.6, 0.4}
+        assert len(relates) == 1
+        assert relates[0]["document_id"] == "doc-3"
+        assert relates[0]["relation_name"] == "PARTNERED_WITH"
+        assert relates[0]["weight"] == 1.0
+
+        swapped = graph.find_lineage("Globex Industries", "Acme Corp", namespace=TEST_NAMESPACE)
+        assert len(swapped) == 3
+        assert {r["document_id"] for r in swapped} == {"doc-1", "doc-2", "doc-3"}
+
+        filtered_out = graph.find_lineage(
+            "Acme Corp", "Globex Industries", namespace=TEST_NAMESPACE, relation_type="SOMETHING_ELSE"
+        )
+        assert len(filtered_out) == 2
+        assert all(r["relation_type"] == "CO_OCCURS_WITH" for r in filtered_out)
+
+        filtered_match = graph.find_lineage(
+            "Acme Corp", "Globex Industries", namespace=TEST_NAMESPACE, relation_type="PARTNERED_WITH"
+        )
+        assert len(filtered_match) == 3
+
+        empty = graph.find_lineage("Acme Corp", "Nonexistent Entity", namespace=TEST_NAMESPACE)
+        assert empty == []
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
 
 # ---------------------------------------------------------------------------
 # Entity typing (v0.5.0)
