@@ -208,6 +208,148 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 
 This is the standard **open-core model** — the same approach used by projects like n8n, Supabase, and Cal.com: the engine is free and open, the managed/extended product is commercial.
 
+## Full Technical Architecture (Hosted Platform)
+
+> This section documents the real internals of the hosted RagLeap platform — gathered by reading actual production source, not summarized from memory or marketing copy. Where something is confirmed *not* to be live (dead code, an unwired tool), it's labeled as such rather than omitted. This is a living section — deeper subsystems (billing, multi-tenant workspace routing) are deliberately excluded here since they're operational/SaaS infrastructure, not differentiating technology.
+
+### Manager AI — Three-Layer Design
+
+Manager AI answers most owner requests **without calling an LLM at all**. A regex-based router matches intent first; only genuinely ambiguous requests reach a model, and even then the model is always given real, current workspace data rather than reasoning blind.
+
+```mermaid
+flowchart TD
+    Owner["Owner message (Web, Telegram, WhatsApp, Discord, Voice)"] --> Guard["Guardrails: input-length cap, prompt-injection regex"]
+    Guard --> Router["RouterAgent"]
+
+    Router -->|"Layer 1: regex match (instant, free)"| Domain{"Domain matched?"}
+    Router -->|"Layer 2: tiny 1-token LLM classify (only on regex miss)"| Domain
+
+    Domain -->|email| EmailAgent["EmailAgent"]
+    Domain -->|channels| ChannelAgent["ChannelAgent"]
+    Domain -->|business| BusinessAgent["BusinessAgent"]
+    Domain -->|healing| HealingAgent["HealingAgent"]
+    Domain -->|self| SelfAgent["SelfAgent"]
+    Domain -->|email_status| EmailStatusAgent["EmailStatusAgent"]
+    Domain -->|none| LLMFallback["Full LLM response (real data injected first)"]
+
+    EmailAgent --> Think["agent.think() — deterministic plan, no LLM"]
+    ChannelAgent --> Think
+    BusinessAgent --> Think
+    HealingAgent --> Think
+    SelfAgent --> Think
+    EmailStatusAgent --> Think
+
+    Think --> Act["agent.act() — executes real Tool classes"]
+    Act --> Verify["agent.verify() — did it actually work?"]
+    Verify -->|no| Heal["agent.heal() — pattern-matched recovery message"]
+    Verify -->|yes| Reply["Reply to owner"]
+    Heal -->|still failing| Adapt["Re-plan, retry up to 2x with error context"]
+    Adapt --> Think
+    Heal -->|healed| Reply
+
+    Act -.->|starts_flow signal| FlowSM["FlowStateMachine — multi-step setup wizard (Telegram/WhatsApp/Gmail connect)"]
+    FlowSM --> Reply
+
+    Act --> Obs["observability.py — logs every LLM/tool call/guardrail-block/hallucination to AgentTrace"]
+    LLMFallback --> OutGuard["Guardrails: hallucination check (non-blocking, logs only)"]
+    OutGuard --> Reply
+```
+
+**Verified live.** Every node above was confirmed by reading the actual source: `api/agent_framework.py` (base `Agent`/`Tool`/`AgentOrchestrator` classes), `api/agents/*.py` (6 specialist agents), `api/agents/router_agent.py`, `api/agents/agent_brain.py`, `api/agent_state_machine.py`, `api/guardrails.py`, `api/observability.py`.
+
+**Confirmed dead code — not live, listed here so nobody rediscovers them by accident:**
+- 8 tool classes in `api/agent_tools.py` are fully implemented but called from nowhere in the codebase: `RAGQueryTool`, `DocumentReadTool`, `DocumentUploadTool`, `MemoryReadTool`, `MemoryWriteTool`, `MemorySearchTool`, `AgentStateReadTool`, `AgentStateWriteTool`. Notably, `RAGQueryTool` means Manager AI does **not** currently share live query access with the customer-facing RAG system, despite a tool existing for exactly that purpose.
+- `send_owner_whatsapp`, `send_owner_telegram`, `send_owner_sms` are each defined **twice** in `api/manager_actions.py`. `ACTION_REGISTRY` (the real dispatch table) is built before the second definitions appear, so it's permanently bound to the first, shorter versions — the second, longer versions are unreachable dead code, *unless* something imports them directly by name (confirmed: nothing currently does).
+
+### Action Dispatch — 70 named actions, one registry
+
+`api/manager_actions.py`'s `execute_action(action_type, workspace, params, memory)` dispatches by string name through `ACTION_REGISTRY`, a dict of ~70 real handler functions. Natural-language flexibility comes from **deliberate many-to-one aliasing** — e.g. `get_all_settings` is reachable via 5 different phrasings (`show_settings`, `current_settings`, `ai_settings_info`, `view_settings`), each mapped to the same function — not fuzzy matching.
+
+Two real behaviors worth noting precisely:
+- **Learns from correction**: before executing a channel-config action, `execute_action()` checks `memory.preferences['providers_rejected']` — if the owner previously rejected a provider, it won't silently reconfigure it again.
+- **Owner vs. customer channels are genuinely separate action families**: `whatsapp_config`/`telegram_config`/`discord_config` set up the *customer-facing* bot; `telegram_personal_bot_config`/`whatsapp_personal_bot_config`/`discord_personal_bot_config` (each a `lambda` wrapping `save_personal_bot_config(ws, platform, ...)`) set up the *owner's own* channel for talking to Manager AI. Same channel types, two distinct configurations.
+
+### Document Ingestion Pipeline
+
+```mermaid
+flowchart TD
+    Upload["Upload (file or URL)"] --> Create["Create Document record + UploadProgress tracker"]
+    Create --> Save["Save file to disk"]
+    Save --> Parse["file_parser.parse_file()"]
+
+    Parse -->|zip| ZipExpand["Expand: each archive entry becomes its own Document, independently chunked + embedded"]
+    Parse -->|other| OCRCheck{"PDF and parsed text too short?"}
+
+    OCRCheck -->|yes| OCR["ocr_pdf() pre-pass — keeps OCR text only if longer/better than parsed"]
+    OCRCheck -->|no| LangDetect
+    OCR --> LangDetect["Language detection"]
+
+    LangDetect -->|confidence below threshold| Flag["Fall back to workspace default language, flag document for manual review"]
+    LangDetect -->|confident| Chunk
+
+    Flag --> Chunk["Chunk text"]
+    Chunk -->|custom chunk_size/overlap given| BasicChunker["Basic chunker"]
+    Chunk -->|default| DocAwareChunker["DocumentAwareChunker — section-aware"]
+
+    BasicChunker --> Embed["Generate embeddings per chunk"]
+    DocAwareChunker --> Embed
+
+    Embed --> Graph{"Neo4j graph_service available?"}
+    Graph -->|yes| GraphIndex["Extract entities, upsert document graph"]
+    Graph -->|no| SkipGraph["Skip gracefully — logged as warning, not a failure"]
+
+    GraphIndex --> QA
+    SkipGraph --> QA["Ingestion QA: canary check"]
+
+    QA --> Canary["Extract top 3 highest-frequency terms from source text, run REAL retrieval queries for each through EnhancedRetrievalService, confirm this document is actually retrievable"]
+    Canary -->|hits below threshold| Warn["Flag document with qa_failed warning (hard-fail is opt-in per deployment)"]
+    Canary -->|passes| Complete["Mark Document completed"]
+    Warn --> Complete
+```
+
+**Verified live**, read in full from `ingestion/pipeline.py` (854 lines). The canary QA step is the most distinctive piece: rather than just checking "did the embedding API call succeed," it runs the document's own most distinctive terms back through the real production retrieval path and confirms the document itself shows up in results — proving end-to-end searchability, not just successful ingestion.
+
+**Known limitation, relative to the open-source `ragleap-core` repo**: the open-source `core/chunker.py` only has the basic chunker — `DocumentAwareChunker`'s section-aware chunking is hosted-only.
+
+### URL Extraction (documents from web pages and YouTube)
+
+```mermaid
+flowchart TD
+    URL["Submitted URL"] --> Detect{"YouTube URL pattern?"}
+
+    Detect -->|yes| YT1["Try manually-created English transcript"]
+    YT1 -->|unavailable| YT2["Try auto-generated English transcript"]
+    YT2 -->|unavailable| YT3["Try any available language transcript"]
+    YT3 --> YTMeta["Fetch title, channel, description via page metadata"]
+    YTMeta --> Combine1["Combine transcript + metadata into one document"]
+
+    Detect -->|no| Fetch["Fetch page (cloudscraper if available, else requests) with browser-mimicking headers"]
+    Fetch -->|403| Rotate["Rotate user-agent, retry (up to 4 agents)"]
+    Rotate --> Fetch
+    Fetch --> JSCheck{"Bot-wall / JS-challenge page detected?"}
+    JSCheck -->|yes| Playwright["Playwright headless browser: load, scroll in 5 steps to trigger lazy content, re-render"]
+    JSCheck -->|no| Extract
+    Playwright --> Extract["Extract via ranked content-area selectors (main/article/.content/Wikipedia-specific/etc.), strip ads/nav/cookie-banners, dedupe lines"]
+    Extract --> Combine2["Combine title + description + content into one document"]
+
+    Combine1 --> Ingest["Feeds into the same ingestion pipeline as uploaded files"]
+    Combine2 --> Ingest
+```
+
+**Verified live**, read in full from `ingestion/url_extractor.py` (653 lines). Worth noting plainly: this extractor uses real anti-bot-detection techniques (`cloudscraper` for Cloudflare bypass, rotating user-agents, browser-mimicking request headers) to reliably extract content from sites that actively try to block automated access — a deliberate, real engineering choice, not incidental.
+
+### Persistent Memory
+
+```mermaid
+flowchart TD
+    Write["Any write to memory (owner instruction, learned interaction, correction)"] --> Entry["MemoryEntry row: pgvector embedding (3072-dim), scope (user/workspace), tags, importance score, retention_policy"]
+    Entry -->|same DB transaction| Outbox["OutboxEvent queued: embedding.create, graph.create_node, tts.create, etc."]
+    Outbox --> Worker["Background worker processes events async — idempotency key prevents duplicate processing, retries on failure with next_retry_at/attempts tracking"]
+    Entry -.->|optional| Connector["Connector reference — memory can be written to the customer's own external storage instead of hosted DB"]
+```
+
+**Verified live**, read from `memory/models.py`'s `MemoryEntry` and `OutboxEvent` models. The transactional outbox pattern is genuinely notable: side effects (embedding generation, graph writes) are queued in the *same database transaction* as the memory write itself, so a crashed background worker can't cause a memory entry to silently end up without its embedding — the event just waits, retried, until it succeeds.
+
 ## Quickstart
 
 > ✅ **Status: core pipeline verified working.** Ingest -> embed -> retrieve -> generate runs end-to-end via Docker Compose, including a clean fresh-clone test. See the [Roadmap](#roadmap) for what's next (PDF/DOCX support, alternative BYOK providers).
