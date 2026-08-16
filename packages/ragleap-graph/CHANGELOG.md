@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.4]
+### Added
+- `find_lineage(entity_a, entity_b, relation_type=None, namespace=None, limit=25)` - exposes the per-document `:PairWeight`/`:RelationWeight` contribution-tracking nodes introduced in v0.6.0 for idempotent weight aggregation, which previously had no public read path. Returns a list of per-document contributions (`document_id`, `relation_type`, `weight`, and `relation_name` for `RELATES_AS` entries) for the edge(s) between two entities. Entity order is irrelevant - both `CO_OCCURS_WITH` and `RELATES_AS` are checked in both directions, since callers generally won't know which side was extracted as subject vs. object. Returns `[]` if the pair has never co-occurred or been related.
+### Verified
+- Regression test (`test_find_lineage`) added and run live against a real Neo4j instance, seeding `:PairWeight`/`:RelationWeight` nodes directly via Cypher (bypassing `upsert_document()`, which this method doesn't touch anyway) for a deterministic setup. Covers: multiple contributing documents aggregating correctly, direction-agnostic lookup (`find_lineage(a, b)` == `find_lineage(b, a)`), `relation_type=` filtering narrowing `RELATES_AS` results while leaving `CO_OCCURS_WITH` untouched, and the never-linked-pair empty case. Full suite re-run: 85 passed, 1 skipped (unrelated, no `GEMINI_API_KEY`) - zero regressions.
+
 ## [0.6.3]
 ### Fixed
 - `entity_types=` was guidance only, not enforced: if the model returned a type outside the caller-supplied list (even with prompt guidance nudging it toward that list), the out-of-vocabulary type was accepted as-is. Now enforced: any type not in `entity_types=` is coerced to `"UNKNOWN"`, the same value regex-extracted entities already use when there's no reliable type available - consistent behavior, not a new special case. Enforcement only applies when `entity_types=` is actually set; without it, any type the model returns is still accepted as-is (unchanged default).
