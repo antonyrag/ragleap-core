@@ -27,6 +27,48 @@ docs = graph.find_documents_by_entities(["Acme Corp"])
 related = graph.search_related_entities(["Acme Corp"], max_depth=2)
 ```
 
+<!-- AUTO-STATS:START -->
+**Current: v0.6.5** · 87 tests (86 passed, 1 skipped)
+<!-- AUTO-STATS:END -->
+
+## Architecture
+
+```mermaid
+flowchart TD
+    classDef write fill:#1e3a5f,stroke:#4a90d9,color:#fff
+    classDef read fill:#1a4d3a,stroke:#22c55e,color:#fff
+    classDef hybrid fill:#3d2645,stroke:#a855f7,color:#fff
+    classDef store fill:#4d3319,stroke:#f59e0b,color:#fff
+
+    subgraph Write["Write path"]
+        Doc["graph.upsert_document(...)"]:::write --> Extract["Entity/relation extraction<br/>regex default, LLM via method='llm'"]:::write
+        Extract --> Dedup["EntityDeduplicator (optional)<br/>dedup_enabled=True"]:::write
+    end
+
+    Dedup --> Neo4j["Neo4j graph<br/>Entity, Document,<br/>PairWeight, RelationWeight"]:::store
+    Neo4j --> Edges["CONTAINS, CO_OCCURS_WITH,<br/>RELATES_AS edges"]:::store
+
+    subgraph Read["Read path"]
+        FindDocs["find_documents_by_entities()"]:::read
+        SearchRel["search_related_entities()"]:::read
+        FindRel["find_relations()"]:::read
+        FindType["find_entities_by_type()"]:::read
+        Lineage["find_lineage()<br/>per-document contribution lookup"]:::read
+    end
+    Neo4j --> FindDocs
+    Neo4j --> SearchRel
+    Neo4j --> FindRel
+    Neo4j --> FindType
+    Neo4j --> Lineage
+
+    subgraph HybridRet["Hybrid retrieval"]
+        Retriever["GraphRetriever(graph, rag)"]:::hybrid --> VectorChunks["Vector chunks (ragleap-rag)"]:::hybrid
+        Retriever --> GraphContext["Graph context<br/>related_documents, related_entities"]:::hybrid
+        VectorChunks --> Combined["Combined result<br/>already_in_vector_results flag"]:::hybrid
+        GraphContext --> Combined
+    end
+```
+
 ## LLM-based extraction and dedup (v0.2.0+)
 
 The default entity extraction is regex/heuristic-based (fast, free, zero
@@ -56,7 +98,7 @@ avoids it at the source.
 
 ## Status
 
-v0.2.0. Ported from a real production `GraphService`, adapted for standalone open-source use — see `HANDOFF.md` for the full design history. `ragleap-rag` >=0.12.0 is an optional dependency, required only for `method="llm"`.
+v0.6.5. Ported from a real production `GraphService`, adapted for standalone open-source use — see `HANDOFF.md` for the full design history. `ragleap-rag` >=0.12.0 is an optional dependency, required only for `method="llm"`.
 
 ## License
 

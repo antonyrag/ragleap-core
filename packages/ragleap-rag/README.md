@@ -632,50 +632,35 @@ Each worker process talks to the same Postgres database and, optionally, shares 
 See `examples/05_celery_background_tasks.py` for the full runnable version.
 
 ## How it fits together
-             +------------------+
-             | Text, 28 formats |
-             |  URLs, images,   |
-             |   audio, video   |
-             +--------+---------+
-                      |
-             +--------v---------+
-             |  rag.ingest(...)  |   chunk -> embed -> store
-             +--------+---------+
-                      |
-             +--------v---------+
-             |  Vector backend   |   pgvector (default), or FAISS/Pinecone/
-             |  (pluggable)      |   Weaviate/Qdrant/Milvus via vector_backend=
-             +--------+---------+
-                      |
-             +--------v---------+
-             |   rag.ask(...)    |
-             +--------+---------+
-                      |
-             +--------v---------+
-             | query_rewrite=    |   optional: "contextual"/"hyde"/"multi_query"
-             | (optional)        |   transforms the query before retrieval
-             +--------+---------+
-                      |
-             +--------v---------+
-             |  Hybrid retrieve  |   dense + sparse (RRF) - degrades to
-             |                   |   dense-only if the backend can't do sparse
-             +--------+---------+          |
-                      |                     v
-             +--------v---------+   +---------------+
-             |   Generation      |-->| Fallback chain |
-             |  (temp/prompt/    |   | (if primary    |
-             |   response_format)|   |  fails)        |
-             +--------+---------+   +---------------+
-                      |
-             +--------v---------+
-             |  Cost tracking +  |   real token usage -> cost_usd; output
-             |  guardrails       |   guardrails run on the answer
-             +--------+---------+
-                      |
-             +--------v---------+
-             |  Conversation     |   optional: session_id ->
-             |  memory (Postgres)|   prior turns injected as context
-             +-------------------+
+
+<!-- AUTO-STATS:START -->
+**Current: v0.12.2** · 244 tests
+<!-- AUTO-STATS:END -->
+
+```mermaid
+flowchart TD
+    classDef ingest fill:#1e3a5f,stroke:#4a90d9,color:#fff
+    classDef query fill:#3d2645,stroke:#a855f7,color:#fff
+    classDef store fill:#1a4d3a,stroke:#22c55e,color:#fff
+
+    subgraph Ingest["Ingestion"]
+        Sources["Text, 28 formats,<br/>URLs, images, audio, video"]:::ingest
+        Sources --> Ingest1["rag.ingest(...)<br/>chunk -> embed -> store"]:::ingest
+    end
+
+    Ingest1 --> VectorStore["Vector backend (pluggable)<br/>pgvector default, or FAISS/Pinecone/<br/>Weaviate/Qdrant/Milvus via vector_backend="]:::store
+
+    subgraph Query["Query"]
+        Ask["rag.ask(...)"]:::query --> Rewrite["query_rewrite= (optional)<br/>contextual, hyde, multi_query"]:::query
+        Rewrite --> Hybrid["Hybrid retrieve<br/>dense + sparse (RRF)"]:::query
+        Hybrid --> Gen["Generation<br/>temp / prompt / response_format"]:::query
+        Gen --> Fallback["Fallback chain<br/>on primary provider failure"]:::query
+        Gen --> Cost["Cost tracking + guardrails<br/>real token usage -> cost_usd"]:::query
+        Cost --> Memory["Conversation memory (Postgres)<br/>optional session_id"]:::query
+    end
+
+    VectorStore --> Hybrid
+```
 
 ## Supported LLM providers
 
