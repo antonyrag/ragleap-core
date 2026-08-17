@@ -48,7 +48,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.4"
+__version__ = "0.6.5"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -293,6 +293,7 @@ class GraphIndex:
         title: str,
         chunks: List[Dict[str, Any]],
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
         max_entities: int = 80,
         max_pairs: int = 150,
         domain_terms: Optional[List[str]] = None,
@@ -383,17 +384,19 @@ class GraphIndex:
         top_entities = entity_counter.most_common(max_entities)
         top_pairs = pair_counter.most_common(max_pairs)
         ns = namespace or ""
+        uid = user_id or ""
 
         try:
             with self.driver.session() as session:
                 session.run(
                     """
-                    MERGE (d:Document {id: $document_id, namespace: $namespace})
+                    MERGE (d:Document {id: $document_id, namespace: $namespace, user_id: $user_id})
                     ON CREATE SET d.created_at = datetime()
                     SET d.title = $title
                     """,
                     document_id=str(document_id),
                     namespace=ns,
+                    user_id=uid,
                     title=title or "",
                 )
                 # v0.5.4: delete this document's existing CONTAINS edges
@@ -417,20 +420,21 @@ class GraphIndex:
                 # patch here - tracked as a known limitation.
                 session.run(
                     """
-                    MATCH (d:Document {id: $document_id, namespace: $namespace})
+                    MATCH (d:Document {id: $document_id, namespace: $namespace, user_id: $user_id})
                           -[r:CONTAINS]->()
                     DELETE r
                     """,
                     document_id=str(document_id),
                     namespace=ns,
+                    user_id=uid,
                 )
 
                 for entity_name, weight in top_entities:
                     entity_type = entity_type_map.get(entity_name.lower(), "UNKNOWN")
                     session.run(
                         """
-                        MATCH (d:Document {id: $document_id, namespace: $namespace})
-                        MERGE (e:Entity {name: $name_lower, namespace: $namespace})
+                        MATCH (d:Document {id: $document_id, namespace: $namespace, user_id: $user_id})
+                        MERGE (e:Entity {name: $name_lower, namespace: $namespace, user_id: $user_id})
                         ON CREATE SET e.display_name = $name
                         SET e.entity_type = coalesce(NULLIF($entity_type, "UNKNOWN"), e.entity_type, "UNKNOWN")
                         MERGE (d)-[r:CONTAINS]->(e)
@@ -438,6 +442,7 @@ class GraphIndex:
                         """,
                         document_id=str(document_id),
                         namespace=ns,
+                        user_id=uid,
                         name_lower=entity_name.lower(),
                         name=entity_name,
                         entity_type=entity_type,
@@ -460,21 +465,23 @@ class GraphIndex:
                 # different documents that share entities.
                 old_pairs_result = session.run(
                     """
-                    MATCH (pw:PairWeight {namespace: $namespace, document_id: $document_id})
+                    MATCH (pw:PairWeight {namespace: $namespace, document_id: $document_id, user_id: $user_id})
                     RETURN pw.entity_a AS a, pw.entity_b AS b
                     """,
                     namespace=ns,
                     document_id=str(document_id),
+                    user_id=uid,
                 )
                 old_pairs = {(row["a"], row["b"]) for row in old_pairs_result}
 
                 session.run(
                     """
-                    MATCH (pw:PairWeight {namespace: $namespace, document_id: $document_id})
+                    MATCH (pw:PairWeight {namespace: $namespace, document_id: $document_id, user_id: $user_id})
                     DELETE pw
                     """,
                     namespace=ns,
                     document_id=str(document_id),
+                    user_id=uid,
                 )
 
                 current_pairs = set()
@@ -483,23 +490,24 @@ class GraphIndex:
                     current_pairs.add((a_lower, b_lower))
                     session.run(
                         """
-                        MERGE (pw:PairWeight {namespace: $namespace, document_id: $document_id, entity_a: $a, entity_b: $b})
+                        MERGE (pw:PairWeight {namespace: $namespace, document_id: $document_id, entity_a: $a, entity_b: $b, user_id: $user_id})
                         SET pw.weight = $weight
                         """,
                         namespace=ns,
                         document_id=str(document_id),
                         a=a_lower,
                         b=b_lower,
+                        user_id=uid,
                         weight=float(weight),
                     )
 
                 for (a, b) in old_pairs | current_pairs:
                     session.run(
                         """
-                        MATCH (pw:PairWeight {namespace: $namespace, entity_a: $a, entity_b: $b})
+                        MATCH (pw:PairWeight {namespace: $namespace, entity_a: $a, entity_b: $b, user_id: $user_id})
                         WITH sum(pw.weight) AS total
-                        MATCH (ea:Entity {name: $a, namespace: $namespace})
-                        MATCH (eb:Entity {name: $b, namespace: $namespace})
+                        MATCH (ea:Entity {name: $a, namespace: $namespace, user_id: $user_id})
+                        MATCH (eb:Entity {name: $b, namespace: $namespace, user_id: $user_id})
                         FOREACH (_ IN CASE WHEN total > 0 THEN [1] ELSE [] END |
                             MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
                             SET r.weight = total
@@ -512,17 +520,19 @@ class GraphIndex:
                         namespace=ns,
                         a=a,
                         b=b,
+                        user_id=uid,
                     )
                     summary["relationships_indexed"] += 1
 
                 # Same pattern for RELATES_AS.
                 old_relations_result = session.run(
                     """
-                    MATCH (rw:RelationWeight {namespace: $namespace, document_id: $document_id})
+                    MATCH (rw:RelationWeight {namespace: $namespace, document_id: $document_id, user_id: $user_id})
                     RETURN rw.subject AS subject, rw.relation_type AS relation_type, rw.object AS object
                     """,
                     namespace=ns,
                     document_id=str(document_id),
+                    user_id=uid,
                 )
                 old_relations = {
                     (row["subject"], row["relation_type"], row["object"])
@@ -531,11 +541,12 @@ class GraphIndex:
 
                 session.run(
                     """
-                    MATCH (rw:RelationWeight {namespace: $namespace, document_id: $document_id})
+                    MATCH (rw:RelationWeight {namespace: $namespace, document_id: $document_id, user_id: $user_id})
                     DELETE rw
                     """,
                     namespace=ns,
                     document_id=str(document_id),
+                    user_id=uid,
                 )
 
                 current_relations = set()
@@ -544,7 +555,7 @@ class GraphIndex:
                     current_relations.add((subj_lower, relation_type, obj_lower))
                     session.run(
                         """
-                        MERGE (rw:RelationWeight {namespace: $namespace, document_id: $document_id, subject: $subject, relation_type: $relation_type, object: $object})
+                        MERGE (rw:RelationWeight {namespace: $namespace, document_id: $document_id, subject: $subject, relation_type: $relation_type, object: $object, user_id: $user_id})
                         SET rw.weight = $weight
                         """,
                         namespace=ns,
@@ -552,16 +563,17 @@ class GraphIndex:
                         subject=subj_lower,
                         relation_type=relation_type,
                         object=obj_lower,
+                        user_id=uid,
                         weight=float(weight),
                     )
 
                 for (subject, relation_type, obj) in old_relations | current_relations:
                     session.run(
                         """
-                        MATCH (rw:RelationWeight {namespace: $namespace, subject: $subject, relation_type: $relation_type, object: $object})
+                        MATCH (rw:RelationWeight {namespace: $namespace, subject: $subject, relation_type: $relation_type, object: $object, user_id: $user_id})
                         WITH sum(rw.weight) AS total
-                        MATCH (es:Entity {name: $subject, namespace: $namespace})
-                        MATCH (eo:Entity {name: $object, namespace: $namespace})
+                        MATCH (es:Entity {name: $subject, namespace: $namespace, user_id: $user_id})
+                        MATCH (eo:Entity {name: $object, namespace: $namespace, user_id: $user_id})
                         FOREACH (_ IN CASE WHEN total > 0 THEN [1] ELSE [] END |
                             MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)
                             SET r.weight = total
@@ -575,6 +587,7 @@ class GraphIndex:
                         subject=subject,
                         relation_type=relation_type,
                         object=obj,
+                        user_id=uid,
                     )
                     summary["relations_indexed"] += 1
 
@@ -591,6 +604,7 @@ class GraphIndex:
         self,
         entity_names: List[str],
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
         limit: int = 25,
     ) -> List[Dict[str, Any]]:
         """Retrieve documents connected to the given entity names, ranked
@@ -603,6 +617,7 @@ class GraphIndex:
             return []
 
         ns = namespace or ""
+        uid = user_id or ""
 
         try:
             with self.driver.session() as session:
@@ -611,6 +626,8 @@ class GraphIndex:
                     MATCH (e:Entity)<-[r:CONTAINS]-(d:Document)
                     WHERE e.namespace = $namespace
                       AND d.namespace = $namespace
+                      AND coalesce(e.user_id, '') = $user_id
+                      AND coalesce(d.user_id, '') = $user_id
                       AND e.name IN $entity_names
                     RETURN d.id AS document_id,
                            coalesce(d.title, '') AS document_name,
@@ -621,6 +638,7 @@ class GraphIndex:
                     LIMIT $limit
                     """,
                     namespace=ns,
+                    user_id=uid,
                     entity_names=normalized,
                     limit=max(1, int(limit)),
                 )
@@ -644,6 +662,7 @@ class GraphIndex:
         self,
         entity_names: List[str],
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
         max_depth: int = 2,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:
@@ -676,6 +695,7 @@ class GraphIndex:
             return []
 
         ns = namespace or ""
+        uid = user_id or ""
 
         try:
             with self.driver.session() as session:
@@ -686,8 +706,10 @@ class GraphIndex:
                     MATCH (start:Entity)
                     WHERE start.name IN $entity_names
                       AND start.namespace = $namespace
+                      AND coalesce(start.user_id, '') = $user_id
                     MATCH path = (start)-[*1..{max_depth}]-(related:Entity)
                     WHERE related.namespace = $namespace
+                      AND coalesce(related.user_id, '') = $user_id
                     RETURN DISTINCT related.name AS entity_id,
                            related.display_name AS entity_name,
                            type(relationships(path)[0]) AS relationship,
@@ -700,6 +722,7 @@ class GraphIndex:
                     query,
                     entity_names=normalized,
                     namespace=ns,
+                    user_id=uid,
                     limit=max(1, int(limit)),
                 )
 
@@ -724,6 +747,7 @@ class GraphIndex:
         entity_name: str,
         relation_type: Optional[str] = None,
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
         limit: int = 25,
         direction: str = "outgoing",
     ) -> List[Dict[str, Any]]:
@@ -757,13 +781,16 @@ class GraphIndex:
         if not normalized:
             return []
         ns = namespace or ""
+        uid = user_id or ""
         try:
             with self.driver.session() as session:
                 if direction == "outgoing":
                     query = """
                         MATCH (s:Entity {name: $subject, namespace: $namespace})
                               -[r:RELATES_AS]->(o:Entity {namespace: $namespace})
-                        WHERE $relation_type IS NULL OR r.relation_type = $relation_type
+                        WHERE ($relation_type IS NULL OR r.relation_type = $relation_type)
+                          AND coalesce(s.user_id, '') = $user_id
+                          AND coalesce(o.user_id, '') = $user_id
                         RETURN s.display_name AS subject,
                                r.relation_type AS relation_type,
                                o.display_name AS object,
@@ -775,7 +802,9 @@ class GraphIndex:
                     query = """
                         MATCH (o:Entity {name: $subject, namespace: $namespace})
                               <-[r:RELATES_AS]-(s:Entity {namespace: $namespace})
-                        WHERE $relation_type IS NULL OR r.relation_type = $relation_type
+                        WHERE ($relation_type IS NULL OR r.relation_type = $relation_type)
+                          AND coalesce(s.user_id, '') = $user_id
+                          AND coalesce(o.user_id, '') = $user_id
                         RETURN s.display_name AS subject,
                                r.relation_type AS relation_type,
                                o.display_name AS object,
@@ -789,6 +818,8 @@ class GraphIndex:
                               -[r:RELATES_AS]-(b:Entity {namespace: $namespace})
                         WHERE (a.name = $subject OR b.name = $subject)
                           AND ($relation_type IS NULL OR r.relation_type = $relation_type)
+                          AND coalesce(a.user_id, '') = $user_id
+                          AND coalesce(b.user_id, '') = $user_id
                         WITH DISTINCT startNode(r) AS s, endNode(r) AS o, r
                         RETURN s.display_name AS subject,
                                r.relation_type AS relation_type,
@@ -801,6 +832,7 @@ class GraphIndex:
                     query,
                     subject=normalized.lower(),
                     namespace=ns,
+                    user_id=uid,
                     relation_type=relation_type,
                     limit=max(1, int(limit)),
                 )
@@ -821,6 +853,7 @@ class GraphIndex:
         self,
         document_id: str,
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Find all entities linked to a specific document."""
         if not self.driver:
@@ -828,19 +861,23 @@ class GraphIndex:
             return []
 
         ns = namespace or ""
+        uid = user_id or ""
 
         try:
             with self.driver.session() as session:
                 result = session.run(
                     """
                     MATCH (d:Document {id: $document_id, namespace: $namespace})
+                    WHERE coalesce(d.user_id, '') = $user_id
                     MATCH (d)-[:CONTAINS]->(e:Entity)
+                    WHERE coalesce(e.user_id, '') = $user_id
                     RETURN e.name AS entity_id,
                            e.display_name AS entity_name
                     LIMIT 50
                     """,
                     document_id=str(document_id),
                     namespace=ns,
+                    user_id=uid,
                 )
 
                 entities = []
@@ -859,6 +896,7 @@ class GraphIndex:
         self,
         entity_type: str,
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
         limit: int = 25,
     ) -> List[Dict[str, Any]]:
         """
@@ -886,6 +924,7 @@ class GraphIndex:
             return []
 
         ns = namespace or ""
+        uid = user_id or ""
 
         try:
             with self.driver.session() as session:
@@ -893,12 +932,14 @@ class GraphIndex:
                     """
                     MATCH (e:Entity {namespace: $namespace})
                     WHERE toLower(e.entity_type) = toLower($entity_type)
+                      AND coalesce(e.user_id, '') = $user_id
                     RETURN e.name AS entity_id,
                            e.display_name AS entity_name,
                            e.entity_type AS entity_type
                     LIMIT $limit
                     """,
                     namespace=ns,
+                    user_id=uid,
                     entity_type=entity_type,
                     limit=max(1, int(limit)),
                 )
@@ -922,6 +963,7 @@ class GraphIndex:
         entity_b: str,
         relation_type: Optional[str] = None,
         namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
         limit: int = 25,
     ) -> List[Dict[str, Any]]:
         """
@@ -943,6 +985,7 @@ class GraphIndex:
         if not entity_a or not entity_a.strip() or not entity_b or not entity_b.strip():
             return []
         ns = namespace or ""
+        uid = user_id or ""
         a_lower = entity_a.lower()
         b_lower = entity_b.lower()
         contributions: List[Dict[str, Any]] = []
@@ -951,12 +994,14 @@ class GraphIndex:
                 pair_result = session.run(
                     """
                     MATCH (pw:PairWeight {namespace: $namespace})
-                    WHERE (pw.entity_a = $a AND pw.entity_b = $b)
-                       OR (pw.entity_a = $b AND pw.entity_b = $a)
+                    WHERE ((pw.entity_a = $a AND pw.entity_b = $b)
+                        OR (pw.entity_a = $b AND pw.entity_b = $a))
+                      AND coalesce(pw.user_id, '') = $user_id
                     RETURN pw.document_id AS document_id, pw.weight AS weight
                     LIMIT $limit
                     """,
                     namespace=ns,
+                    user_id=uid,
                     a=a_lower,
                     b=b_lower,
                     limit=max(1, int(limit)),
@@ -974,12 +1019,14 @@ class GraphIndex:
                     WHERE ((rw.subject = $a AND rw.object = $b)
                         OR (rw.subject = $b AND rw.object = $a))
                       AND ($relation_type IS NULL OR rw.relation_type = $relation_type)
+                      AND coalesce(rw.user_id, '') = $user_id
                     RETURN rw.document_id AS document_id,
                            rw.relation_type AS relation_name,
                            rw.weight AS weight
                     LIMIT $limit
                     """,
                     namespace=ns,
+                    user_id=uid,
                     a=a_lower,
                     b=b_lower,
                     relation_type=relation_type,
@@ -997,6 +1044,51 @@ class GraphIndex:
         except Exception as e:
             logger.error(f"Lineage lookup error: {e}", exc_info=True)
             return []
+
+    def backfill_user_id_defaults(self, namespace: Optional[str] = None) -> Dict[str, int]:
+        """
+        One-time migration (v0.6.5+) for installations upgrading from a
+        version before user_id= support existed. Entity/Document/
+        PairWeight/RelationWeight nodes written before this version have
+        no user_id property at all - Neo4j's exact property-pattern
+        matching treats a missing property as never equal to "" (the
+        default used when user_id=None), so those legacy nodes would
+        otherwise become invisible to every find_* call and would be
+        silently duplicated - not updated - the next time
+        upsert_document() re-runs on an already-indexed document.
+        This backfills user_id="" onto any node still missing the
+        property, restoring the documented "user_id=None matches
+        everything" backward-compatibility guarantee. Idempotent - safe
+        to run multiple times; only touches nodes that still lack the
+        property, so re-running after new user_id-aware data has been
+        written does not overwrite it.
+        Pass namespace= to scope the backfill to one namespace, or omit
+        to backfill the whole graph.
+        Returns a count of nodes updated per label.
+        """
+        counts: Dict[str, int] = {
+            "Entity": 0,
+            "Document": 0,
+            "PairWeight": 0,
+            "RelationWeight": 0,
+        }
+        if not self.driver:
+            return counts
+        ns_filter = "AND n.namespace = $namespace" if namespace is not None else ""
+        with self.driver.session() as session:
+            for label in list(counts.keys()):
+                result = session.run(
+                    f"""
+                    MATCH (n:{label})
+                    WHERE n.user_id IS NULL {ns_filter}
+                    SET n.user_id = ""
+                    RETURN count(n) AS updated
+                    """,
+                    namespace=namespace or "",
+                )
+                record = result.single()
+                counts[label] = record["updated"] if record else 0
+        return counts
 
 
     def health_check(self) -> bool:
