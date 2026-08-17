@@ -179,7 +179,7 @@
       "version": "0.8.0"
     },
     {
-      "bom-ref": "anthropic==0.121.0",
+      "bom-ref": "anthropic==0.122.0",
       "description": "The official Python library for the anthropic API",
       "externalReferences": [
         {
@@ -202,9 +202,9 @@
         }
       ],
       "name": "anthropic",
-      "purl": "pkg:pypi/anthropic@0.121.0",
+      "purl": "pkg:pypi/anthropic@0.122.0",
       "type": "library",
-      "version": "0.121.0"
+      "version": "0.122.0"
     },
     {
       "bom-ref": "anyio==4.14.2",
@@ -574,7 +574,7 @@
       "version": "5.2.0"
     },
     {
-      "bom-ref": "charset-normalizer==3.4.9",
+      "bom-ref": "charset-normalizer==3.5.1",
       "description": "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet.",
       "externalReferences": [
         {
@@ -607,9 +607,9 @@
         }
       ],
       "name": "charset-normalizer",
-      "purl": "pkg:pypi/charset-normalizer@3.4.9",
+      "purl": "pkg:pypi/charset-normalizer@3.5.1",
       "type": "library",
-      "version": "3.4.9"
+      "version": "3.5.1"
     },
     {
       "bom-ref": "click==8.4.2",
@@ -783,7 +783,7 @@
       "version": "7.3.1"
     },
     {
-      "bom-ref": "cyclonedx-python-lib==11.11.1",
+      "bom-ref": "cyclonedx-python-lib==11.12.0",
       "description": "Python library for CycloneDX",
       "externalReferences": [
         {
@@ -838,9 +838,9 @@
           "value": "validation"
         }
       ],
-      "purl": "pkg:pypi/cyclonedx-python-lib@11.11.1",
+      "purl": "pkg:pypi/cyclonedx-python-lib@11.12.0",
       "type": "library",
-      "version": "11.11.1"
+      "version": "11.12.0"
     },
     {
       "bom-ref": "dateparser==1.4.2",
@@ -1031,7 +1031,7 @@
       "version": "1.15.0"
     },
     {
-      "bom-ref": "filelock==3.32.2",
+      "bom-ref": "filelock==3.32.3",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1064,9 +1064,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@3.32.2",
+      "purl": "pkg:pypi/filelock@3.32.3",
       "type": "library",
-      "version": "3.32.2"
+      "version": "3.32.3"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -1187,7 +1187,7 @@
       "version": "2.56.3"
     },
     {
-      "bom-ref": "google-genai==2.17.0",
+      "bom-ref": "google-genai==2.18.1",
       "description": "GenAI Python SDK",
       "externalReferences": [
         {
@@ -1205,9 +1205,9 @@
         }
       ],
       "name": "google-genai",
-      "purl": "pkg:pypi/google-genai@2.17.0",
+      "purl": "pkg:pypi/google-genai@2.18.1",
       "type": "library",
-      "version": "2.17.0"
+      "version": "2.18.1"
     },
     {
       "bom-ref": "grpcio==1.78.0",
@@ -1462,6 +1462,39 @@
       "version": "1.0.9"
     },
     {
+      "bom-ref": "httpcore2==2.10.0",
+      "description": "A minimal low-level HTTP client.",
+      "externalReferences": [
+        {
+          "comment": "from packaging metadata Project-URL: Source",
+          "type": "other",
+          "url": "https://github.com/pydantic/httpx2/blob/main/src/httpcore2"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/pydantic/httpx2/blob/main/src/httpcore2/CHANGELOG.md"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Homepage",
+          "type": "website",
+          "url": "https://github.com/pydantic/httpx2"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "acknowledgement": "declared",
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "httpcore2",
+      "purl": "pkg:pypi/httpcore2@2.10.0",
+      "type": "library",
+      "version": "2.10.0"
+    },
+    {
       "bom-ref": "httpx==0.28.1",
       "description": "The next generation HTTP client.",
       "externalReferences": [
@@ -1510,6 +1543,39 @@
       "purl": "pkg:pypi/httpx@0.28.1",
       "type": "library",
       "version": "0.28.1"
+    },
+    {
+      "bom-ref": "httpx2==2.10.0",
+      "description": "The next generation HTTP client.",
+      "externalReferences": [
+        {
+          "comment": "from packaging metadata Project-URL: Source",
+          "type": "other",
+          "url": "https://github.com/pydantic/httpx2"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/pydantic/httpx2/blob/main/src/httpx2/CHANGELOG.md"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Homepage",
+          "type": "website",
+          "url": "https://github.com/pydantic/httpx2"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "acknowledgement": "declared",
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "httpx2",
+      "purl": "pkg:pypi/httpx2@2.10.0",
+      "type": "library",
+      "version": "2.10.0"
     },
     {
       "bom-ref": "huggingface_hub==1.27.0",
@@ -2130,7 +2196,7 @@
       "version": "1.28.0"
     },
     {
-      "bom-ref": "openai==2.53.0",
+      "bom-ref": "openai==3.1.0",
       "description": "The official Python library for the openai API",
       "externalReferences": [
         {
@@ -2159,9 +2225,9 @@
         }
       ],
       "name": "openai",
-      "purl": "pkg:pypi/openai@2.53.0",
+      "purl": "pkg:pypi/openai@3.1.0",
       "type": "library",
-      "version": "2.53.0"
+      "version": "3.1.0"
     },
     {
       "bom-ref": "openpyxl==3.1.5",
@@ -2202,7 +2268,7 @@
       "version": "3.1.5"
     },
     {
-      "bom-ref": "orjson==3.11.9",
+      "bom-ref": "orjson==3.12.0",
       "description": "Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy",
       "externalReferences": [
         {
@@ -2228,9 +2294,9 @@
         }
       ],
       "name": "orjson",
-      "purl": "pkg:pypi/orjson@3.11.9",
+      "purl": "pkg:pypi/orjson@3.12.0",
       "type": "library",
-      "version": "3.11.9"
+      "version": "3.12.0"
     },
     {
       "bom-ref": "packageurl-python==0.17.6",
@@ -2900,7 +2966,7 @@
       "version": "3.3.2"
     },
     {
-      "bom-ref": "pypdf==6.15.0",
+      "bom-ref": "pypdf==6.16.1",
       "description": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
       "externalReferences": [
         {
@@ -2933,9 +2999,9 @@
         }
       ],
       "name": "pypdf",
-      "purl": "pkg:pypi/pypdf@6.15.0",
+      "purl": "pkg:pypi/pypdf@6.16.1",
       "type": "library",
-      "version": "6.15.0"
+      "version": "6.16.1"
     },
     {
       "bom-ref": "pytesseract==0.3.13",
@@ -3038,7 +3104,7 @@
       "version": "1.2.0"
     },
     {
-      "bom-ref": "python-dotenv==1.2.2",
+      "bom-ref": "python-dotenv==1.2.3",
       "description": "Read key-value pairs from a .env file and set them as environment variables",
       "externalReferences": [
         {
@@ -3056,9 +3122,9 @@
         }
       ],
       "name": "python-dotenv",
-      "purl": "pkg:pypi/python-dotenv@1.2.2",
+      "purl": "pkg:pypi/python-dotenv@1.2.3",
       "type": "library",
-      "version": "1.2.2"
+      "version": "1.2.3"
     },
     {
       "bom-ref": "python-pptx==1.0.2",
@@ -3793,7 +3859,35 @@
       "version": "2.2.0"
     },
     {
-      "bom-ref": "typing-inspection==0.4.3",
+      "bom-ref": "truststore==0.10.4",
+      "description": "Verify certificates using native system trust stores",
+      "externalReferences": [
+        {
+          "comment": "from packaging metadata Project-URL: Documentation",
+          "type": "documentation",
+          "url": "https://truststore.readthedocs.io"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Source",
+          "type": "other",
+          "url": "https://github.com/sethmlarson/truststore"
+        }
+      ],
+      "licenses": [
+        {
+          "license": {
+            "acknowledgement": "declared",
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "truststore",
+      "purl": "pkg:pypi/truststore@0.10.4",
+      "type": "library",
+      "version": "0.10.4"
+    },
+    {
+      "bom-ref": "typing-inspection==0.4.4",
       "description": "Runtime typing introspection tools",
       "externalReferences": [
         {
@@ -3826,9 +3920,9 @@
         }
       ],
       "name": "typing-inspection",
-      "purl": "pkg:pypi/typing-inspection@0.4.3",
+      "purl": "pkg:pypi/typing-inspection@0.4.4",
       "type": "library",
-      "version": "0.4.3"
+      "version": "0.4.4"
     },
     {
       "bom-ref": "typing_extensions==4.16.0",
@@ -4059,7 +4153,7 @@
       "version": "0.35.0"
     },
     {
-      "bom-ref": "weaviate-client==4.22.0",
+      "bom-ref": "weaviate-client==4.23.0",
       "description": "A python native Weaviate client",
       "externalReferences": [
         {
@@ -4084,9 +4178,9 @@
         }
       ],
       "name": "weaviate-client",
-      "purl": "pkg:pypi/weaviate-client@4.22.0",
+      "purl": "pkg:pypi/weaviate-client@4.23.0",
       "type": "library",
-      "version": "4.22.0"
+      "version": "4.23.0"
     },
     {
       "bom-ref": "webcolors==25.10.0",
@@ -4251,7 +4345,7 @@
         "sniffio==1.3.1",
         "typing_extensions==4.16.0"
       ],
-      "ref": "anthropic==0.121.0"
+      "ref": "anthropic==0.122.0"
     },
     {
       "dependsOn": [
@@ -4283,7 +4377,7 @@
     {
       "dependsOn": [
         "chardet==5.2.0",
-        "charset-normalizer==3.4.9",
+        "charset-normalizer==3.5.1",
         "lxml==6.1.1",
         "soupsieve==2.9.2",
         "typing_extensions==4.16.0"
@@ -4309,7 +4403,7 @@
       "ref": "chardet==5.2.0"
     },
     {
-      "ref": "charset-normalizer==3.4.9"
+      "ref": "charset-normalizer==3.5.1"
     },
     {
       "ref": "click==8.4.2"
@@ -4332,7 +4426,7 @@
     {
       "dependsOn": [
         "chardet==5.2.0",
-        "cyclonedx-python-lib==11.11.1",
+        "cyclonedx-python-lib==11.12.0",
         "packageurl-python==0.17.6",
         "packaging==26.3",
         "pip-requirements-parser==32.0.1"
@@ -4350,7 +4444,7 @@
         "sortedcontainers==2.4.0",
         "typing_extensions==4.16.0"
       ],
-      "ref": "cyclonedx-python-lib==11.11.1"
+      "ref": "cyclonedx-python-lib==11.12.0"
     },
     {
       "dependsOn": [
@@ -4381,7 +4475,7 @@
       "ref": "faiss-cpu==1.15.0"
     },
     {
-      "ref": "filelock==3.32.2"
+      "ref": "filelock==3.32.3"
     },
     {
       "ref": "flatbuffers==25.12.19"
@@ -4426,7 +4520,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "google-genai==2.17.0"
+      "ref": "google-genai==2.18.1"
     },
     {
       "dependsOn": [
@@ -4452,7 +4546,7 @@
     },
     {
       "dependsOn": [
-        "charset-normalizer==3.4.9",
+        "charset-normalizer==3.5.1",
         "dateparser==1.4.2",
         "lxml==6.1.1",
         "python-dateutil==2.9.0.post0",
@@ -4463,11 +4557,32 @@
     {
       "dependsOn": [
         "anyio==4.14.2",
+        "h11==0.16.0",
+        "h2==4.4.1",
+        "truststore==0.10.4"
+      ],
+      "ref": "httpcore2==2.10.0"
+    },
+    {
+      "dependsOn": [
+        "anyio==4.14.2",
         "certifi==2026.7.22",
         "h11==0.16.0",
         "h2==4.4.1"
       ],
       "ref": "httpcore==1.0.9"
+    },
+    {
+      "dependsOn": [
+        "anyio==4.14.2",
+        "click==8.4.2",
+        "h2==4.4.1",
+        "httpcore2==2.10.0",
+        "idna==3.18",
+        "truststore==0.10.4",
+        "typing_extensions==4.16.0"
+      ],
+      "ref": "httpx2==2.10.0"
     },
     {
       "dependsOn": [
@@ -4485,7 +4600,7 @@
         "Authlib==1.7.2",
         "PyYAML==6.0.3",
         "click==8.4.2",
-        "filelock==3.32.2",
+        "filelock==3.32.3",
         "fsspec==2026.7.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -4606,7 +4721,7 @@
       "dependsOn": [
         "anyio==4.14.2",
         "distro==1.9.0",
-        "httpx==0.28.1",
+        "httpx2==2.10.0",
         "jiter==0.16.0",
         "numpy==2.4.6",
         "pandas==3.0.5",
@@ -4616,7 +4731,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "openai==2.53.0"
+      "ref": "openai==3.1.0"
     },
     {
       "dependsOn": [
@@ -4625,7 +4740,7 @@
       "ref": "openpyxl==3.1.5"
     },
     {
-      "ref": "orjson==3.11.9"
+      "ref": "orjson==3.12.0"
     },
     {
       "dependsOn": [
@@ -4666,7 +4781,7 @@
       "dependsOn": [
         "httpx==0.28.1",
         "msgspec==0.21.1",
-        "orjson==3.11.9"
+        "orjson==3.12.0"
       ],
       "ref": "pinecone==9.1.0"
     },
@@ -4717,7 +4832,7 @@
       "dependsOn": [
         "annotated-types==0.8.0",
         "pydantic_core==2.46.4",
-        "typing-inspection==0.4.3",
+        "typing-inspection==0.4.4",
         "typing_extensions==4.16.0",
         "tzdata==2026.3"
       ],
@@ -4733,11 +4848,11 @@
       "dependsOn": [
         "cachetools==7.1.7",
         "grpcio==1.78.0",
-        "orjson==3.11.9",
+        "orjson==3.12.0",
         "pandas==3.0.5",
         "protobuf==6.33.6",
         "pyarrow==25.0.1",
-        "python-dotenv==1.2.2",
+        "python-dotenv==1.2.3",
         "requests==2.34.2",
         "setuptools==79.0.1",
         "urllib3==2.7.0"
@@ -4753,7 +4868,7 @@
         "pillow==12.3.0",
         "typing_extensions==4.16.0"
       ],
-      "ref": "pypdf==6.15.0"
+      "ref": "pypdf==6.16.1"
     },
     {
       "dependsOn": [
@@ -4779,7 +4894,7 @@
       "dependsOn": [
         "click==8.4.2"
       ],
-      "ref": "python-dotenv==1.2.2"
+      "ref": "python-dotenv==1.2.3"
     },
     {
       "dependsOn": [
@@ -4827,7 +4942,7 @@
       "dependsOn": [
         "certifi==2026.7.22",
         "chardet==5.2.0",
-        "charset-normalizer==3.4.9",
+        "charset-normalizer==3.5.1",
         "idna==3.18",
         "urllib3==2.7.0"
       ],
@@ -4852,22 +4967,22 @@
       "dependsOn": [
         "EbookLib==0.20",
         "PyYAML==6.0.3",
-        "anthropic==0.121.0",
+        "anthropic==0.122.0",
         "beautifulsoup4==4.15.0",
         "faiss-cpu==1.15.0",
-        "google-genai==2.17.0",
+        "google-genai==2.18.1",
         "huggingface_hub==1.27.0",
         "jsonschema==4.26.0",
         "odfpy==1.4.1",
         "onnxruntime==1.28.0",
-        "openai==2.53.0",
+        "openai==3.1.0",
         "openpyxl==3.1.5",
         "pillow==12.3.0",
         "pinecone==9.1.0",
         "psycopg2-binary==2.9.12",
         "pyarrow==25.0.1",
         "pymilvus==3.0.1",
-        "pypdf==6.15.0",
+        "pypdf==6.16.1",
         "pytesseract==0.3.13",
         "python-docx==1.2.0",
         "python-pptx==1.0.2",
@@ -4877,7 +4992,7 @@
         "striprtf==0.0.32",
         "tokenizers==0.23.1",
         "trafilatura==2.2.0",
-        "weaviate-client==4.22.0",
+        "weaviate-client==4.23.0",
         "xlrd==2.0.2"
       ],
       "ref": "root-component"
@@ -4887,7 +5002,7 @@
     },
     {
       "dependsOn": [
-        "filelock==3.32.2",
+        "filelock==3.32.3",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -4932,7 +5047,7 @@
       "dependsOn": [
         "beautifulsoup4==4.15.0",
         "certifi==2026.7.22",
-        "charset-normalizer==3.4.9",
+        "charset-normalizer==3.5.1",
         "courlan==1.4.0",
         "htmldate==1.10.0",
         "jusText==3.0.2",
@@ -4944,10 +5059,13 @@
       "ref": "trafilatura==2.2.0"
     },
     {
+      "ref": "truststore==0.10.4"
+    },
+    {
       "dependsOn": [
         "typing_extensions==4.16.0"
       ],
-      "ref": "typing-inspection==0.4.3"
+      "ref": "typing-inspection==0.4.4"
     },
     {
       "ref": "typing_extensions==4.16.0"
@@ -4983,7 +5101,7 @@
         "pydantic==2.13.4",
         "validators==0.35.0"
       ],
-      "ref": "weaviate-client==4.22.0"
+      "ref": "weaviate-client==4.23.0"
     },
     {
       "ref": "webcolors==25.10.0"
@@ -5036,7 +5154,7 @@
       "type": "library",
       "version": "0.12.2"
     },
-    "timestamp": "2026-08-11T10:57:55.757320+00:00",
+    "timestamp": "2026-08-17T05:28:37.271919+00:00",
     "tools": {
       "components": [
         {
@@ -5135,12 +5253,12 @@
           ],
           "name": "cyclonedx-python-lib",
           "type": "library",
-          "version": "11.11.1"
+          "version": "11.12.0"
         }
       ]
     }
   },
-  "serialNumber": "urn:uuid:74ddb321-2176-43ff-aca7-982d0a50ed4c",
+  "serialNumber": "urn:uuid:b3091a92-14ae-40d1-8318-f46ce82d84da",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
