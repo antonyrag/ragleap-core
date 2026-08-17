@@ -564,6 +564,92 @@ def test_find_relations_direction_parameter():
             )
         graph.close()
 
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_backfill_user_id_defaults_prevents_duplicate_entities_on_reupsert():
+    """
+    Regression test for backfill_user_id_defaults() (v0.6.5). All read
+    methods now use coalesce(node.user_id, '') = $user_id, so legacy
+    data (no user_id property) is correctly visible without needing
+    migration first - that half of the original concern is already
+    handled structurally.
+    The real remaining bug is in upsert_document()'s WRITE path:
+    Entity MERGE now keys on (name, namespace, user_id) by design (the
+    deliberate split-identity model), so a node written before user_id=
+    existed has no user_id property and will NOT match the MERGE
+    pattern used by the current code. Re-upserting an already-indexed
+    document therefore creates a DUPLICATE Entity node instead of
+    updating the existing one - this is the actual data-fragmentation
+    risk backfill_user_id_defaults() exists to prevent.
+    Writes a legacy-style Entity node directly via Cypher (no user_id
+    property, simulating real pre-upgrade data), then calls the real
+    upsert_document() to prove duplication happens, then confirms that
+    running the migration stops further duplicate growth on subsequent
+    re-upserts.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+    doc_id = "legacy-doc-1"
+    entity_name = "legacy widgets inc"
+    try:
+        with graph.driver.session() as session:
+            session.run(
+                """
+                MERGE (e:Entity {name: $name, namespace: $ns})
+                ON CREATE SET e.display_name = $display, e.entity_type = "UNKNOWN"
+                """,
+                name=entity_name, display="Legacy Widgets Inc",
+                ns=TEST_NAMESPACE,
+            )
+
+        def count_entities():
+            with graph.driver.session() as session:
+                result = session.run(
+                    "MATCH (e:Entity {name: $name, namespace: $ns}) RETURN count(e) AS c",
+                    name=entity_name, ns=TEST_NAMESPACE,
+                )
+                return result.single()["c"]
+
+        assert count_entities() == 1
+
+        summary = graph.upsert_document(
+            document_id=doc_id,
+            title="Legacy Widgets Inc report",
+            chunks=[{"text": "Legacy Widgets Inc announced new products today."}],
+            namespace=TEST_NAMESPACE,
+        )
+        assert summary["success"] is True
+
+        assert count_entities() == 2, (
+            "Expected the duplication bug to reproduce: re-upserting "
+            "should have created a second Entity node distinct from "
+            "the pre-existing legacy one, since MERGE now keys on "
+            "user_id and the legacy node has no user_id property"
+        )
+
+        counts = graph.backfill_user_id_defaults(namespace=TEST_NAMESPACE)
+        assert counts["Entity"] >= 1
+
+        summary2 = graph.upsert_document(
+            document_id=doc_id,
+            title="Legacy Widgets Inc report",
+            chunks=[{"text": "Legacy Widgets Inc announced new products today."}],
+            namespace=TEST_NAMESPACE,
+        )
+        assert summary2["success"] is True
+        assert count_entities() == 2, (
+            "After backfill, re-upserting should no longer create "
+            "further duplicates - count must stay stable, not grow"
+        )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
 @pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
 def test_find_lineage():
     """
