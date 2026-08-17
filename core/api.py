@@ -6,7 +6,7 @@ import os
 import shutil
 import logging
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -14,6 +14,7 @@ from core.ingest import ingest_document
 from core.parsers import extract_text
 from core.chat import ask, ask_stream
 from core.integrations import service as integrations_service
+from core.integrations.factory import get_connector
 from core.employees import profile as employee_profile
 from core.employees import roles as employee_roles
 from core.employees import skills as employee_skills
@@ -453,3 +454,45 @@ def delete_n8n_workflow(workflow_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found.")
     return {"deleted": True}
+
+
+MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB — stored as a Postgres TEXT column, keep it sane
+
+
+@app.post("/integrations/csv")
+async def create_csv_integration(
+    name: str = Form(...),
+    user_identifier_field: str = Form("user_id"),
+    file: UploadFile = File(...),
+):
+    """
+    Create a CSV data source from an uploaded file. Separate from the
+    JSON-only POST /integrations route since this takes actual file
+    content, not connection parameters.
+    """
+    if not (file.filename or "").lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are supported.")
+    try:
+        raw_bytes = await file.read()
+        if len(raw_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded CSV is empty.")
+        if len(raw_bytes) > MAX_CSV_SIZE_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"CSV too large ({len(raw_bytes) / 1024 / 1024:.1f} MB). Max size is {MAX_CSV_SIZE_BYTES / 1024 / 1024:.0f} MB.",
+            )
+        csv_text = raw_bytes.decode("utf-8-sig")
+        result = integrations_service.create_csv_data_source(
+            name=name, csv_content=csv_text, csv_filename=file.filename,
+            user_identifier_field=user_identifier_field,
+        )
+        return result
+    except HTTPException:
+        raise
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded.")
+    except Exception as exc:
+        logger.exception("CSV data source creation failed for %s", file.filename)
+        raise HTTPException(status_code=500, detail=f"Failed to create CSV data source: {exc}") from exc
+    finally:
+        await file.close()
