@@ -56,7 +56,7 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [ ] Plugin/extension system for custom document loaders or AI providers
 ## Phase 6 — `ragleap-rag` hardening (in progress)
 
-`ragleap-rag` (the standalone PyPI library, `packages/ragleap-rag/`) went from v0.6.3 to v0.11.1 across this and prior sessions: Cost-First RAG, embedding provider expansion, structured/JSON output, query rewriting (contextual/HyDE/multi-query), removal of all hardcoded model defaults, and six vector backends (pgvector, FAISS, Pinecone, Weaviate, Qdrant, Milvus). This phase covers what's left before a confident v1.0.
+`ragleap-rag` (the standalone PyPI library, `packages/ragleap-rag/`) went from v0.6.3 to v0.12.2 across this and prior sessions: Cost-First RAG, embedding provider expansion, structured/JSON output, query rewriting (contextual/HyDE/multi-query), removal of all hardcoded model defaults, and six vector backends (pgvector, FAISS, Pinecone, Weaviate, Qdrant, Milvus). This phase covers what's left before a confident v1.0.
 
 - [ ] `SECURITY.md` — vulnerability disclosure process
 - [ ] Dependency SBOM (`cyclonedx-bom` output) for supply-chain transparency
@@ -68,6 +68,38 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 
 **Explicitly not planned for `ragleap-rag` itself**, consistent with its scope as a focused RAG library rather than a general orchestration framework: agent/tool-calling frameworks, multi-step orchestration, channel integrations (WhatsApp/Telegram/Discord/Voice - these already exist and work today in this repo's `channels/` directory, just not bundled into the `ragleap-rag` package specifically), and anything requiring a fundamentally different testing/release cadence than a retrieval library. If any of these get built as genuinely separate packages in the future, they'll be scoped and evaluated on their own merits when there's real capacity to build and verify them properly - not speculatively listed here as commitments.
 
+
+## Phase 7 — `ragleap-graph` hardening (in progress)
+
+`ragleap-graph` (the standalone PyPI library, `packages/ragleap-graph/`) went from v0.1.0 to v0.6.5 across this and prior sessions: LLM-based entity/relation extraction, entity deduplication, hybrid vector+graph retrieval, per-document contribution tracking (idempotent re-upserts), lineage lookup (`find_lineage()`), and per-user data isolation (`user_id=`, with a `backfill_user_id_defaults()` migration for pre-upgrade installs). 87 tests, 86 passing, 1 skipped without `GEMINI_API_KEY`.
+
+- [x] Core graph indexing, regex + LLM entity extraction, co-occurrence graphs
+- [x] Typed relation extraction (`RELATES_AS` edges), hybrid `GraphRetriever`
+- [x] Entity type support and enforcement (`entity_types=`)
+- [x] Per-document idempotency for `CONTAINS`/`CO_OCCURS_WITH`/`RELATES_AS` (fixed real weight-doubling and stale-edge bugs)
+- [x] `find_lineage()` — per-document contribution lookup, previously unreachable via any public method
+- [x] `user_id=` for per-user data isolation across `upsert_document()` and all read methods, plus `backfill_user_id_defaults()` migration
+- [ ] Audit logging (Postgres-backed, `database_url=`, writes+reads) — see [#151](../../issues/151)
+- [ ] Ontology cross-validation between relation types and entity types — blocked on a design decision, see [#152](../../issues/152)
+- [ ] Eval framework (graph-RAG vs vector-RAG accuracy) — new engineering, see [#153](../../issues/153)
+- [ ] Cross-chunk relation extraction — see [#154](../../issues/154)
+
+Also open: rotating a previously-exposed `GEMINI_API_KEY` ([#155](../../issues/155)), deciding how a future `ragleap-voice` package should relate to the existing `channels/voice/` code ([#156](../../issues/156)), and confirming the `/simple/` PyPI proxy serves real package data ([#157](../../issues/157)).
+
+## Phase 8 — Ecosystem expansion (planned)
+
+The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Nothing in this phase has shipped code yet — statuses below are honest planning labels, not commitments with dates. The canonical, most-current version of this list lives in the [wiki Roadmap](https://github.com/antonyrag/ragleap-core/wiki/Roadmap); this section mirrors it for repo-local visibility.
+
+- [ ] `ragleap-vectorstores` (NEXT) — pluggable vector backends beyond what already ships inside `ragleap-rag` core (6 backends today)
+- [ ] `ragleap-tools` (NEXT) — built-in tools: search, code exec, calculators, file ops
+- [ ] `ragleap-integrations` (NEXT) — MCP-native connectors + curated native integrations, building on the existing WhatsApp/Telegram/Discord/Voice channel code
+- [ ] `ragleap-agents` (AFTER) — role-based crews, tool-calling, human-in-the-loop approval gates
+- [ ] `ragleap-flows` (AFTER) — low-code orchestration + HITL checkpoints, bootstrapped from the existing n8n integration
+- [ ] `ragleap-observability` (DECISION NEEDED) — tracing, hallucination detection, and a full LLM-as-judge evaluation framework; this is new engineering, not extraction, since nothing like the eval-framework half exists internally today
+- [ ] `ragleap-ops` (ONGOING) — Docker/K8s templates, Helm charts, CI/CD, IaC; grows alongside every phase above rather than shipping as one release
+- [ ] `ragleap-studio` (LATER) — visual low-code builder UI
+- [ ] `ragleap-memory` (LATER) — shared long-term memory layer across agents/employees; an untracked `packages/ragleap-memory/` directory already exists from concurrent automation, not yet a scoped, owned package
+- [ ] `ragleap-intelligence` (VISION / EARLY DISCUSSION ONLY) — early-stage "AI employee twin" concept: persistent per-employee AI assistance with role continuity across turnover. Genuinely unscoped at this stage — open questions include office-only vs. personal-device access, telephony impersonation, and consent/labor-law implications. Not a committed roadmap item with a version target.
 
 ## Not planned for RagLeap Core
 
