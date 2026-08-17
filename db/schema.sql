@@ -161,3 +161,9 @@ CREATE TABLE IF NOT EXISTS n8n_workflows (
 
 CREATE INDEX IF NOT EXISTS n8n_workflows_active_idx
     ON n8n_workflows (is_active);
+
+-- CSV connector content storage — no persistent disk volume exists in
+-- docker-compose.yml, so CSV content lives in Postgres like everything
+-- else in Core, rather than on the container filesystem.
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS csv_content TEXT;
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS csv_filename TEXT;

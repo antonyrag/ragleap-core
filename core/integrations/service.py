@@ -26,7 +26,7 @@ def _row_to_data_source(row) -> DataSource:
     """Build a DataSource from a DB row, decrypting credentials."""
     (id_, name, source_type, connection_string, api_endpoint, api_key,
      api_headers, query_template, field_mappings, user_identifier_field,
-     documents_table_name) = row
+     documents_table_name, csv_content, csv_filename) = row
     return DataSource(
         id=str(id_),
         name=name,
@@ -39,6 +39,8 @@ def _row_to_data_source(row) -> DataSource:
         field_mappings=field_mappings or {},
         user_identifier_field=user_identifier_field,
         documents_table_name=documents_table_name,
+        csv_content=csv_content,
+        csv_filename=csv_filename,
     )
 
 
@@ -89,6 +91,41 @@ def create_data_source(
         conn.close()
 
 
+def create_csv_data_source(
+    name: str,
+    csv_content: str,
+    csv_filename: str,
+    user_identifier_field: str = "user_id",
+) -> Dict[str, Any]:
+    """
+    Create a CSV data source. Unlike create_data_source(), this takes raw
+    CSV text directly rather than connection parameters — content is
+    stored in Postgres (no persistent disk volume exists in
+    docker-compose.yml for the app container).
+    """
+    conn = _get_connection()
+    try:
+        cur = conn.cursor()
+        data_source_id = str(uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO data_sources
+                (id, name, source_type, user_identifier_field, csv_content, csv_filename)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (data_source_id, name, "csv", user_identifier_field, csv_content, csv_filename),
+        )
+        conn.commit()
+        cur.close()
+        logger.info(f"Created CSV data source '{name}' ({len(csv_content)} chars)")
+        return {"id": data_source_id, "name": name, "source_type": "csv"}
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def get_data_source(data_source_id: str) -> Optional[DataSource]:
     """Fetch a single data source by ID, with credentials decrypted."""
     conn = _get_connection()
@@ -98,7 +135,7 @@ def get_data_source(data_source_id: str) -> Optional[DataSource]:
             """
             SELECT id, name, source_type, connection_string, api_endpoint, api_key,
                    api_headers, query_template, field_mappings, user_identifier_field,
-                   documents_table_name
+                   documents_table_name, csv_content, csv_filename
             FROM data_sources WHERE id = %s
             """,
             (data_source_id,),

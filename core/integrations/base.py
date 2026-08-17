@@ -75,6 +75,8 @@ class DataSource:
     field_mappings: Dict[str, str] = field(default_factory=dict)
     user_identifier_field: str = "user_id"
     documents_table_name: str = "documents"
+    csv_content: Optional[str] = None
+    csv_filename: Optional[str] = None
 
 
 class BaseDatabaseConnector(ABC):

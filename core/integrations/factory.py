@@ -6,6 +6,7 @@ from core.integrations.base import BaseDatabaseConnector, DataSource
 from core.integrations.sql_connectors import MySQLConnector, PostgreSQLConnector
 from core.integrations.mongodb import MongoDBConnector
 from core.integrations.rest_api import RestAPIConnector
+from core.integrations.csv_connector import CSVConnector
 from core.integrations.crm_connectors import (
     SalesforceConnector,
     HubSpotConnector,
@@ -19,6 +20,7 @@ CONNECTOR_MAP = {
     'postgresql': PostgreSQLConnector,
     'mongodb': MongoDBConnector,
     'rest_api': RestAPIConnector,
+    'csv': CSVConnector,
     'salesforce': SalesforceConnector,
     'hubspot': HubSpotConnector,
     'shopify': ShopifyConnector,
