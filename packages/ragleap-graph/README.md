@@ -33,41 +33,7 @@ related = graph.search_related_entities(["Acme Corp"], max_depth=2)
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    classDef write fill:#1e3a5f,stroke:#4a90d9,color:#fff
-    classDef read fill:#1a4d3a,stroke:#22c55e,color:#fff
-    classDef hybrid fill:#3d2645,stroke:#a855f7,color:#fff
-    classDef store fill:#4d3319,stroke:#f59e0b,color:#fff
-
-    subgraph Write["Write path"]
-        Doc["graph.upsert_document(...)"]:::write --> Extract["Entity/relation extraction<br/>regex default, LLM via method='llm'"]:::write
-        Extract --> Dedup["EntityDeduplicator (optional)<br/>dedup_enabled=True"]:::write
-    end
-
-    Dedup --> Neo4j["Neo4j graph<br/>Entity, Document,<br/>PairWeight, RelationWeight"]:::store
-    Neo4j --> Edges["CONTAINS, CO_OCCURS_WITH,<br/>RELATES_AS edges"]:::store
-
-    subgraph Read["Read path"]
-        FindDocs["find_documents_by_entities()"]:::read
-        SearchRel["search_related_entities()"]:::read
-        FindRel["find_relations()"]:::read
-        FindType["find_entities_by_type()"]:::read
-        Lineage["find_lineage()<br/>per-document contribution lookup"]:::read
-    end
-    Neo4j --> FindDocs
-    Neo4j --> SearchRel
-    Neo4j --> FindRel
-    Neo4j --> FindType
-    Neo4j --> Lineage
-
-    subgraph HybridRet["Hybrid retrieval"]
-        Retriever["GraphRetriever(graph, rag)"]:::hybrid --> VectorChunks["Vector chunks (ragleap-rag)"]:::hybrid
-        Retriever --> GraphContext["Graph context<br/>related_documents, related_entities"]:::hybrid
-        VectorChunks --> Combined["Combined result<br/>already_in_vector_results flag"]:::hybrid
-        GraphContext --> Combined
-    end
-```
+<img src="https://mermaid.ink/svg/Zmxvd2NoYXJ0IFRECiAgICBjbGFzc0RlZiB3cml0ZSBmaWxsOiMxZTNhNWYsc3Ryb2tlOiM0YTkwZDksY29sb3I6I2ZmZgogICAgY2xhc3NEZWYgcmVhZCBmaWxsOiMxYTRkM2Esc3Ryb2tlOiMyMmM1NWUsY29sb3I6I2ZmZgogICAgY2xhc3NEZWYgaHlicmlkIGZpbGw6IzNkMjY0NSxzdHJva2U6I2E4NTVmNyxjb2xvcjojZmZmCiAgICBjbGFzc0RlZiBzdG9yZSBmaWxsOiM0ZDMzMTksc3Ryb2tlOiNmNTllMGIsY29sb3I6I2ZmZgoKICAgIHN1YmdyYXBoIFdyaXRlWyJXcml0ZSBwYXRoIl0KICAgICAgICBEb2NbImdyYXBoLnVwc2VydF9kb2N1bWVudCguLi4pIl06Ojp3cml0ZSAtLT4gRXh0cmFjdFsiRW50aXR5L3JlbGF0aW9uIGV4dHJhY3Rpb248YnIvPnJlZ2V4IGRlZmF1bHQsIExMTSB2aWEgbWV0aG9kPSdsbG0nIl06Ojp3cml0ZQogICAgICAgIEV4dHJhY3QgLS0-IERlZHVwWyJFbnRpdHlEZWR1cGxpY2F0b3IgKG9wdGlvbmFsKTxici8-ZGVkdXBfZW5hYmxlZD1UcnVlIl06Ojp3cml0ZQogICAgZW5kCgogICAgRGVkdXAgLS0-IE5lbzRqWyJOZW80aiBncmFwaDxici8-RW50aXR5LCBEb2N1bWVudCw8YnIvPlBhaXJXZWlnaHQsIFJlbGF0aW9uV2VpZ2h0Il06OjpzdG9yZQogICAgTmVvNGogLS0-IEVkZ2VzWyJDT05UQUlOUywgQ09fT0NDVVJTX1dJVEgsPGJyLz5SRUxBVEVTX0FTIGVkZ2VzIl06OjpzdG9yZQoKICAgIHN1YmdyYXBoIFJlYWRbIlJlYWQgcGF0aCJdCiAgICAgICAgRmluZERvY3NbImZpbmRfZG9jdW1lbnRzX2J5X2VudGl0aWVzKCkiXTo6OnJlYWQKICAgICAgICBTZWFyY2hSZWxbInNlYXJjaF9yZWxhdGVkX2VudGl0aWVzKCkiXTo6OnJlYWQKICAgICAgICBGaW5kUmVsWyJmaW5kX3JlbGF0aW9ucygpIl06OjpyZWFkCiAgICAgICAgRmluZFR5cGVbImZpbmRfZW50aXRpZXNfYnlfdHlwZSgpIl06OjpyZWFkCiAgICAgICAgTGluZWFnZVsiZmluZF9saW5lYWdlKCk8YnIvPnBlci1kb2N1bWVudCBjb250cmlidXRpb24gbG9va3VwIl06OjpyZWFkCiAgICBlbmQKICAgIE5lbzRqIC0tPiBGaW5kRG9jcwogICAgTmVvNGogLS0-IFNlYXJjaFJlbAogICAgTmVvNGogLS0-IEZpbmRSZWwKICAgIE5lbzRqIC0tPiBGaW5kVHlwZQogICAgTmVvNGogLS0-IExpbmVhZ2UKCiAgICBzdWJncmFwaCBIeWJyaWRSZXRbIkh5YnJpZCByZXRyaWV2YWwiXQogICAgICAgIFJldHJpZXZlclsiR3JhcGhSZXRyaWV2ZXIoZ3JhcGgsIHJhZykiXTo6Omh5YnJpZCAtLT4gVmVjdG9yQ2h1bmtzWyJWZWN0b3IgY2h1bmtzIChyYWdsZWFwLXJhZykiXTo6Omh5YnJpZAogICAgICAgIFJldHJpZXZlciAtLT4gR3JhcGhDb250ZXh0WyJHcmFwaCBjb250ZXh0PGJyLz5yZWxhdGVkX2RvY3VtZW50cywgcmVsYXRlZF9lbnRpdGllcyJdOjo6aHlicmlkCiAgICAgICAgVmVjdG9yQ2h1bmtzIC0tPiBDb21iaW5lZFsiQ29tYmluZWQgcmVzdWx0PGJyLz5hbHJlYWR5X2luX3ZlY3Rvcl9yZXN1bHRzIGZsYWciXTo6Omh5YnJpZAogICAgICAgIEdyYXBoQ29udGV4dCAtLT4gQ29tYmluZWQKICAgIGVuZAo=" alt="ragleap-graph write/read/hybrid-retrieval architecture" width="100%">
 
 ## LLM-based extraction and dedup (v0.2.0+)
 

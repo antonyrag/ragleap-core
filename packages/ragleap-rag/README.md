@@ -637,30 +637,7 @@ See `examples/05_celery_background_tasks.py` for the full runnable version.
 **Current: v0.12.2** · 244 tests
 <!-- AUTO-STATS:END -->
 
-```mermaid
-flowchart TD
-    classDef ingest fill:#1e3a5f,stroke:#4a90d9,color:#fff
-    classDef query fill:#3d2645,stroke:#a855f7,color:#fff
-    classDef store fill:#1a4d3a,stroke:#22c55e,color:#fff
-
-    subgraph Ingest["Ingestion"]
-        Sources["Text, 28 formats,<br/>URLs, images, audio, video"]:::ingest
-        Sources --> Ingest1["rag.ingest(...)<br/>chunk -> embed -> store"]:::ingest
-    end
-
-    Ingest1 --> VectorStore["Vector backend (pluggable)<br/>pgvector default, or FAISS/Pinecone/<br/>Weaviate/Qdrant/Milvus via vector_backend="]:::store
-
-    subgraph Query["Query"]
-        Ask["rag.ask(...)"]:::query --> Rewrite["query_rewrite= (optional)<br/>contextual, hyde, multi_query"]:::query
-        Rewrite --> Hybrid["Hybrid retrieve<br/>dense + sparse (RRF)"]:::query
-        Hybrid --> Gen["Generation<br/>temp / prompt / response_format"]:::query
-        Gen --> Fallback["Fallback chain<br/>on primary provider failure"]:::query
-        Gen --> Cost["Cost tracking + guardrails<br/>real token usage -> cost_usd"]:::query
-        Cost --> Memory["Conversation memory (Postgres)<br/>optional session_id"]:::query
-    end
-
-    VectorStore --> Hybrid
-```
+<img src="https://mermaid.ink/svg/Zmxvd2NoYXJ0IFRECiAgICBjbGFzc0RlZiBpbmdlc3QgZmlsbDojMWUzYTVmLHN0cm9rZTojNGE5MGQ5LGNvbG9yOiNmZmYKICAgIGNsYXNzRGVmIHF1ZXJ5IGZpbGw6IzNkMjY0NSxzdHJva2U6I2E4NTVmNyxjb2xvcjojZmZmCiAgICBjbGFzc0RlZiBzdG9yZSBmaWxsOiMxYTRkM2Esc3Ryb2tlOiMyMmM1NWUsY29sb3I6I2ZmZgoKICAgIHN1YmdyYXBoIEluZ2VzdFsiSW5nZXN0aW9uIl0KICAgICAgICBTb3VyY2VzWyJUZXh0LCAyOCBmb3JtYXRzLDxici8-VVJMcywgaW1hZ2VzLCBhdWRpbywgdmlkZW8iXTo6OmluZ2VzdAogICAgICAgIFNvdXJjZXMgLS0-IEluZ2VzdDFbInJhZy5pbmdlc3QoLi4uKTxici8-Y2h1bmsgLT4gZW1iZWQgLT4gc3RvcmUiXTo6OmluZ2VzdAogICAgZW5kCgogICAgSW5nZXN0MSAtLT4gVmVjdG9yU3RvcmVbIlZlY3RvciBiYWNrZW5kIChwbHVnZ2FibGUpPGJyLz5wZ3ZlY3RvciBkZWZhdWx0LCBvciBGQUlTUy9QaW5lY29uZS88YnIvPldlYXZpYXRlL1FkcmFudC9NaWx2dXMgdmlhIHZlY3Rvcl9iYWNrZW5kPSJdOjo6c3RvcmUKCiAgICBzdWJncmFwaCBRdWVyeVsiUXVlcnkiXQogICAgICAgIEFza1sicmFnLmFzayguLi4pIl06OjpxdWVyeSAtLT4gUmV3cml0ZVsicXVlcnlfcmV3cml0ZT0gKG9wdGlvbmFsKTxici8-Y29udGV4dHVhbCwgaHlkZSwgbXVsdGlfcXVlcnkiXTo6OnF1ZXJ5CiAgICAgICAgUmV3cml0ZSAtLT4gSHlicmlkWyJIeWJyaWQgcmV0cmlldmU8YnIvPmRlbnNlICsgc3BhcnNlIChSUkYpIl06OjpxdWVyeQogICAgICAgIEh5YnJpZCAtLT4gR2VuWyJHZW5lcmF0aW9uPGJyLz50ZW1wIC8gcHJvbXB0IC8gcmVzcG9uc2VfZm9ybWF0Il06OjpxdWVyeQogICAgICAgIEdlbiAtLT4gRmFsbGJhY2tbIkZhbGxiYWNrIGNoYWluPGJyLz5vbiBwcmltYXJ5IHByb3ZpZGVyIGZhaWx1cmUiXTo6OnF1ZXJ5CiAgICAgICAgR2VuIC0tPiBDb3N0WyJDb3N0IHRyYWNraW5nICsgZ3VhcmRyYWlsczxici8-cmVhbCB0b2tlbiB1c2FnZSAtPiBjb3N0X3VzZCJdOjo6cXVlcnkKICAgICAgICBDb3N0IC0tPiBNZW1vcnlbIkNvbnZlcnNhdGlvbiBtZW1vcnkgKFBvc3RncmVzKTxici8-b3B0aW9uYWwgc2Vzc2lvbl9pZCJdOjo6cXVlcnkKICAgIGVuZAoKICAgIFZlY3RvclN0b3JlIC0tPiBIeWJyaWQK" alt="ragleap-rag request pipeline" width="100%">
 
 ## Supported LLM providers
 
