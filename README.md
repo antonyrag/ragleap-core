@@ -693,3 +693,8 @@ docker compose up --build -d
 
 **Port 5433 or 8000 already in use:**
 Another instance of this project (or something else) is using the port. Either stop it, or change the host-side port mapping in `docker-compose.yml` (the `"5433:5432"` and `"8000:8000"` lines) to something free.
+
+
+## Add AI Employees example scripts to examples/
+
+Documentation reference and guidelines for #135.
