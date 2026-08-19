@@ -212,6 +212,38 @@ This is the standard **open-core model** — the same approach used by projects 
 
 > This section documents the real internals of the hosted RagLeap platform — gathered by reading actual production source, not summarized from memory or marketing copy. Where something is confirmed *not* to be live (dead code, an unwired tool), it's labeled as such rather than omitted. This is a living section — deeper subsystems (billing, multi-tenant workspace routing) are deliberately excluded here since they're operational/SaaS infrastructure, not differentiating technology.
 
+### System Overview
+
+```mermaid
+flowchart TD
+    subgraph Channels["Entry points"]
+        Web[Web Chat] --- WA[WhatsApp] --- TG[Telegram] --- DC[Discord] --- Vc[Voice / Twilio]
+    end
+
+    Channels --> Router{"Owner or customer?<br/>(Voice: verified mobile number match.<br/>Text: personal bot vs. customer-facing config)"}
+
+    Router -->|Owner| MgrL1["Manager AI - Layer 1: Agent Framework<br/>regex router first, LLM classifier only on miss<br/>6 specialist agents, think/act/verify/heal loop"]
+    MgrL1 --> MgrL2["Layer 2: Autonomous Loop<br/>off / semi / full modes, per-workspace<br/>action + channel allowlists, approval protocol"]
+    MgrL2 --> MgrL3["Layer 3: LLM<br/>only reached when Layer 1 can't match an intent<br/>always given real, current workspace data"]
+    MgrL3 -.->|not yet wired, see Known Gaps| RAGShared["Customer-facing RAG index"]
+
+    Router -->|Customer| Addon["Addon DB action check<br/>RealTimeExternalDataService<br/>owner-configured SELECT/UPDATE/INSERT/DELETE"]
+    Addon --> RAG["RAG Retrieval<br/>pgvector cosine search + Neo4j entity-graph boost"]
+    RAGShared --- RAG
+
+    RAG --> Employees["AI Employees<br/>9 roles, pgvector learned memory,<br/>skill-based context injection"]
+    Employees --> Gen["Generation<br/>19-provider BYOK (Gemini/OpenAI/Anthropic/etc.)"]
+
+    Gen --> Mem["Persistent Memory<br/>transactional outbox: embedding/graph/TTS writes<br/>queued in the same DB transaction as the memory row"]
+
+    Ingest["Document / URL Ingestion<br/>OCR fallback, language detection,<br/>canary QA retrieval check before marking complete"] --> RAG
+
+    style MgrL3 fill:#2a2a3a,stroke:#66a
+    style RAGShared fill:#3a3a2a,stroke:#aa4
+```
+
+**How to read this**: solid arrows are confirmed, live data flow. Dotted arrows mark a real gap between two systems that look like they should already be connected but aren't (see `RAGQueryTool` in the Manager AI section below — Manager AI cannot currently query the customer-facing RAG index despite a tool existing for exactly that purpose). Each subsystem below is documented on its own with the same standard: read from real source, verified live or explicitly marked otherwise.
+
 ### Manager AI — Three-Layer Design
 
 Manager AI answers most owner requests **without calling an LLM at all**. A regex-based router matches intent first; only genuinely ambiguous requests reach a model, and even then the model is always given real, current workspace data rather than reasoning blind.
@@ -372,6 +404,26 @@ flowchart TD
 ```
 
 **Verified live**, read from `memory/models.py`'s `MemoryEntry` and `OutboxEvent` models. The transactional outbox pattern is genuinely notable: side effects (embedding generation, graph writes) are queued in the *same database transaction* as the memory write itself, so a crashed background worker can't cause a memory entry to silently end up without its embedding — the event just waits, retried, until it succeeds.
+
+### Voice Channel Routing (Hosted)
+
+```mermaid
+flowchart TD
+    A[Inbound call to workspace Twilio number] --> B["twilio_voice_incoming<br/>(memory/voice_views.py) - confirmed the only<br/>endpoint provisioned as a number's voice_url"]
+    B --> C{Caller number matches<br/>owner's verified mobile?}
+    C -->|Yes| D[Manager AI voice endpoint<br/>owner-facing]
+    C -->|No| E[twilio_voice_speech<br/>customer-facing]
+
+    E --> F["Addon DB action check<br/>RealTimeExternalDataService.match_and_execute_action<br/>NEW: real business-data lookups now run<br/>before RAG, matching the text channels"]
+    F --> G["process_voice_query - same /api/v1/query<br/>endpoint every channel uses. Matched DB<br/>results are folded into the query text"]
+    G --> H[synthesize_for_call<br/>twilio_voice_service.py]
+    H -.->|"Known gap: audio file hosting is<br/>unimplemented - both branches fall back<br/>to Twilio's built-in TTS voice"| I[Caller hears Twilio's built-in voice]
+```
+
+**Verified live**, read from `memory/voice_views.py` and `memory/twilio_voice_service.py`. Two things worth being direct about:
+
+- **Fixed**: customer voice calls previously had no path to real business data — a caller asking about an order or appointment could only get a RAG answer from documents, never a live database lookup, unlike WhatsApp/Telegram/Discord. `twilio_voice_speech` now runs the same `RealTimeExternalDataService.match_and_execute_action` step already used by the text channels before handing off to RAG, so a match gets folded into the query the AI answers from.
+- **Still open**: ElevenLabs TTS is never actually delivered to callers. `synthesize_for_call` in `twilio_voice_service.py` has an unimplemented audio-hosting step (`# TODO: Implement audio file hosting/S3 upload`) — both the success and fallback branches currently produce the same result, Twilio's built-in voice. A separate, unrelated ElevenLabs helper (`api/voice_ai.py::generate_elevenlabs_twiml`) does correctly upload synthesized audio to the project's R2/S3 storage, but it is not currently called from any live voice path — fixing this gap means wiring that upload logic into `synthesize_for_call` itself, not assuming the existing helper is already doing the job.
 
 ## Quickstart
 
@@ -550,6 +602,30 @@ and CLI.
   to match — that's a reasonable next step for a contributor
 
 ## Integrations
+
+```mermaid
+flowchart TD
+    subgraph Connectors["10 connectors, one shared interface"]
+        C1[MySQL] --- C2[PostgreSQL] --- C3[MongoDB]
+        C4[REST API] --- C5[Salesforce] --- C6[HubSpot]
+        C7[Shopify] --- C8[Google Sheets] --- C9[Stripe]
+        C10[CSV Upload]
+    end
+    Connectors --> Svc["RealTimeExternalDataService<br/>real-time query, 5-min cache, no separate sync step"]
+
+    Owner["Owner configures an action:<br/>trigger phrase or auto-match on SQL/field names<br/>+ a query template (SELECT / UPDATE / INSERT / DELETE)"] --> Svc
+
+    Svc --> Match["match_and_execute_action(workspace_id, user_message, user_identifier)<br/>extracts order_id / email / phone from the message,<br/>substitutes into the template, runs the query"]
+
+    Match --> Chat["Chat channels (WhatsApp/Telegram/Discord/Web)<br/>api/personal_bot_views.py"]
+    Match --> Voice["Voice channel<br/>memory/voice_views.py::twilio_voice_speech<br/>wired in 2026-08"]
+
+    Chat --> RAGCtx["Result injected as context<br/>into the RAG prompt"]
+    Voice --> RAGCtx
+    RAGCtx --> Answer["AI answers with real account/order/appointment<br/>data, not just document knowledge"]
+```
+
+**Verified live**, read from `api/addon_realtime.py`'s `RealTimeExternalDataService`. Two things worth being direct about: `match_and_execute_action` genuinely supports write queries (`UPDATE`/`INSERT`/`DELETE`), not just read-only lookups — owner-configured, so the safety boundary is whatever SQL the owner writes into the template, not something the framework restricts on its own. And until 2026-08, this action-matching step only ran on chat channels; voice calls had no equivalent, which is the gap closed in the Voice Channel Routing diagram above.
 
 RagLeap Core connects to external databases and business tools, syncing
 per-user context to personalize RAG responses. Nine connectors are
