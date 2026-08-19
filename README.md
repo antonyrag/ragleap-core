@@ -10,8 +10,9 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 
 [![CI](https://github.com/antonyrag/ragleap-core/actions/workflows/ci.yml/badge.svg)](https://github.com/antonyrag/ragleap-core/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/antonyrag/ragleap-core/actions/workflows/codeql.yml/badge.svg)](https://github.com/antonyrag/ragleap-core/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/antonyrag/ragleap-core)](https://github.com/antonyrag/ragleap-core/releases)
-[![PyPI](https://img.shields.io/pypi/v/ragleap-rag)](https://pypi.org/project/ragleap-rag/)
+[![Core Release](https://img.shields.io/badge/ragleap--core-v0.2.0-blue)](https://github.com/antonyrag/ragleap-core/releases/tag/v0.2.0)
+[![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/)
+[![PyPI ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core)
 [![Contributors](https://img.shields.io/github/contributors/antonyrag/ragleap-core)](https://github.com/antonyrag/ragleap-core/graphs/contributors)
 [![Good First Issues](https://img.shields.io/github/issues/antonyrag/ragleap-core/good%20first%20issue)](https://github.com/antonyrag/ragleap-core/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
