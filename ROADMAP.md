@@ -99,7 +99,21 @@ The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Nothin
 - [ ] `ragleap-ops` (ONGOING) — Docker/K8s templates, Helm charts, CI/CD, IaC; grows alongside every phase above rather than shipping as one release
 - [ ] `ragleap-studio` (LATER) — visual low-code builder UI
 - [ ] `ragleap-memory` (LATER) — shared long-term memory layer across agents/employees; an untracked `packages/ragleap-memory/` directory already exists from concurrent automation, not yet a scoped, owned package
-- [ ] `ragleap-intelligence` (VISION / EARLY DISCUSSION ONLY) — early-stage "AI employee twin" concept: persistent per-employee AI assistance with role continuity across turnover. Genuinely unscoped at this stage — open questions include office-only vs. personal-device access, telephony impersonation, and consent/labor-law implications. Not a committed roadmap item with a version target.
+- [ ] `ragleap-intelligence` (VISION / EARLY DISCUSSION ONLY) — see below
+
+### Vision: AI Employee Twins (concept, not yet designed or built)
+
+**The idea, in the terms it was proposed:** a Twin is tied to the *role*, not the *person*. It doesn't replace an employee — it makes them faster by holding project context, workflow knowledge, and role-specific expertise that would otherwise live only in one person's head. When someone leaves, the Twin doesn't leave with them — it becomes the trainer for whoever takes over the role, so continuity doesn't depend on a handover meeting that may or may not happen well. The stated boundary conditions, carried over unchanged from earlier discussion: **office-systems-only** (no personal-device access), **consent-based**, and **company-owned data**.
+
+**Honest status: this is a concept, not a design.** Nothing here is scoped, nothing is built, and nothing has a version target. Before any code exists, the real open questions need real answers — not marketing language:
+
+- **Consent mechanics** — who consents (the employee? the employer on their behalf?), to what specifically, and how is it revoked if someone changes their mind mid-employment?
+- **What "role-tied" means technically** — does the Twin's learned knowledge cleanly separate from anything personal to the individual who was in the role, or does that separation turn out to be harder than it sounds once real usage data is involved?
+- **Retention when a role changes hands** — what carries forward automatically vs. what requires an explicit handover step; what happens to a Twin's accumulated context if a role is eliminated entirely.
+- **"Office systems only" as an actual technical boundary** — what specifically does this include and exclude, and how is that boundary enforced in code rather than just stated as a policy.
+- **Labor-law and workplace-monitoring implications**, which vary by jurisdiction and are genuinely outside the scope of an engineering decision alone.
+
+This section exists so the vision is written down honestly — ambitious, but explicitly unscoped — rather than either hidden or overclaimed. Anyone interested in helping shape the actual design (not just the code) is welcome to open a Discussion; the scoping pass above needs to happen before any implementation work starts.
 
 ## Not planned for RagLeap Core
 
