@@ -754,6 +754,8 @@ See [ROADMAP.md](ROADMAP.md) for the full phase-by-phase history.
 
 RagLeap Core is working, tested, and open for contributions now. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get started, and check the [good first issue](../../issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) label for scoped tasks.
 
+Want to see exactly what's being worked on and what's open to claim? Check the [Project board](https://github.com/users/antonyrag/projects/1) — issues are staged as Good First Issue, Ready (Scoped), or Needs Scoping, so you can pick something that matches how much design work you want to do versus just build.
+
 **Student, professor, or looking for a capstone/thesis project?** See [STUDENT_PROJECTS.md](STUDENT_PROJECTS.md) for scoped project ideas at starter, semester, and research-grade levels.
 
 ## Community
