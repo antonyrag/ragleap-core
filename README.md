@@ -8,6 +8,14 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 
 ![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-core%20%2B%204%20channels%20%2B%20KG%20%2B%20multilingual%20%2B%20integrations-brightgreen)
 
+[![CI](https://github.com/antonyrag/ragleap-core/actions/workflows/ci.yml/badge.svg)](https://github.com/antonyrag/ragleap-core/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/antonyrag/ragleap-core/actions/workflows/codeql.yml/badge.svg)](https://github.com/antonyrag/ragleap-core/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/antonyrag/ragleap-core)](https://github.com/antonyrag/ragleap-core/releases)
+[![PyPI](https://img.shields.io/pypi/v/ragleap-rag)](https://pypi.org/project/ragleap-rag/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core)
+[![Contributors](https://img.shields.io/github/contributors/antonyrag/ragleap-core)](https://github.com/antonyrag/ragleap-core/graphs/contributors)
+[![Good First Issues](https://img.shields.io/github/issues/antonyrag/ragleap-core/good%20first%20issue)](https://github.com/antonyrag/ragleap-core/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+
 ---
 
 > **Not to be confused with `install.ragleap.com`** — that's a separate, paid, license-gated self-hosted product (Free tier with a license key, up to Enterprise). `ragleap-core` (this repo) is MIT-licensed, completely free, and never requires a license key. If you cloned this repo, you're in the right place for a genuinely free, open-source RAG engine.
