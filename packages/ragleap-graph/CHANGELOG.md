@@ -5,6 +5,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.6]
+### Added
+- Audit logging, backed by Postgres, fully opt-in via a new `audit=AuditConfig(database_url=...)` parameter on `GraphIndex.__init__()`. Records one event per call to `upsert_document()` and each of the 6 read methods (`find_relations`, `find_documents_by_entities`, `document_entities`, `find_entities_by_type`, `find_lineage`, `search_related_entities`) - `extract_query_entities()` is untouched, same reasoning as `user_id=` in v0.6.5, since it performs no Neo4j access. Requires the new `audit` extra: `pip install ragleap-graph[audit]`.
+- New `ragleap_graph._audit` module: `AuditConfig` (just `database_url=`, caller-supplied, never hardcoded - self-hosted users bring their own Postgres) and `AuditLogger`, which creates its own `ragleap_graph_audit_log` table (`CREATE TABLE IF NOT EXISTS`, idempotent) on first use.
+- Graceful degradation by design, matching the rest of the library: if `psycopg2` isn't installed, if `database_url` is unreachable, or if a single insert fails, the real Neo4j operation being audited still succeeds - a warning is logged, nothing raises. Audit logging can fail; the feature it's auditing must not fail because of it.
+### Verified
+- Live-verified against real Postgres and real Neo4j together, not mocked. Graceful degradation confirmed across all failure modes: no config, config with no `database_url`, and a genuinely unreachable database - none of them raise. The real success path was proven twice: a manual live insert/query round-trip, and a full regression test (`test_audit_logging_records_every_wired_method`) that calls all 7 real audit-wired methods and confirms exactly 7 correctly-ordered, correctly-tagged rows land in Postgres. Full suite: 87 passed, 1 skipped (unrelated, no `GEMINI_API_KEY`) - zero regressions.
+
 ## [0.6.5]
 ### Added
 - `user_id=` parameter on `upsert_document()` and all read methods (`find_relations()`, `find_documents_by_entities()`, `document_entities()`, `find_entities_by_type()`, `find_lineage()`) for per-user data isolation within a namespace - the split-identity model, matching how `namespace=` already isolates tenants. `Entity`/`Document`/`PairWeight`/`RelationWeight` MERGE keys now include `user_id`, so two different users writing the same entity name get genuinely separate nodes. `extract_query_entities()` is unaffected - it performs no Neo4j access, so `user_id=` does not apply.

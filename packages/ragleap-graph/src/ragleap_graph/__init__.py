@@ -32,6 +32,8 @@ try:
 except ImportError:
     GraphDatabase = None
 
+from ._audit import AuditConfig, AuditLogger
+
 # v0.2.0: optional LLM-based entity extraction and dedup. Importing these
 # is always safe with zero new hard dependencies - extraction.py itself
 # only requires ragleap-rag if method="llm" is actually selected at
@@ -48,7 +50,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.5"
+__version__ = "0.6.6"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -101,9 +103,11 @@ class GraphIndex:
         self,
         config: Optional[GraphConfig] = None,
         extraction: Optional[ExtractionConfig] = None,
+        audit: Optional[AuditConfig] = None,
     ):
         self.config = config or GraphConfig()
         self.driver = None
+        self._audit = AuditLogger(audit)
 
         # v0.2.0: entity-extraction strategy. Defaults to ExtractionConfig()
         # which is method="regex", dedup_enabled=False - identical behavior
@@ -153,9 +157,10 @@ class GraphIndex:
             self.driver = None
 
     def close(self) -> None:
-        """Close the Neo4j driver connection."""
+        """Close the Neo4j driver connection and the audit log connection, if any."""
         if self.driver:
             self.driver.close()
+        self._audit.close()
 
     def __enter__(self) -> "GraphIndex":
         return self
@@ -592,6 +597,18 @@ class GraphIndex:
                     summary["relations_indexed"] += 1
 
 
+            self._audit.log(
+                user_id=uid,
+                namespace=ns,
+                action="upsert_document",
+                document_id=str(document_id),
+                entity_count=summary["entities_indexed"],
+                detail={
+                    "relationships_indexed": summary["relationships_indexed"],
+                    "relations_indexed": summary["relations_indexed"],
+                },
+            )
+
             summary["success"] = True
             return summary
 
@@ -652,6 +669,12 @@ class GraphIndex:
                         "graph_score": float(row["graph_score"] or 0.0),
                         "matched_entity_names": list(row["matched_entity_names"] or []),
                     })
+                self._audit.log(
+                    user_id=uid,
+                    namespace=ns,
+                    action="find_documents_by_entities",
+                    detail={"entity_names": normalized, "result_count": len(docs)},
+                )
                 return docs
 
         except Exception as e:
@@ -734,6 +757,12 @@ class GraphIndex:
                         "relationship": row["relationship"],
                         "depth": int(row["depth"]),
                     })
+                self._audit.log(
+                    user_id=uid,
+                    namespace=ns,
+                    action="search_related_entities",
+                    detail={"entity_names": normalized, "max_depth": max_depth, "result_count": len(related)},
+                )
                 return related
 
         except ValueError:
@@ -844,6 +873,12 @@ class GraphIndex:
                         "object": row["object"],
                         "weight": float(row["weight"]),
                     })
+                self._audit.log(
+                    user_id=uid,
+                    namespace=ns,
+                    action="find_relations",
+                    detail={"entity_name": entity_name, "direction": direction, "result_count": len(relations)},
+                )
                 return relations
         except Exception as e:
             logger.error(f"Relation search error: {e}", exc_info=True)
@@ -886,6 +921,13 @@ class GraphIndex:
                         "entity_id": row["entity_id"],
                         "entity_name": row["entity_name"],
                     })
+                self._audit.log(
+                    user_id=uid,
+                    namespace=ns,
+                    action="document_entities",
+                    document_id=str(document_id),
+                    detail={"result_count": len(entities)},
+                )
                 return entities
 
         except Exception as e:
@@ -951,6 +993,12 @@ class GraphIndex:
                         "entity_name": row["entity_name"],
                         "entity_type": row["entity_type"],
                     })
+                self._audit.log(
+                    user_id=uid,
+                    namespace=ns,
+                    action="find_entities_by_type",
+                    detail={"entity_type": entity_type, "result_count": len(entities)},
+                )
                 return entities
 
         except Exception as e:
@@ -1040,6 +1088,12 @@ class GraphIndex:
                         "weight": row["weight"],
                     })
 
+            self._audit.log(
+                user_id=uid,
+                namespace=ns,
+                action="find_lineage",
+                detail={"entity_a": entity_a, "entity_b": entity_b, "result_count": len(contributions)},
+            )
             return contributions[:max(1, int(limit))]
         except Exception as e:
             logger.error(f"Lineage lookup error: {e}", exc_info=True)
