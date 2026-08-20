@@ -14,6 +14,7 @@ import requests
 
 from core.chat import ask
 from core.workflows import call_n8n_workflows
+from core.autonomy import process_approval_response
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,14 @@ def handle_incoming_message(chat_id, message_text: str) -> str:
         reply = "Please send a question and I'll do my best to answer from the documents I have."
         send_telegram_message(chat_id, reply)
         return reply
+
+    try:
+        approval_reply = process_approval_response(message_text)
+        if approval_reply is not None:
+            send_telegram_message(chat_id, approval_reply)
+            return approval_reply
+    except Exception as e:
+        logger.warning(f"Telegram: approval-check error: {e}")
 
     if message_text.strip() == "/start":
         welcome = (
