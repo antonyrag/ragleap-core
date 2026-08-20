@@ -218,6 +218,11 @@ NEO4J_USER = os.environ.get("NEO4J_USER")
 NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD")
 HAS_LIVE_NEO4J = bool(NEO4J_URI and NEO4J_USER and NEO4J_PASSWORD)
 
+TEST_DATABASE_URL = os.environ.get(
+    "RAGLEAP_TEST_DATABASE_URL",
+    "postgresql://ragleap_test_user:ragleap_test_pass@127.0.0.1:5432/ragleap_test",
+)
+
 ollama_available = True
 try:
     import requests
@@ -760,3 +765,90 @@ def test_find_entities_by_type_empty_without_driver(graph_no_driver):
 def test_find_entities_by_type_empty_string_returns_empty(graph_no_driver):
     assert graph_no_driver.find_entities_by_type("") == []
     assert graph_no_driver.find_entities_by_type("   ") == []
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_audit_logging_records_every_wired_method():
+    """
+    Regression test for audit logging (v0.6.6). Live-verifies against
+    real Postgres AND real Neo4j - not a mock - that all 7 audit-wired
+    methods (upsert_document + 6 read methods) each produce exactly one
+    correctly-tagged row in ragleap_graph_audit_log.
+    Uses a unique namespace/user_id pair so this test's rows are
+    trivially distinguishable from anything else that may exist in the
+    shared test database, and cleans up both Postgres and Neo4j state
+    in the finally block regardless of outcome.
+    """
+    import psycopg2
+
+    from ragleap_graph import GraphConfig, GraphIndex
+    from ragleap_graph._audit import AuditConfig
+
+    audit_ns = "__audit_test_ns__"
+    audit_uid = "audit_test_user"
+    doc_id = "audit-test-doc-1"
+
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    audit = AuditConfig(database_url=TEST_DATABASE_URL)
+    graph = GraphIndex(config=config, audit=audit)
+
+    try:
+        summary = graph.upsert_document(
+            document_id=doc_id,
+            title="Audit Test",
+            chunks=[{"text": "Audit Test Corp announced new products today."}],
+            namespace=audit_ns,
+            user_id=audit_uid,
+        )
+        assert summary["success"] is True
+
+        graph.find_relations("Audit Test Corp", namespace=audit_ns, user_id=audit_uid)
+        graph.find_documents_by_entities(["Audit Test Corp"], namespace=audit_ns, user_id=audit_uid)
+        graph.document_entities(doc_id, namespace=audit_ns, user_id=audit_uid)
+        graph.find_entities_by_type("UNKNOWN", namespace=audit_ns, user_id=audit_uid)
+        graph.find_lineage("Audit Test Corp", "Nonexistent Entity", namespace=audit_ns, user_id=audit_uid)
+        graph.search_related_entities(["Audit Test Corp"], namespace=audit_ns, user_id=audit_uid)
+
+        pg_conn = psycopg2.connect(TEST_DATABASE_URL)
+        try:
+            with pg_conn.cursor() as cur:
+                cur.execute(
+                    "SELECT action, user_id, namespace FROM ragleap_graph_audit_log "
+                    "WHERE namespace = %s ORDER BY id",
+                    (audit_ns,),
+                )
+                rows = cur.fetchall()
+        finally:
+            pg_conn.close()
+
+        actions = [r[0] for r in rows]
+        expected_actions = [
+            "upsert_document",
+            "find_relations",
+            "find_documents_by_entities",
+            "document_entities",
+            "find_entities_by_type",
+            "find_lineage",
+            "search_related_entities",
+        ]
+        assert actions == expected_actions, f"Expected {expected_actions}, got {actions}"
+        assert all(r[1] == audit_uid for r in rows)
+        assert all(r[2] == audit_ns for r in rows)
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=audit_ns,
+            )
+        graph.close()
+        try:
+            pg_conn = psycopg2.connect(TEST_DATABASE_URL)
+            with pg_conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM ragleap_graph_audit_log WHERE namespace = %s",
+                    (audit_ns,),
+                )
+            pg_conn.commit()
+            pg_conn.close()
+        except Exception:
+            pass
