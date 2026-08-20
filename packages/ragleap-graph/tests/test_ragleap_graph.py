@@ -230,6 +230,12 @@ try:
 except Exception:
     ollama_available = False
 
+psycopg2_available = True
+try:
+    import psycopg2  # noqa: F401
+except ImportError:
+    psycopg2_available = False
+
 TEST_NAMESPACE = "ragleap_graph_pytest"
 
 
@@ -767,7 +773,10 @@ def test_find_entities_by_type_empty_string_returns_empty(graph_no_driver):
     assert graph_no_driver.find_entities_by_type("   ") == []
 
 
-@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+@pytest.mark.skipif(
+    not (HAS_LIVE_NEO4J and psycopg2_available),
+    reason="No live Neo4j credentials, or psycopg2 not installed (pip install ragleap-graph[audit])",
+)
 def test_audit_logging_records_every_wired_method():
     """
     Regression test for audit logging (v0.6.6). Live-verifies against
