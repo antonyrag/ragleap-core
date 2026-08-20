@@ -162,6 +162,43 @@ CREATE TABLE IF NOT EXISTS n8n_workflows (
 CREATE INDEX IF NOT EXISTS n8n_workflows_active_idx
     ON n8n_workflows (is_active);
 
+-- Autonomous Loop settings — single-tenant port of production's
+-- api/autonomy_engine.py. One row (singleton, no workspace FK).
+CREATE TABLE IF NOT EXISTS autonomy_settings (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    mode              TEXT NOT NULL DEFAULT 'off',
+    channels          JSONB NOT NULL DEFAULT '[]',
+    actions           JSONB NOT NULL DEFAULT '[]',
+    approval_channel  TEXT NOT NULL DEFAULT 'telegram',
+    approval_target   TEXT NOT NULL DEFAULT '',
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Pending actions awaiting owner approval in "semi" mode.
+CREATE TABLE IF NOT EXISTS autonomy_pending (
+    action_id     TEXT PRIMARY KEY,
+    action_type   TEXT NOT NULL,
+    channel       TEXT NOT NULL,
+    target        TEXT NOT NULL,
+    content       TEXT NOT NULL,
+    subject       TEXT NOT NULL DEFAULT '',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Bounded audit log of every autonomous action (executed, rejected, or errored).
+CREATE TABLE IF NOT EXISTS autonomy_log (
+    id           BIGSERIAL PRIMARY KEY,
+    action_type  TEXT NOT NULL,
+    channel      TEXT NOT NULL,
+    target       TEXT NOT NULL,
+    content      TEXT NOT NULL,
+    result       TEXT NOT NULL,
+    approved     BOOLEAN NOT NULL DEFAULT true,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS autonomy_log_created_idx
+    ON autonomy_log (created_at DESC);
+
 -- CSV connector content storage — no persistent disk volume exists in
 -- docker-compose.yml, so CSV content lives in Postgres like everything
 -- else in Core, rather than on the container filesystem.
