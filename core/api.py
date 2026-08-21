@@ -20,6 +20,7 @@ from core.employees import roles as employee_roles
 from core.employees import skills as employee_skills
 from core.employees import learning as employee_learning
 from core import workflows
+from core import autonomy
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
@@ -77,6 +78,22 @@ class WorkflowUpdateRequest(BaseModel):
     webhook_url: str | None = None
     channels: list[str] | None = None
     is_active: bool | None = None
+
+
+class AutonomySettingsRequest(BaseModel):
+    mode: str
+    channels: list[str] = []
+    actions: list[str] = []
+    approval_channel: str = "telegram"
+    approval_target: str = ""
+
+
+class AutonomyActionRequest(BaseModel):
+    action_type: str
+    channel: str
+    target: str
+    content: str
+    subject: str = ""
 
 
 class RoleUpdateRequest(BaseModel):
@@ -496,3 +513,47 @@ async def create_csv_integration(
         raise HTTPException(status_code=500, detail=f"Failed to create CSV data source: {exc}") from exc
     finally:
         await file.close()
+
+
+@app.get("/autonomy")
+def get_autonomy():
+    """Get current Autonomous Loop settings (mode, allowlists, approval config)."""
+    return autonomy.get_autonomy_settings()
+
+
+@app.post("/autonomy")
+def set_autonomy(req: AutonomySettingsRequest):
+    """
+    Configure the Autonomous Loop. mode must be one of "off"/"semi"/"full".
+    channels/actions are allowlists - empty means no restriction beyond
+    mode itself. approval_channel/approval_target are required for "semi"
+    mode (where approval requests are sent).
+    """
+    if req.mode not in ("off", "semi", "full"):
+        raise HTTPException(status_code=400, detail='mode must be "off", "semi", or "full"')
+    ok = autonomy.set_autonomy(
+        mode=req.mode, channels=req.channels, actions=req.actions,
+        approval_channel=req.approval_channel, approval_target=req.approval_target,
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to update autonomy settings")
+    return autonomy.get_autonomy_settings()
+
+
+@app.post("/autonomy/execute")
+def execute_autonomous_action(req: AutonomyActionRequest):
+    """
+    Trigger the Autonomous Loop dispatcher for a given action. Respects
+    current mode and allowlists - may execute immediately (full mode),
+    queue for approval (semi mode), or skip (off mode / not allowlisted).
+    """
+    return autonomy.execute_or_request(
+        action_type=req.action_type, channel=req.channel, target=req.target,
+        content=req.content, subject=req.subject,
+    )
+
+
+@app.get("/autonomy/report")
+def get_autonomy_report():
+    """Get today's Autonomous Loop activity report."""
+    return {"report": autonomy.generate_autonomy_daily_report()}
