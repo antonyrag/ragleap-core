@@ -1,0 +1,10 @@
+# Minimal Jekyll config for GitHub Pages.
+# No theme - just enough to apply a default layout (for mermaid.js) to
+# every page, since GitHub Pages serves README.md as the site index by
+# default with zero styling/scripts otherwise.
+markdown: kramdown
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: "default"
