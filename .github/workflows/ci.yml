@@ -91,6 +91,43 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v
+  core-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ragleap
+          POSTGRES_PASSWORD: ragleap
+          POSTGRES_DB: ragleap_core
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Apply schema
+        env:
+          PGPASSWORD: ragleap
+        run: psql -h localhost -U ragleap -d ragleap_core -f db/schema.sql
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run core test suite
+        env:
+          DATABASE_URL: postgresql://ragleap:ragleap@localhost:5432/ragleap_core
+        run: |
+          python -m pytest tests/ -v
+
   ragleap-rag-tests:
     runs-on: ubuntu-latest
     services:
