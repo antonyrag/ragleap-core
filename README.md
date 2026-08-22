@@ -29,6 +29,8 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 pip install ragleap-rag
 ```
 
+> ⭐ If this helps you, please consider starring the repo — it genuinely helps more people find it.
+
 Add `ragleap-graph` too if you want Neo4j-backed knowledge graph retrieval:
 ```bash
 pip install ragleap-rag ragleap-graph
