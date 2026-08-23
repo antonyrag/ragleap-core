@@ -49,7 +49,7 @@ def _prepare(query: str, top_k: int, hybrid: bool):
     return chunks, detected_language, False
 
 
-def _build_system_prompt(role: Optional[str], query: str, base_system_prompt: Optional[str]) -> Optional[str]:
+def _build_system_prompt(role: Optional[str], query: str, base_system_prompt: Optional[str]):
     """
     When a role is given, layers the role's personality and role-scoped
     context (owner instructions, business profile, learned patterns) on
@@ -68,10 +68,10 @@ def _build_system_prompt(role: Optional[str], query: str, base_system_prompt: Op
     role until this fix).
     """
     if not role:
-        return base_system_prompt
+        return base_system_prompt, []
 
     personality = employee_skills.get_role_personality(role)
-    role_context = employee_skills.get_role_skills(role=role, query=query)
+    role_context, role_memory_ids = employee_skills.get_role_skills_with_ids(role=role, query=query)
 
     grounding = base_system_prompt or (
         "You are a helpful assistant. Answer questions using the business "
@@ -96,7 +96,7 @@ def _build_system_prompt(role: Optional[str], query: str, base_system_prompt: Op
     if role_context:
         parts.append("Business and role context (treat as authoritative, alongside retrieved documents):\n" + role_context)
     parts.append(grounding)
-    return "\n\n".join(parts)
+    return "\n\n".join(parts), role_memory_ids
 
 
 def _augment_query_with_reminder(role, query):
@@ -149,13 +149,14 @@ def ask(
             "detected_language": detected_language,
         }
 
-    effective_system_prompt = _build_system_prompt(role, query, system_prompt)
+    effective_system_prompt, role_memory_ids = _build_system_prompt(role, query, system_prompt)
     generation_query = _augment_query_with_reminder(role, query)
     result = generator.generate_answer(
         generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt, max_tokens=max_tokens
     )
     result["chunks_used"] = len(chunks)
     result["detected_language"] = detected_language
+    result["role_memory_ids"] = role_memory_ids
     return result
 
 
@@ -181,7 +182,7 @@ def ask_stream(
         yield "Sorry, I couldn't process your question (embedding failed)."
         return
 
-    effective_system_prompt = _build_system_prompt(role, query, system_prompt)
+    effective_system_prompt, _role_memory_ids = _build_system_prompt(role, query, system_prompt)
     generation_query = _augment_query_with_reminder(role, query)
     yield from generator.generate_answer_stream(
         generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt, max_tokens=max_tokens

@@ -7,6 +7,26 @@ from core.employees._db import get_connection
 logger = logging.getLogger(__name__)
 
 
+def record_role_memory_outcome(memory_ids, success: bool, weight: float = 0.05):
+    """
+    Closes the loop on outcome-weighted memory: call once the real
+    outcome of a role-generated response is known (conversation
+    resolved well / owner approved an autonomous action / vs. the
+    opposite). Reinforces or decays the specific memory entries that
+    were retrieved to produce that response, via chat.ask()'s
+    returned role_memory_ids -- so future retrieval for this role
+    naturally favors what has actually worked.
+
+    This does not change any model weights and is not learning in
+    the training sense -- it is an adaptive importance signal on top
+    of the existing retrieval system.
+    """
+    if not memory_ids:
+        return 0
+    delta = weight if success else -weight
+    return memory.reinforce_memories(memory_ids, delta)
+
+
 def learn_from_owner_instruction(instruction_text: str):
     if not instruction_text or len(instruction_text.strip()) < 10:
         return

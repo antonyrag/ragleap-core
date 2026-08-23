@@ -60,6 +60,44 @@ def write_learned_skill(text, tags, importance=0.7, source="interaction",
         conn.close()
 
 
+def reinforce_memories(ids: List[str], delta: float) -> int:
+    """
+    Nudge importance for specific memory entries based on a real
+    outcome (positive delta = the memory contributed to a good
+    outcome, negative = it did not). Clamped to [0.1, 1.0] so no
+    single event can zero out or max out a memory permanently.
+    Returns the number of rows updated.
+
+    This is NOT model training -- no weights change. It is an
+    adaptive importance signal layered on the existing retrieval
+    system: entries that keep contributing to good outcomes surface
+    more often, entries that do not gradually surface less.
+    """
+    if not ids:
+        return 0
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE employee_memory
+            SET importance = LEAST(1.0, GREATEST(0.1, importance + %s))
+            WHERE id = ANY(%s::uuid[])
+            """,
+            (delta, ids),
+        )
+        updated = cur.rowcount
+        conn.commit()
+        cur.close()
+        return updated
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"reinforce_memories error: {e}")
+        return 0
+    finally:
+        conn.close()
+
+
 def get_owner_instructions() -> str:
     rows = tag_search(["owner_instruction"], top_k=3)
     if not rows:
