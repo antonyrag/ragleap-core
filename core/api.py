@@ -104,6 +104,11 @@ class RoleUpdateRequest(BaseModel):
     is_active: bool | None = None
 
 
+class MemoryFeedbackRequest(BaseModel):
+    role_memory_ids: list[str]
+    success: bool
+
+
 class DataSourceCreateRequest(BaseModel):
     name: str
     source_type: str
@@ -201,6 +206,7 @@ def chat(
             "detected_language": result.get("detected_language"),
             "provider_used": result.get("provider_used"),
             "usage": result.get("usage"),
+            "role_memory_ids": result.get("role_memory_ids", []),
         }
     except Exception as exc:
         logger.exception("Chat failed for question: %s", question)
@@ -238,6 +244,28 @@ def chat_stream(
             yield f"\n[Error: {exc}]"
 
     return StreamingResponse(_generate(), media_type="text/plain")
+
+
+@app.post("/chat/feedback")
+def chat_feedback(req: MemoryFeedbackRequest):
+    """
+    Report the real outcome of a role-based /chat response, so the
+    memory entries that fed it get reinforced or decayed accordingly.
+
+    Call this once you actually know whether the response worked --
+    e.g. the conversation resolved well, or an owner approved/
+    rejected an autonomous action that followed from it.
+    role_memory_ids comes from the /chat response for role-based
+    requests (empty list if no role was set, in which case this is
+    a no-op).
+
+    This is not model training -- no weights change. It is an
+    adaptive importance signal on the existing retrieval system.
+    """
+    updated = employee_learning.record_role_memory_outcome(
+        req.role_memory_ids, success=req.success
+    )
+    return {"updated": updated}
 
 
 @app.post("/webhook/whatsapp")
