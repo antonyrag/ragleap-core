@@ -136,7 +136,7 @@ def handle_incoming_message(from_phone: str, message_text: str) -> str:
         logger.warning(f"WhatsApp: approval-check error: {e}")
 
     try:
-        result = ask(message_text)
+        result = ask(message_text, role="support")
         answer = result.get("answer", "Sorry, I couldn't generate an answer.")
     except Exception as e:
         logger.error(f"WhatsApp: error answering message from {from_phone}: {e}", exc_info=True)
