@@ -121,7 +121,50 @@ def test_search_dense_returns_chunks_with_text_from_sqlite(tmp_path):
 
     assert len(results) == 1
     assert results[0]["text"] == "real text"
-    assert results[0]["similarity_score"] == 0.87
+    # Milvus COSINE raw distance 0.87 normalized to [0,1]: (0.87 + 1) / 2
+    assert results[0]["similarity_score"] == 0.935
+
+
+def test_search_dense_normalizes_cosine_similarity_to_unit_range(tmp_path):
+    """
+    Regression test for the similarity_score normalization fix. Milvus
+    with metric_type="COSINE" returns raw cosine similarity in [-1, 1]
+    (verified against Milvus's own docs - not a true distance). This
+    confirms the linear [-1,1] -> [0,1] transform at its boundaries and
+    midpoint, matching pgvector/weaviate's normalized-range convention.
+    """
+    backend = _make_backend(tmp_path)
+    backend._dimensions = 2
+    backend._client = MagicMock()
+
+    backend._conn.execute(
+        "INSERT INTO chunks (vector_key, document_id, document_name, chunk_index, text, token_count, metadata) "
+        "VALUES ('doc1:0', 'doc1', 'test.txt', 0, 'identical vector', 5, '{}')"
+    )
+    backend._conn.execute(
+        "INSERT INTO chunks (vector_key, document_id, document_name, chunk_index, text, token_count, metadata) "
+        "VALUES ('doc1:1', 'doc1', 'test.txt', 1, 'orthogonal vector', 5, '{}')"
+    )
+    backend._conn.execute(
+        "INSERT INTO chunks (vector_key, document_id, document_name, chunk_index, text, token_count, metadata) "
+        "VALUES ('doc1:2', 'doc1', 'test.txt', 2, 'opposite vector', 5, '{}')"
+    )
+    backend._conn.commit()
+
+    # Cosine similarity of 1.0 (identical), 0.0 (orthogonal), -1.0 (opposite)
+    backend._client.search.return_value = [[
+        {"id": "doc1:0", "distance": 1.0},
+        {"id": "doc1:1", "distance": 0.0},
+        {"id": "doc1:2", "distance": -1.0},
+    ]]
+
+    results = backend.search_dense(embedding=[0.1, 0.2], top_k=5)
+
+    assert len(results) == 3
+    by_text = {r["text"]: r["similarity_score"] for r in results}
+    assert by_text["identical vector"] == 1.0
+    assert by_text["orthogonal vector"] == 0.5
+    assert by_text["opposite vector"] == 0.0
 
 
 def test_search_dense_skips_orphaned_hits(tmp_path):

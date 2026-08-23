@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.3] - 2026-08-23
+
+### Fixed
+
+- Milvus backend's `similarity_score` is now normalized to `[0, 1]`, matching `pgvector`/`weaviate`'s convention. Milvus with `metric_type="COSINE"` returns raw cosine similarity in the field it labels "distance" - verified against Milvus's own documentation, this was already correctly ordered (higher = more similar), not backwards, but its range was inconsistent: raw cosine similarity spans `[-1, 1]`, while `pgvector` (`1 - distance/2`) and `weaviate_backend.py` (`1.0 - distance`) already normalize to `[0, 1]`. A caller filtering on `similarity_score` (e.g. `score > 0.5`) would behave correctly for those two backends but break silently for Milvus's negative scores. Fixed via the standard `(x + 1) / 2` linear transform - preserves exact ranking order, adds consistent range. New regression test (`test_search_dense_normalizes_cosine_similarity_to_unit_range`) confirms the transform at all three boundaries (identical/orthogonal/opposite vectors -> 1.0/0.5/0.0). This is a breaking change to output values for anyone depending on Milvus's previous raw `[-1, 1]` scores - acceptable pre-1.0, and this inconsistency was already a documented, known limitation rather than a silent surprise.
+
 ## [0.12.1] - 2026-08-08
 
 ### Fixed
