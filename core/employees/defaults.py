@@ -54,6 +54,20 @@ DEFAULT_ROLES = [
      "personality": "You are the AI Operations Agent for this business. You manage integrations, database actions, workflow automations, and operational tasks. You are systematic, reliable, and always log what actions you take."},
 ]
 
+# Roles that touch a sensitive domain (health, financial, legal) - a
+# structural guardrail, not just a documentation convention. Any role
+# type listed here should have core.autonomy's mode locked to "semi"
+# (or "off") when paired with the Autonomous Loop, regardless of what
+# the workspace's general autonomy_settings say. See RFC discussion
+# #171 and ROADMAP.md's "Vision: Vertical AI Employees" section.
+#
+# No role in DEFAULT_ROLES above is sensitive-domain today - "finance"
+# handles invoice/payment *conversations*, not medical, legal, or
+# account-holding actions. This set exists for contributors adding new
+# role types (e.g. a future "healthcare_intake" or "legal_intake" role)
+# to opt into the safety default from day one, not as an afterthought.
+SENSITIVE_DOMAIN_ROLES = set()
+
 DEFAULT_MEMORY_SEEDS = [
     {"tags": ["business", "identity", "core"], "importance": 1.0,
      "text": "BUSINESS PROFILE: This deployment has not yet completed its business profile. The AI will auto-learn from uploaded documents, customer conversations, and integration usage to build this profile automatically. Owner can also fill it in to boost accuracy immediately."},

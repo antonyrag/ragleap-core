@@ -56,10 +56,13 @@ or start a [Discussion](../../discussions), and we'll help scope it together.
 - **Multi-language voice quality** — the Voice channel's known limitation
   (OpenAI TTS is English-tuned) is a real, unsolved problem. A proper
   language-detection + provider-routing solution is genuinely open research.
-- **Autonomous agent capabilities** — RagLeap's core today is Q&A only.
-  What would a scoped, honest first step toward agentic actions (not
-  full Manager AI) look like, kept safely within a single-tenant,
-  self-hosted context?
+- **Vertical AI Employee roles with enforced safety guardrails** — the
+  Autonomous Loop (see ROADMAP.md) makes RagLeap's core capable of real
+  agentic actions today, not just Q&A. The open research question is how
+  a domain-specific role (healthcare, financial, legal) can have its data
+  handling *validated* to stay within a defined boundary, rather than
+  just trusting the system prompt — see `SENSITIVE_DOMAIN_ROLES` and the
+  "Vision: Vertical AI Employees" section in ROADMAP.md for context.
 
 ---
 

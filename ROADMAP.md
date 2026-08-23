@@ -115,6 +115,54 @@ The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Nothin
 
 This section exists so the vision is written down honestly — ambitious, but explicitly unscoped — rather than either hidden or overclaimed. Anyone interested in helping shape the actual design (not just the code) is welcome to open a Discussion; the scoping pass above needs to happen before any implementation work starts.
 
+## Vision: Vertical AI Employees (healthcare, financial, legal)
+
+Contributors have asked about domain-specific AI Employee roles —
+things like a healthcare intake assistant, a financial advisory agent,
+or a legal intake bot — with real auto-triggering behavior through the
+Autonomous Loop (see Phase B above), not just Q&A.
+
+This is a genuinely different risk category from something like a
+Slack connector: a wrong auto-triggered action in these domains
+carries real regulatory, financial, or legal-liability weight. So this
+is being sequenced deliberately:
+
+1. Land a structural, code-level guardrail first (`SENSITIVE_DOMAIN_ROLES`
+   in `core/employees/defaults.py`) — any role type marked sensitive-domain
+   has its Autonomous Loop mode locked to `semi` or `off`, regardless of
+   what the workspace's general autonomy settings say.
+2. Write the open compliance-boundary questions down honestly (below),
+   rather than pretending they're already answered.
+3. Validate the overall pattern on one lower-stakes example role (support
+   or scheduling suggested) before opening healthcare/financial/legal
+   templates to contributors.
+4. Only then invite wide contribution on actual vertical role templates.
+
+As of this guardrail landing, no vertical role template exists yet —
+`SENSITIVE_DOMAIN_ROLES` is an empty set, ready for contributors to opt
+new sensitive role types into, not a set of shipped roles.
+
+Open questions that need real answers before any vertical role ships:
+
+- **Data handling boundaries** — how do we validate that a role's data
+  access actually stays within a defined boundary (e.g. a healthcare
+  intake role only touching intake-relevant fields), rather than just
+  trusting the system prompt to behave?
+- **Regulatory scope** — which jurisdictions' rules (HIPAA-like, financial
+  advisory licensing, legal-practice rules) apply, and how does a
+  self-hosted, contributor-built role avoid inadvertently practicing a
+  regulated profession?
+- **Escalation and human-in-the-loop guarantees** — beyond the Autonomous
+  Loop's existing approval protocol, what additional guarantees does a
+  sensitive-domain role need before an action executes?
+- **Liability and disclosure** — what should a self-hosted operator be
+  told about the risk they're taking on by enabling one of these roles?
+
+This section exists so the vision is written down honestly — real
+interest, real risk, explicitly unscoped until the guardrail and the
+questions above are actually addressed. Anyone interested in helping
+shape this is welcome to open a Discussion.
+
 ## Not planned for RagLeap Core
 
 These remain part of the commercial hosted product at [ragleap.com](https://ragleap.com), consistent with the open-core model. Note: this repo *does* include single-tenant WhatsApp/Telegram/Discord/Voice channel adapters (see Phase 4 above) — the items below are what the hosted platform adds on top of them, not duplicates of what's already open:

@@ -61,6 +61,20 @@ look at the existing pattern first:
 
 Be respectful and constructive. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
+## Building a sensitive-domain AI Employee role
+
+If you're adding a new AI Employee role type that touches a sensitive
+domain — health, financial, or legal — add it to `SENSITIVE_DOMAIN_ROLES`
+in `core/employees/defaults.py` as part of your PR. This locks the
+Autonomous Loop's mode to `semi` or `off` for that role type by default,
+regardless of the workspace's general autonomy settings.
+
+Please read the "Vision: Vertical AI Employees" section in
+[ROADMAP.md](ROADMAP.md) before starting significant work in this area —
+it lays out real open questions (data-handling boundaries, regulatory
+scope, escalation guarantees) that should inform the design, not just
+the guardrail flag.
+
 ## Questions
 
 Open a [Discussion](../../discussions) or reach out via [ragleap.com](https://ragleap.com).
