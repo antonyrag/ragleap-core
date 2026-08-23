@@ -164,7 +164,7 @@ async def handle_call(ws):
 
                     if transcript and len(transcript) > 2:
                         try:
-                            result = ask(transcript)
+                            result = ask(transcript, role="support")
                             answer = result.get("answer", "Sorry, I couldn't generate an answer.")
                         except Exception as e:
                             logger.error(f"Voice: error answering: {e}", exc_info=True)

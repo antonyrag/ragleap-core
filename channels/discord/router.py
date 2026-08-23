@@ -79,7 +79,7 @@ def handle_incoming_message(channel_id, message_text: str) -> str:
         logger.warning(f"Discord: approval-check error: {e}")
 
     try:
-        result = ask(message_text)
+        result = ask(message_text, role="support")
         answer = result.get("answer", "Sorry, I couldn't generate an answer.")
     except Exception as e:
         logger.error(f"Discord: error answering message from channel {channel_id}: {e}", exc_info=True)

@@ -97,7 +97,7 @@ def handle_incoming_message(chat_id, message_text: str) -> str:
     send_typing_action(chat_id)
 
     try:
-        result = ask(message_text)
+        result = ask(message_text, role="support")
         answer = result.get("answer", "Sorry, I couldn't generate an answer.")
     except Exception as e:
         logger.error(f"Telegram: error answering message from chat {chat_id}: {e}", exc_info=True)
