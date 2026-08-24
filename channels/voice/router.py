@@ -17,6 +17,7 @@ import json
 import logging
 
 from core.chat import ask
+from core.employees.feedback import record_last_reply
 from channels.voice.audio import transcribe_audio, text_to_speech
 from channels.voice.config import get_voice_config
 
@@ -166,6 +167,7 @@ async def handle_call(ws):
                         try:
                             result = ask(transcript, role="support")
                             answer = result.get("answer", "Sorry, I couldn't generate an answer.")
+                            record_last_reply("voice", stream_sid, result.get("role_memory_ids", []))
                         except Exception as e:
                             logger.error(f"Voice: error answering: {e}", exc_info=True)
                             answer = "Sorry, something went wrong. Please try again."
