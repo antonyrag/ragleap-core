@@ -199,6 +199,20 @@ CREATE TABLE IF NOT EXISTS autonomy_log (
 CREATE INDEX IF NOT EXISTS autonomy_log_created_idx
     ON autonomy_log (created_at DESC);
 
+-- Tracks the most recent role-based reply per (channel, chat_id), so
+-- an owner can send a quick feedback command (thumbs up/down,
+-- "helpful"/"not helpful") that gets attributed to the correct
+-- memory entries via core.employees.learning.record_role_memory_outcome().
+-- Without this table there is no real success/failure signal available
+-- in the channels -- see core/employees/feedback.py.
+CREATE TABLE IF NOT EXISTS role_reply_log (
+    channel          TEXT NOT NULL,
+    chat_id          TEXT NOT NULL,
+    role_memory_ids  JSONB NOT NULL DEFAULT '[]',
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (channel, chat_id)
+);
+
 -- CSV connector content storage — no persistent disk volume exists in
 -- docker-compose.yml, so CSV content lives in Postgres like everything
 -- else in Core, rather than on the container filesystem.

@@ -13,6 +13,7 @@ import requests
 from core.chat import ask
 from core.workflows import call_n8n_workflows
 from core.autonomy import process_approval_response
+from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +79,20 @@ def handle_incoming_message(channel_id, message_text: str) -> str:
     except Exception as e:
         logger.warning(f"Discord: approval-check error: {e}")
 
+    feedback = detect_feedback_command(message_text)
+    if feedback is not None:
+        last_ids = get_last_reply("discord", str(channel_id))
+        if last_ids:
+            from core.employees.learning import record_role_memory_outcome
+            record_role_memory_outcome(last_ids, success=feedback)
+        reply = "Thanks for the feedback!" if feedback else "Thanks, I'll do better next time."
+        send_discord_message(channel_id, reply)
+        return reply
+
     try:
         result = ask(message_text, role="support")
         answer = result.get("answer", "Sorry, I couldn't generate an answer.")
+        record_last_reply("discord", str(channel_id), result.get("role_memory_ids", []))
     except Exception as e:
         logger.error(f"Discord: error answering message from channel {channel_id}: {e}", exc_info=True)
         answer = "Sorry, something went wrong answering your question. Please try again."
