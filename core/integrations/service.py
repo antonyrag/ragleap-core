@@ -155,7 +155,7 @@ def list_data_sources() -> List[Dict[str, Any]]:
         cur.execute(
             """
             SELECT id, name, source_type, is_active, last_sync_at,
-                   last_sync_status, last_sync_record_count
+                   last_sync_status, last_sync_record_count, sync_interval_minutes
             FROM data_sources ORDER BY created_at DESC
             """
         )
@@ -166,6 +166,7 @@ def list_data_sources() -> List[Dict[str, Any]]:
                 "id": str(r[0]), "name": r[1], "source_type": r[2],
                 "is_active": r[3], "last_sync_at": r[4].isoformat() if r[4] else None,
                 "last_sync_status": r[5], "last_sync_record_count": r[6],
+                "sync_interval_minutes": r[7],
             }
             for r in rows
         ]

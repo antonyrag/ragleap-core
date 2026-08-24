@@ -15,6 +15,7 @@ audioop-lts>=0.2; python_version >= "3.13"
 neo4j>=5.0
 langdetect>=1.0.9
 pytest>=8.0
+apscheduler>=3.10.0
 
 # Integrations (all optional — connectors degrade gracefully if a specific
 # SDK isn't installed; only install the ones for the sources you use)
