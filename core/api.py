@@ -5,7 +5,11 @@ Minimal HTTP interface over the existing CLI pipeline (core.ingest / core.chat).
 import os
 import shutil
 import logging
+import asyncio
+from datetime import datetime, timezone
+from contextlib import asynccontextmanager
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -25,10 +29,51 @@ from core import autonomy
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
 
+async def _sync_job():
+    try:
+        sources = integrations_service.list_data_sources()
+        for src in sources:
+            if not src.get("is_active"):
+                continue
+                
+            sync_interval_minutes = src.get("sync_interval_minutes") or 360
+            last_sync_at_str = src.get("last_sync_at")
+            
+            should_sync = False
+            if not last_sync_at_str:
+                should_sync = True
+            else:
+                last_sync_at = datetime.fromisoformat(last_sync_at_str)
+                if last_sync_at.tzinfo is None:
+                    last_sync_at = last_sync_at.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
+                diff_minutes = (now - last_sync_at).total_seconds() / 60
+                if diff_minutes >= sync_interval_minutes:
+                    should_sync = True
+                    
+            if should_sync:
+                # Per maintainer discussion: we ignore sync failures and retry on the next tick
+                # regardless. If they continue failing, last_sync_status will just remain 'failed'.
+                logger.info("Background sync triggered for source %s (%s)", src['name'], src['id'])
+                await asyncio.to_thread(integrations_service.sync_data_source, src['id'])
+    except Exception as e:
+        logger.error("Error in background sync job: %s", e)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(_sync_job, "interval", minutes=5)
+    scheduler.start()
+    logger.info("Background sync scheduler started.")
+    yield
+    scheduler.shutdown()
+    logger.info("Background sync scheduler stopped.")
+
 app = FastAPI(
     title="RagLeap Core API",
     description="Minimal self-hosted RAG pipeline — BYOK, no platform fallback keys.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
