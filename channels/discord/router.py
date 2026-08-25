@@ -14,6 +14,7 @@ from core.chat import ask
 from core.workflows import call_n8n_workflows
 from core.autonomy import process_approval_response
 from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
+from core.employees.triggers import detect_escalation_request
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,19 @@ def handle_incoming_message(channel_id, message_text: str) -> str:
         reply = "Thanks for the feedback!" if feedback else "Thanks, I'll do better next time."
         send_discord_message(channel_id, reply)
         return reply
+
+    if detect_escalation_request(message_text):
+        from core.autonomy import execute_or_request
+        escalation = execute_or_request(
+            action_type="escalate_to_owner", channel="discord", target=str(channel_id),
+            content=f"Customer asked to speak with a human.\nMessage: {message_text}",
+            subject="Escalation request",
+        )
+        if escalation.get("status") in ("executed", "pending_approval"):
+            reply = "I've flagged this for a team member -- they'll follow up with you soon."
+            send_discord_message(channel_id, reply)
+            return reply
+        # else: escalation not configured for this action/channel -- fall through to a normal answer
 
     try:
         result = ask(message_text, role="support")
