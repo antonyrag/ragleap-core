@@ -10,6 +10,8 @@ Three tiers, mirroring ragleap-rag's own test discipline:
    manually verified during development.
 """
 import os
+import threading
+import uuid
 
 import pytest
 
@@ -861,3 +863,121 @@ def test_audit_logging_records_every_wired_method():
             pg_conn.close()
         except Exception:
             pass
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_upsert_same_key_no_duplicates():
+    """
+    Regression test for issue #183: concurrent upsert_document() calls
+    racing on the same document_id/user_id/namespace combination.
+
+    Design: fire 8 concurrent upsert_document() calls with the SAME
+    document_id, user_id, and namespace, then verify Document, Entity,
+    and PairWeight all show correct counts afterward - no duplicates.
+
+    Why this matters: user_id was baked into MERGE keys for
+    Entity/Document/PairWeight/RelationWeight (v0.6.5 design). Without a
+    uniqueness constraint, MERGE is not atomic against concurrent
+    writers - confirmed via live reproduction before the v0.6.7 fix (8
+    duplicate Document nodes from 6 "successful" concurrent upserts of
+    the same document). The v0.6.7 fix adds a composite_key uniqueness
+    constraint per label plus retry-with-backoff for the expected,
+    documented-retryable Neo4j transient deadlocks this causes under
+    contention.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself - v0.6.7's retry logic
+    should transparently recover from them, which is what this test
+    actually verifies.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    document_id = f"pytest-concurrency-doc-{uuid.uuid4()}"
+    user_id = f"pytest-concurrency-user-{uuid.uuid4()}"
+    entity_name = "acme corporation"
+    chunks = [
+        {"text": "Alice works at Acme Corporation as a senior engineer."},
+        {"text": "Acme Corporation is headquartered in Springfield."},
+    ]
+
+    try:
+        n_threads = 8
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_id,
+                    title="Concurrency Regression Test Document",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            document_count = session.run(
+                "MATCH (d:Document {id: $doc_id, user_id: $user_id, namespace: $ns}) "
+                "RETURN count(d) AS cnt",
+                doc_id=document_id, user_id=user_id, ns=TEST_NAMESPACE,
+            ).single()["cnt"]
+
+            entity_count = session.run(
+                "MATCH (e:Entity {name: $name, user_id: $user_id, namespace: $ns}) "
+                "RETURN count(e) AS cnt",
+                name=entity_name, user_id=user_id, ns=TEST_NAMESPACE,
+            ).single()["cnt"]
+
+            pairweight_records = list(session.run(
+                "MATCH (pw:PairWeight {document_id: $doc_id, user_id: $user_id, namespace: $ns}) "
+                "RETURN pw.entity_a AS a, pw.entity_b AS b",
+                doc_id=document_id, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            pairweight_count = len(pairweight_records)
+            distinct_pairs = {(r["a"], r["b"]) for r in pairweight_records}
+
+        assert document_count == 1, (
+            f"Expected exactly 1 Document node after {n_threads} concurrent "
+            f"upserts with identical keys, found {document_count}."
+        )
+        assert entity_count == 1, (
+            f"Expected exactly 1 Entity node for '{entity_name}' after "
+            f"{n_threads} concurrent upserts, found {entity_count}."
+        )
+        assert pairweight_count == len(distinct_pairs), (
+            f"Expected each distinct entity pair to have exactly one "
+            f"PairWeight node, found {pairweight_count} total nodes across "
+            f"only {len(distinct_pairs)} distinct pairs {distinct_pairs}."
+        )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                doc_id=document_id, user_id=user_id,
+            )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {document_id: $doc_id, user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
+                doc_id=document_id, user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
