@@ -23,14 +23,41 @@ from __future__ import annotations
 
 import logging
 import re
+import hashlib
+import random
+import time
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+
+def _composite_key(*parts: str) -> str:
+    """Deterministic, collision-resistant MERGE key.
+
+    Neo4j Community Edition only supports single-property uniqueness
+    constraints, but several node types here (Document, Entity,
+    PairWeight, RelationWeight) are logically identified by a
+    combination of properties (e.g. id + namespace + user_id). Without
+    a real constraint, concurrent MERGE calls on the same logical
+    identity can race and create duplicate nodes - confirmed via a real
+    concurrency regression test (issue #183): 8 duplicate Document
+    nodes from 6 "successful" concurrent upserts of the same document.
+
+    This computes a single hashed key from the real identity fields, so
+    a single-property uniqueness constraint (Community-compatible) can
+    be placed on it instead of requiring Enterprise Edition's composite
+    constraints. Null-byte-joined before hashing so no real value could
+    accidentally produce a colliding boundary between fields.
+    """
+    joined = "\x00".join(parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
 try:
     from neo4j import GraphDatabase
+    from neo4j.exceptions import TransientError
 except ImportError:
     GraphDatabase = None
+    TransientError = None
 
 from ._audit import AuditConfig, AuditLogger
 
@@ -50,7 +77,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.6"
+__version__ = "0.6.7"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -147,6 +174,33 @@ class GraphIndex:
             # documented on this class.
             self.driver.verify_connectivity()
             logger.info("Neo4j driver initialized successfully")
+            # v0.6.7: composite_key uniqueness constraint for Document,
+            # closing the concurrency bug confirmed in issue #183.
+            # IF NOT EXISTS makes this idempotent - safe to run on every
+            # connect, same pattern as the audit logger's lazy table
+            # creation.
+            try:
+                with self.driver.session() as _constraint_session:
+                    _constraint_session.run(
+                        "CREATE CONSTRAINT document_composite_key IF NOT EXISTS "
+                        "FOR (d:Document) REQUIRE d.composite_key IS UNIQUE"
+                    )
+                    _constraint_session.run(
+                        "CREATE CONSTRAINT entity_composite_key IF NOT EXISTS "
+                        "FOR (e:Entity) REQUIRE e.composite_key IS UNIQUE"
+                    )
+                    _constraint_session.run(
+                        "CREATE CONSTRAINT pairweight_composite_key IF NOT EXISTS "
+                        "FOR (pw:PairWeight) REQUIRE pw.composite_key IS UNIQUE"
+                    )
+                    _constraint_session.run(
+                        "CREATE CONSTRAINT relationweight_composite_key IF NOT EXISTS "
+                        "FOR (rw:RelationWeight) REQUIRE rw.composite_key IS UNIQUE"
+                    )
+            except Exception as constraint_exc:
+                logger.warning(
+                    f"Failed to create Document composite_key constraint: {constraint_exc}"
+                )
         except Exception as e:
             logger.warning(f"Failed to initialize Neo4j driver: {e}")
             if self.driver is not None:
@@ -292,7 +346,7 @@ class GraphIndex:
     # Core graph operations
     # ------------------------------------------------------------------
 
-    def upsert_document(
+    def _upsert_document_once(
         self,
         document_id: str,
         title: str,
@@ -393,12 +447,15 @@ class GraphIndex:
 
         try:
             with self.driver.session() as session:
+                document_composite_key = _composite_key(ns, uid, str(document_id))
                 session.run(
                     """
-                    MERGE (d:Document {id: $document_id, namespace: $namespace, user_id: $user_id})
-                    ON CREATE SET d.created_at = datetime()
+                    MERGE (d:Document {composite_key: $composite_key})
+                    ON CREATE SET d.created_at = datetime(), d.id = $document_id,
+                        d.namespace = $namespace, d.user_id = $user_id
                     SET d.title = $title
                     """,
+                    composite_key=document_composite_key,
                     document_id=str(document_id),
                     namespace=ns,
                     user_id=uid,
@@ -436,16 +493,19 @@ class GraphIndex:
 
                 for entity_name, weight in top_entities:
                     entity_type = entity_type_map.get(entity_name.lower(), "UNKNOWN")
+                    entity_composite_key = _composite_key(ns, uid, entity_name.lower())
                     session.run(
                         """
-                        MATCH (d:Document {id: $document_id, namespace: $namespace, user_id: $user_id})
-                        MERGE (e:Entity {name: $name_lower, namespace: $namespace, user_id: $user_id})
-                        ON CREATE SET e.display_name = $name
+                        MATCH (d:Document {composite_key: $document_composite_key})
+                        MERGE (e:Entity {composite_key: $entity_composite_key})
+                        ON CREATE SET e.display_name = $name, e.name = $name_lower,
+                            e.namespace = $namespace, e.user_id = $user_id
                         SET e.entity_type = coalesce(NULLIF($entity_type, "UNKNOWN"), e.entity_type, "UNKNOWN")
                         MERGE (d)-[r:CONTAINS]->(e)
                         SET r.weight = $weight
                         """,
-                        document_id=str(document_id),
+                        document_composite_key=document_composite_key,
+                        entity_composite_key=entity_composite_key,
                         namespace=ns,
                         user_id=uid,
                         name_lower=entity_name.lower(),
@@ -493,11 +553,17 @@ class GraphIndex:
                 for (a, b), weight in top_pairs:
                     a_lower, b_lower = a.lower(), b.lower()
                     current_pairs.add((a_lower, b_lower))
+                    pairweight_composite_key = _composite_key(
+                        ns, uid, str(document_id), a_lower, b_lower
+                    )
                     session.run(
                         """
-                        MERGE (pw:PairWeight {namespace: $namespace, document_id: $document_id, entity_a: $a, entity_b: $b, user_id: $user_id})
+                        MERGE (pw:PairWeight {composite_key: $composite_key})
+                        ON CREATE SET pw.namespace = $namespace, pw.document_id = $document_id,
+                            pw.entity_a = $a, pw.entity_b = $b, pw.user_id = $user_id
                         SET pw.weight = $weight
                         """,
+                        composite_key=pairweight_composite_key,
                         namespace=ns,
                         document_id=str(document_id),
                         a=a_lower,
@@ -558,11 +624,18 @@ class GraphIndex:
                 for (subject, relation_type, obj), weight in relation_counter.most_common(max_pairs):
                     subj_lower, obj_lower = subject.lower(), obj.lower()
                     current_relations.add((subj_lower, relation_type, obj_lower))
+                    relationweight_composite_key = _composite_key(
+                        ns, uid, str(document_id), subj_lower, relation_type, obj_lower
+                    )
                     session.run(
                         """
-                        MERGE (rw:RelationWeight {namespace: $namespace, document_id: $document_id, subject: $subject, relation_type: $relation_type, object: $object, user_id: $user_id})
+                        MERGE (rw:RelationWeight {composite_key: $composite_key})
+                        ON CREATE SET rw.namespace = $namespace, rw.document_id = $document_id,
+                            rw.subject = $subject, rw.relation_type = $relation_type,
+                            rw.object = $object, rw.user_id = $user_id
                         SET rw.weight = $weight
                         """,
+                        composite_key=relationweight_composite_key,
                         namespace=ns,
                         document_id=str(document_id),
                         subject=subj_lower,
@@ -597,6 +670,96 @@ class GraphIndex:
                     summary["relations_indexed"] += 1
 
 
+            summary["success"] = True
+            return summary
+
+        except TransientError:
+            # Not caught here - let the public upsert_document()
+            # wrapper decide whether to retry. Neo4j documents
+            # transient errors (including deadlocks) as expected,
+            # retryable outcomes of lock contention, not corruption.
+            raise
+        except Exception as e:
+            logger.error(f"Graph upsert error: {e}", exc_info=True)
+            summary["error"] = str(e)
+            return summary
+
+    def upsert_document(
+        self,
+        document_id: str,
+        title: str,
+        chunks: List[Dict[str, Any]],
+        namespace: Optional[str] = None,
+        user_id: Optional[str] = None,
+        max_entities: int = 80,
+        max_pairs: int = 150,
+        domain_terms: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Index one document and its extracted entities into Neo4j.
+        Public entry point - retries automatically on Neo4j transient
+        errors (e.g. deadlocks from concurrent writes to the same
+        document/entities). See _upsert_document_once() for the real
+        write logic and full docstring.
+
+        v0.6.7: retrying the whole method is safe because every write
+        is composite_key/MERGE-based (issue #183 fix) - re-running an
+        already-succeeded MERGE just matches the existing node, it
+        does not create a duplicate. Up to 3 attempts, exponential
+        backoff with jitter. Non-transient errors are NOT retried and
+        fail immediately, same as before this version.
+        """
+        ns = namespace or ""
+        uid = user_id or ""
+        max_attempts = 3
+        summary: Dict[str, Any] = {
+            "success": False,
+            "document_id": str(document_id),
+            "entities_indexed": 0,
+            "relationships_indexed": 0,
+            "relations_indexed": 0,
+            "error": None,
+        }
+
+        for attempt in range(max_attempts):
+            try:
+                summary = self._upsert_document_once(
+                    document_id=document_id,
+                    title=title,
+                    chunks=chunks,
+                    namespace=namespace,
+                    user_id=user_id,
+                    max_entities=max_entities,
+                    max_pairs=max_pairs,
+                    domain_terms=domain_terms,
+                )
+                break
+            except TransientError as e:
+                if attempt == max_attempts - 1:
+                    logger.error(
+                        f"Graph upsert error: transient Neo4j error "
+                        f"persisted after {max_attempts} attempts: {e}",
+                        exc_info=True,
+                    )
+                    summary["error"] = (
+                        f"Transient Neo4j error persisted after "
+                        f"{max_attempts} attempts: {e}"
+                    )
+                    break
+                backoff = (0.1 * (2 ** attempt)) + random.uniform(0, 0.05)
+                logger.warning(
+                    f"Transient Neo4j error on attempt {attempt + 1}/"
+                    f"{max_attempts}, retrying in {backoff:.2f}s: {e}"
+                )
+                time.sleep(backoff)
+
+        # Audit fires at most once per logical call, only on success -
+        # matching _upsert_document_once()'s original behavior, where
+        # the audit call was only ever reached on the success path
+        # (never on "no driver" or a hard failure). Retries are
+        # transparent to the audit trail: one logical call, at most
+        # one audit row, regardless of how many attempts it took.
+        if summary.get("success"):
             self._audit.log(
                 user_id=uid,
                 namespace=ns,
@@ -609,13 +772,7 @@ class GraphIndex:
                 },
             )
 
-            summary["success"] = True
-            return summary
-
-        except Exception as e:
-            logger.error(f"Graph upsert error: {e}", exc_info=True)
-            summary["error"] = str(e)
-            return summary
+        return summary
 
     def find_documents_by_entities(
         self,
@@ -1142,6 +1299,107 @@ class GraphIndex:
                 )
                 record = result.single()
                 counts[label] = record["updated"] if record else 0
+        return counts
+
+    def backfill_composite_key(
+        self, namespace: Optional[str] = None, batch_size: int = 500
+    ) -> Dict[str, int]:
+        """
+        One-time migration (v0.6.7+) for installations upgrading from a
+        version before composite_key existed. Document/Entity/
+        PairWeight/RelationWeight nodes written before this version
+        have no composite_key property, so the single-property
+        uniqueness constraints added in this version (closing the
+        concurrent-duplicate race in issue #183) do not cover them -
+        Neo4j uniqueness constraints do not apply to nodes where the
+        constrained property is null. This backfills composite_key
+        onto any node still missing it, computed identically to how
+        every write path computes it, using elementId()-based batched
+        writes (no APOC assumed available).
+
+        Idempotent - safe to run multiple times; only touches nodes
+        that still lack composite_key, so re-running after new
+        composite_key-aware data has been written does not overwrite
+        it.
+
+        Pass namespace= to scope the backfill to one namespace, or
+        omit to backfill the whole graph. batch_size controls how
+        many nodes are updated per UNWIND write - lower it if legacy
+        data volume is very large and write transactions are timing
+        out.
+
+        Returns a count of nodes updated per label.
+        """
+        counts: Dict[str, int] = {
+            "Document": 0,
+            "Entity": 0,
+            "PairWeight": 0,
+            "RelationWeight": 0,
+        }
+        if not self.driver:
+            return counts
+
+        ns_filter = "AND n.namespace = $namespace" if namespace is not None else ""
+
+        label_specs = {
+            "Document": (
+                f"MATCH (n:Document) WHERE n.composite_key IS NULL {ns_filter} "
+                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+                f"n.user_id AS user_id, n.id AS id",
+                lambda r: _composite_key(
+                    r["namespace"] or "", r["user_id"] or "", str(r["id"] or "")
+                ),
+            ),
+            "Entity": (
+                f"MATCH (n:Entity) WHERE n.composite_key IS NULL {ns_filter} "
+                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+                f"n.user_id AS user_id, n.name AS name",
+                lambda r: _composite_key(
+                    r["namespace"] or "", r["user_id"] or "", str(r["name"] or "")
+                ),
+            ),
+            "PairWeight": (
+                f"MATCH (n:PairWeight) WHERE n.composite_key IS NULL {ns_filter} "
+                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+                f"n.user_id AS user_id, n.document_id AS document_id, "
+                f"n.entity_a AS entity_a, n.entity_b AS entity_b",
+                lambda r: _composite_key(
+                    r["namespace"] or "", r["user_id"] or "",
+                    str(r["document_id"] or ""), r["entity_a"] or "", r["entity_b"] or "",
+                ),
+            ),
+            "RelationWeight": (
+                f"MATCH (n:RelationWeight) WHERE n.composite_key IS NULL {ns_filter} "
+                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+                f"n.user_id AS user_id, n.document_id AS document_id, "
+                f"n.subject AS subject, n.relation_type AS relation_type, "
+                f"n.object AS object",
+                lambda r: _composite_key(
+                    r["namespace"] or "", r["user_id"] or "",
+                    str(r["document_id"] or ""), r["subject"] or "",
+                    r["relation_type"] or "", r["object"] or "",
+                ),
+            ),
+        }
+
+        with self.driver.session() as session:
+            for label, (read_query, key_fn) in label_specs.items():
+                records = list(session.run(read_query, namespace=namespace or ""))
+                updates = [
+                    {"eid": r["eid"], "composite_key": key_fn(r)} for r in records
+                ]
+                for i in range(0, len(updates), batch_size):
+                    batch = updates[i:i + batch_size]
+                    session.run(
+                        """
+                        UNWIND $batch AS row
+                        MATCH (n) WHERE elementId(n) = row.eid
+                        SET n.composite_key = row.composite_key
+                        """,
+                        batch=batch,
+                    )
+                counts[label] = len(updates)
+
         return counts
 
 
