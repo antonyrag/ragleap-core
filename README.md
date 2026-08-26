@@ -8,14 +8,8 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (ret
 
 ![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-core%20%2B%204%20channels%20%2B%20KG%20%2B%20multilingual%20%2B%20integrations-brightgreen)
 
-[![CI](https://github.com/antonyrag/ragleap-core/actions/workflows/ci.yml/badge.svg)](https://github.com/antonyrag/ragleap-core/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/antonyrag/ragleap-core/actions/workflows/codeql.yml/badge.svg)](https://github.com/antonyrag/ragleap-core/actions/workflows/codeql.yml)
-[![Core Release](https://img.shields.io/badge/ragleap--core-v0.2.0-blue)](https://github.com/antonyrag/ragleap-core/releases/tag/v0.2.0)
-[![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
-[![PyPI ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core)
-[![Contributors](https://img.shields.io/github/contributors/antonyrag/ragleap-core)](https://github.com/antonyrag/ragleap-core/graphs/contributors)
-[![Good First Issues](https://img.shields.io/github/issues/antonyrag/ragleap-core/good%20first%20issue)](https://github.com/antonyrag/ragleap-core/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+[[license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [[status](https://img.shields.io/badge/status-core%20%2B%204%20channels%20%2B%20KG%20%2B%20multilingual%20%2B%2020%20integrations-brightgreen)](https://github.com/antonyrag/ragleap-core)
+[[Core Release](https://img.shields.io/badge/ragleap--core-v0.2.0-blue)](https://github.com/antonyrag/ragleap-core/releases/tag/v0.2.0) [[Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core) [[ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [[Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/) [[ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [[Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
 
 ---
 
