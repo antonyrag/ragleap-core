@@ -1,15 +1,16 @@
 # RagLeap Core
 
-**The open-source AI business manager. One AI, five channels, one memory.**
+**The open-source AI business manager. 9 AI Employees, One AI Manager, one memory.**
 
-RagLeap Core is the open-source engine behind RagLeap — a self-hosted RAG (retrieval-augmented generation) chat system that answers questions from your own documents, on your own server, with no vendor lock-in.
+RagLeap Core is the open-source engine behind RagLeap — a self-hosted, agentic system with 9 role-based AI Employees (AI Manager, Personal Secretary, Customer Support, Telecaller, DB Analyst, Broadcast Agent, Personal Assistant, AI COO, AI Engineer) with self-learning memory, auto-trigger workflows, full/semi autonomy and think-act-decide capacity that run your business from your own documents on your own server, with no vendor lock-in.
 
 [Quickstart](#quickstart) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com)
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![status](https://img.shields.io/badge/status-core%20%2B%204%20channels%20%2B%20KG%20%2B%20multilingual%20%2B%20integrations-brightgreen)
-
-[![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![status](https://img.shields.io/badge/status-core%20%2B%204%20channels%20%2B%20KG%20%2B%20multilingual%20%2B%2020%20integrations-brightgreen)](https://github.com/antonyrag/ragleap-core)
-[![Core Release](https://img.shields.io/badge/ragleap--core-v0.2.0-blue)](https://github.com/antonyrag/ragleap-core/releases/tag/v0.2.0) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core) [![ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/) [![ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![status 9 AI employees + AI manager + multi-channel + integrations + KG + self-learning](https://img.shields.io/badge/status-9%20AI%20employees%20%2B%20AI%20manager%20%2B%20multi--channel%20%2B%20integrations%20%2B%20KG%20%2B%20self--learning-brightgreen)](https://github.com/antonyrag/ragleap-core)
+[![Core Release](https://img.shields.io/badge/ragleap--core-v0.2.0-blue)](https://github.com/antonyrag/ragleap-core/releases/tag/v0.2.0)
+[![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
+[![PyPI ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core)
 
 ---
 
