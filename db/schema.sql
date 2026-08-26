@@ -213,6 +213,15 @@ CREATE TABLE IF NOT EXISTS role_reply_log (
     PRIMARY KEY (channel, chat_id)
 );
 
+-- Owner-configured default AI Employee role per channel (e.g. telegram ->
+-- manager, whatsapp -> support). Falls back to 'support' when unset. See
+-- core/employees/channel_roles.py for the routing logic that uses this.
+CREATE TABLE IF NOT EXISTS channel_role_config (
+    channel     TEXT PRIMARY KEY,
+    role        TEXT NOT NULL DEFAULT 'support',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- CSV connector content storage — no persistent disk volume exists in
 -- docker-compose.yml, so CSV content lives in Postgres like everything
 -- else in Core, rather than on the container filesystem.
