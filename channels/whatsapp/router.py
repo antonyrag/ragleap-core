@@ -20,6 +20,7 @@ from core.workflows import call_n8n_workflows
 from core.autonomy import process_approval_response
 from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
 from core.employees.triggers import detect_escalation_request
+from core.employees.channel_roles import resolve_role
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ def handle_incoming_message(from_phone: str, message_text: str) -> str:
         # else: escalation not configured for this action/channel -- fall through to a normal answer
 
     try:
-        result = ask(message_text, role="support")
+        result = ask(message_text, role=resolve_role("whatsapp", message_text))
         answer = result.get("answer", "Sorry, I couldn't generate an answer.")
         record_last_reply("whatsapp", from_phone, result.get("role_memory_ids", []))
     except Exception as e:

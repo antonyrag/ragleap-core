@@ -23,6 +23,7 @@ from core.employees import profile as employee_profile
 from core.employees import roles as employee_roles
 from core.employees import skills as employee_skills
 from core.employees import learning as employee_learning
+from core.employees import channel_roles as employee_channel_roles
 from core import workflows
 from core import autonomy
 
@@ -147,6 +148,10 @@ class RoleUpdateRequest(BaseModel):
     skill_tags: list[str] | None = None
     personality: str | None = None
     is_active: bool | None = None
+
+
+class ChannelRoleRequest(BaseModel):
+    role: str
 
 
 class MemoryFeedbackRequest(BaseModel):
@@ -496,6 +501,31 @@ def get_employee_role(role: str):
 def update_employee_role(role: str, req: RoleUpdateRequest):
     updates = {k: v for k, v in req.dict().items() if v is not None}
     return employee_roles.upsert_role(role, **updates)
+
+
+@app.get("/channels/{channel}/role")
+def get_channel_role_config(channel: str):
+    """
+    Get the owner-configured default AI Employee role for this channel
+    (falls back to 'support' if never explicitly set).
+    """
+    return {"channel": channel, "role": employee_channel_roles.get_channel_role(channel)}
+
+
+@app.post("/channels/{channel}/role")
+def set_channel_role_config(channel: str, req: ChannelRoleRequest):
+    """
+    Assign a default AI Employee role to this channel (e.g. telegram ->
+    manager, whatsapp -> support). Any of the 9 default roles or a
+    custom role created via PATCH /employees/{role} can be assigned --
+    this is a deliberate owner choice, unlike the automatic
+    intent-based routing which is restricted to customer-safe roles
+    only (see core/employees/channel_roles.py).
+    """
+    ok = employee_channel_roles.set_channel_role(channel, req.role)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to update channel role")
+    return {"channel": channel, "role": req.role}
 
 
 @app.get("/employees/{role}/context")

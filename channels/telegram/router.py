@@ -17,6 +17,7 @@ from core.workflows import call_n8n_workflows
 from core.autonomy import process_approval_response
 from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
 from core.employees.triggers import detect_escalation_request
+from core.employees.channel_roles import resolve_role
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +123,7 @@ def handle_incoming_message(chat_id, message_text: str) -> str:
     send_typing_action(chat_id)
 
     try:
-        result = ask(message_text, role="support")
+        result = ask(message_text, role=resolve_role("telegram", message_text))
         answer = result.get("answer", "Sorry, I couldn't generate an answer.")
         record_last_reply("telegram", str(chat_id), result.get("role_memory_ids", []))
     except Exception as e:
