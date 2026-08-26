@@ -1,0 +1,95 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'ragleap-rag-v*'
+      - 'ragleap-graph-v*'
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Which package to publish'
+        required: true
+        type: choice
+        options:
+          - ragleap-rag
+          - ragleap-graph
+      target:
+        description: 'Publish target'
+        required: true
+        type: choice
+        default: testpypi
+        options:
+          - testpypi
+          - pypi
+
+jobs:
+  publish-ragleap-rag:
+    if: |
+      startsWith(github.ref, 'refs/tags/ragleap-rag-v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.package == 'ragleap-rag')
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/ragleap-rag
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install build tooling
+        run: pip install build
+      - name: Build
+        run: |
+          rm -rf dist/
+          python -m build
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-rag/dist/
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: github.event_name != 'workflow_dispatch' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-rag/dist/
+
+  publish-ragleap-graph:
+    if: |
+      startsWith(github.ref, 'refs/tags/ragleap-graph-v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.package == 'ragleap-graph')
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/ragleap-graph
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install build tooling
+        run: pip install build
+      - name: Build
+        run: |
+          rm -rf dist/
+          python -m build
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-graph/dist/
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: github.event_name != 'workflow_dispatch' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-graph/dist/
