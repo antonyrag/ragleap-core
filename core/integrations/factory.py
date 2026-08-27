@@ -7,6 +7,7 @@ from core.integrations.sql_connectors import MySQLConnector, PostgreSQLConnector
 from core.integrations.mongodb import MongoDBConnector
 from core.integrations.rest_api import RestAPIConnector
 from core.integrations.csv_connector import CSVConnector
+from core.integrations.slack_connector import SlackConnector
 from core.integrations.crm_connectors import (
     SalesforceConnector,
     HubSpotConnector,
@@ -26,6 +27,7 @@ CONNECTOR_MAP = {
     'shopify': ShopifyConnector,
     'google_sheets': GoogleSheetsConnector,
     'stripe': StripeConnector,
+    'slack': SlackConnector,
 }
 
 
