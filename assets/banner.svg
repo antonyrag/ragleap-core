@@ -1,0 +1,29 @@
+<svg viewBox="0 0 920 220" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- card background -->
+  <rect x="1" y="1" width="918" height="218" rx="14" fill="#f6f8fa" stroke="#d0d7de" stroke-width="1"/>
+
+  <!-- icon: circular mark with a leaping arc + node, evoking "RAG" (retrieval nodes) + "Leap" (arc) -->
+  <g transform="translate(60, 40)">
+    <circle cx="70" cy="70" r="70" fill="url(#iconGrad)"/>
+    <!-- leap arc -->
+    <path d="M 28 96 Q 70 28 112 96" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+    <!-- three nodes representing linked documents / retrieval -->
+    <circle cx="28" cy="96" r="9" fill="#ffffff"/>
+    <circle cx="70" cy="52" r="9" fill="#ffffff"/>
+    <circle cx="112" cy="96" r="9" fill="#ffffff"/>
+  </g>
+
+  <!-- wordmark + tagline -->
+  <g transform="translate(230, 0)">
+    <text x="0" y="98" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="56" font-weight="700" fill="#1f2328">RagLeap Core</text>
+    <text x="2" y="132" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="1" fill="#0891b2">AUTONOMOUS AI AGENTS. NOT JUST RAG.</text>
+    <text x="2" y="164" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="18" fill="#57606a">Self-hosted AI Employees with memory, autonomy, and real actions.</text>
+  </g>
+</svg>
