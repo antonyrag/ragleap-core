@@ -1,16 +1,22 @@
 # RagLeap Core 🧠 — Autonomous AI Agents, Self-Hosted
 
 <div align="center">
-  <img src="assets/banner.svg" alt="RagLeap Core — Autonomous AI Agents, Self-Hosted" width="900">
+  <img src="assets/logo.png" alt="RagLeap Core logo" width="96">
 </div>
 
 <div align="center">
 
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![status 9 AI employees + AI manager + multi-channel + integrations + KG + self-learning](https://img.shields.io/badge/status-9%20AI%20employees%20%2B%20AI%20manager%20%2B%20multi--channel%20%2B%20integrations%20%2B%20KG%20%2B%20self--learning-brightgreen)](https://github.com/antonyrag/ragleap-core)
-[![Core Release](https://img.shields.io/badge/ragleap--core-v0.3.0-blue)](https://github.com/antonyrag/ragleap-core/releases/tag/v0.3.0)
+[![Core Release](https://img.shields.io/github/v/release/antonyrag/ragleap-core?label=ragleap-core&color=blue)](https://github.com/antonyrag/ragleap-core/releases/latest)
 [![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
 [![PyPI ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/antonyrag/ragleap-core)
+
+</div>
+
+<div align="center">
+
+**AUTONOMOUS AI AGENTS. NOT JUST RAG.**
 
 </div>
 
