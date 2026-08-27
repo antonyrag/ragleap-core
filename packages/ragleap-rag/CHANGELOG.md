@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.4] - 2026-08-27
+
+### Fixed
+
+- `chunk_text()`'s `token_count` field now reflects a real LLM token count via `tiktoken` (`cl100k_base`) when available, instead of always being a whitespace-split word count. The previous behavior was a documented, known limitation (`token_count` internally consistent but not what the field name implied). `_tokenize()` itself — which determines chunk windowing (`chunk_size`/`chunk_overlap` are still measured in whitespace-split words) — is unchanged; only what `token_count` reports about the resulting chunk text has changed. A new `token_count_is_exact: bool` field is added alongside the existing `token_count` field: `True` when a real tiktoken count was used, `False` when tiktoken wasn't installed or its encoding couldn't be loaded (e.g. no network egress to fetch the BPE rank file on first use), in which case `token_count` falls back to the previous word-count behavior exactly, never reporting an estimate as exact. New tests (`test_chunk_text_token_count_matches_tiktoken_when_exact`, `test_chunk_text_fallback_word_count_when_tiktoken_unavailable`, `test_chunk_text_fallback_on_encoding_load_failure`) cover both the real-tokenization and fallback paths. `tiktoken` is now a declared core dependency rather than an incidental transitive one. This is a breaking change to `token_count`'s *values* for any caller depending on the previous word-count numbers specifically — acceptable pre-1.0, and this was already a documented, known limitation rather than a silent surprise.
+
 ## [0.12.3] - 2026-08-23
 
 ### Fixed
