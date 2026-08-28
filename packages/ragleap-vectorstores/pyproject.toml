@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ragleap-vectorstores"
+version = "0.1.0"
+description = "Pluggable vector backends beyond ragleap-rag core's 6 (PgVector, FAISS, Pinecone, Weaviate, Qdrant, Milvus) - additional VectorBackend implementations as optional extras, no vendor lock-in, no bloated core dependency footprint."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Antony", email = "antony@ragleap.com" }
+]
+keywords = ["rag", "vector-search", "vector-database", "ragleap"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "ragleap-rag>=0.12.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
+# Backend-specific extras go here once a backend is chosen and implemented,
+# e.g.: chroma = ["chromadb>=0.5.0"]
+
+[project.urls]
+Homepage = "https://github.com/antonyrag/ragleap-core"
+Repository = "https://github.com/antonyrag/ragleap-core"
+Documentation = "https://packages.ragleap.com/docs/ragleap-vectorstores.html"
+Issues = "https://github.com/antonyrag/ragleap-core/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragleap_vectorstores"]
