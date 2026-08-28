@@ -29,8 +29,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
-# Backend-specific extras go here once a backend is chosen and implemented,
-# e.g.: chroma = ["chromadb>=0.5.0"]
+chroma = ["chromadb>=1.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/antonyrag/ragleap-core"

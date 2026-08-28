@@ -1,6 +1,7 @@
-"""Smoke test - the package imports cleanly with zero backends registered yet."""
+"""Smoke test - the package imports cleanly and VectorBackend is always
+re-exported regardless of which optional backend extras are installed."""
 import ragleap_vectorstores
 
 
 def test_import():
-    assert ragleap_vectorstores.__all__ == []
+    assert "VectorBackend" in ragleap_vectorstores.__all__
