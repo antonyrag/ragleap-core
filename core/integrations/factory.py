@@ -9,6 +9,7 @@ from core.integrations.rest_api import RestAPIConnector
 from core.integrations.csv_connector import CSVConnector
 from core.integrations.slack_connector import SlackConnector
 from core.integrations.notion_connector import NotionConnector
+from core.integrations.airtable_connector import AirtableConnector
 from core.integrations.crm_connectors import (
     SalesforceConnector,
     HubSpotConnector,
@@ -30,6 +31,7 @@ CONNECTOR_MAP = {
     'stripe': StripeConnector,
     'slack': SlackConnector,
     'notion': NotionConnector,
+    'airtable': AirtableConnector,
 }
 
 
