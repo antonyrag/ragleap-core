@@ -77,7 +77,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.6.7"
+__version__ = "0.6.8"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -196,6 +196,18 @@ class GraphIndex:
                     _constraint_session.run(
                         "CREATE CONSTRAINT relationweight_composite_key IF NOT EXISTS "
                         "FOR (rw:RelationWeight) REQUIRE rw.composite_key IS UNIQUE"
+                    )
+                    # Relationship-level composite_key constraint, closing the
+                    # same non-atomic-MERGE race for CO_OCCURS_WITH that the
+                    # four node-level constraints above closed in v0.6.7 --
+                    # noticed but deliberately left open at the time. Canonical
+                    # (sorted) entity-pair order is used when computing this
+                    # key so the same logical pair always produces the same
+                    # key regardless of which order extraction returned the
+                    # two entity names in.
+                    _constraint_session.run(
+                        "CREATE CONSTRAINT co_occurs_with_composite_key IF NOT EXISTS "
+                        "FOR ()-[r:CO_OCCURS_WITH]-() REQUIRE r.composite_key IS UNIQUE"
                     )
             except Exception as constraint_exc:
                 logger.warning(
@@ -573,6 +585,8 @@ class GraphIndex:
                     )
 
                 for (a, b) in old_pairs | current_pairs:
+                    a_canon, b_canon = sorted((a, b))
+                    co_occurs_composite_key = _composite_key(ns, uid, a_canon, b_canon)
                     session.run(
                         """
                         MATCH (pw:PairWeight {namespace: $namespace, entity_a: $a, entity_b: $b, user_id: $user_id})
@@ -580,11 +594,12 @@ class GraphIndex:
                         MATCH (ea:Entity {name: $a, namespace: $namespace, user_id: $user_id})
                         MATCH (eb:Entity {name: $b, namespace: $namespace, user_id: $user_id})
                         FOREACH (_ IN CASE WHEN total > 0 THEN [1] ELSE [] END |
-                            MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+                            MERGE (ea)-[r:CO_OCCURS_WITH {composite_key: $co_occurs_composite_key}]-(eb)
+                            ON CREATE SET r.namespace = $namespace, r.user_id = $user_id
                             SET r.weight = total
                         )
                         FOREACH (_ IN CASE WHEN total = 0 THEN [1] ELSE [] END |
-                            MERGE (ea)-[r2:CO_OCCURS_WITH]-(eb)
+                            MERGE (ea)-[r2:CO_OCCURS_WITH {composite_key: $co_occurs_composite_key}]-(eb)
                             DELETE r2
                         )
                         """,
@@ -592,6 +607,7 @@ class GraphIndex:
                         a=a,
                         b=b,
                         user_id=uid,
+                        co_occurs_composite_key=co_occurs_composite_key,
                     )
                     summary["relationships_indexed"] += 1
 
@@ -1402,6 +1418,79 @@ class GraphIndex:
 
         return counts
 
+
+    def backfill_co_occurs_with_composite_key(
+        self, namespace: Optional[str] = None, batch_size: int = 500
+    ) -> int:
+        """
+        One-time migration for CO_OCCURS_WITH relationships written
+        before composite_key was added to them -- closes the same gap
+        backfill_composite_key() closes for the four node labels, just
+        at the relationship level (see that method's docstring for the
+        general background on why this is needed: uniqueness
+        constraints don't apply to null properties, so pre-existing
+        data isn't automatically covered by a new constraint).
+
+        Uses the SAME _composite_key() helper and the SAME canonical
+        (sorted) entity-pair ordering the live MERGE path uses, so a
+        backfilled relationship's key matches exactly what a fresh
+        MERGE for that same logical pair would compute.
+
+        CO_OCCURS_WITH is undirected; the read query explicitly
+        deduplicates on relationship identity (WITH DISTINCT r) before
+        reading endpoint names via startNode(r)/endNode(r), rather
+        than relying on assumptions about undirected-match traversal
+        semantics -- relationship identity itself is unambiguous
+        regardless of how many directions a pattern match considers.
+
+        Idempotent -- only touches relationships still missing
+        composite_key, so re-running after new composite_key-aware
+        data has been written does not overwrite it.
+
+        Pass namespace= to scope the backfill to one namespace, or
+        omit to backfill the whole graph. batch_size controls how
+        many relationships are updated per UNWIND write.
+
+        Returns the count of relationships updated.
+        """
+        if not self.driver:
+            return 0
+
+        ns_filter = "AND r.namespace = $namespace" if namespace is not None else ""
+
+        read_query = (
+            f"MATCH ()-[r:CO_OCCURS_WITH]-() "
+            f"WHERE r.composite_key IS NULL {ns_filter} "
+            f"WITH DISTINCT r "
+            f"RETURN elementId(r) AS eid, r.namespace AS namespace, "
+            f"r.user_id AS user_id, startNode(r).name AS a, endNode(r).name AS b"
+        )
+
+        with self.driver.session() as session:
+            records = list(session.run(read_query, namespace=namespace or ""))
+
+            updates = []
+            for r in records:
+                a_canon, b_canon = sorted((r["a"] or "", r["b"] or ""))
+                updates.append({
+                    "eid": r["eid"],
+                    "composite_key": _composite_key(
+                        r["namespace"] or "", r["user_id"] or "", a_canon, b_canon
+                    ),
+                })
+
+            for i in range(0, len(updates), batch_size):
+                batch = updates[i:i + batch_size]
+                session.run(
+                    """
+                    UNWIND $batch AS row
+                    MATCH ()-[r:CO_OCCURS_WITH]-() WHERE elementId(r) = row.eid
+                    SET r.composite_key = row.composite_key
+                    """,
+                    batch=batch,
+                )
+
+        return len(updates)
 
     def health_check(self) -> bool:
         """Return True if the Neo4j driver is connected and responsive."""
