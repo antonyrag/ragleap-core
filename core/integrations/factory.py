@@ -11,6 +11,7 @@ from core.integrations.slack_connector import SlackConnector
 from core.integrations.notion_connector import NotionConnector
 from core.integrations.airtable_connector import AirtableConnector
 from core.integrations.razorpay_connector import RazorpayConnector
+from core.integrations.woocommerce_connector import WooCommerceConnector
 from core.integrations.crm_connectors import (
     SalesforceConnector,
     HubSpotConnector,
@@ -34,6 +35,7 @@ CONNECTOR_MAP = {
     'notion': NotionConnector,
     'airtable': AirtableConnector,
     'razorpay': RazorpayConnector,
+    'woocommerce': WooCommerceConnector,
 }
 
 
