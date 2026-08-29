@@ -3,9 +3,15 @@
 Pluggable vector backends beyond [ragleap-rag](https://pypi.org/project/ragleap-rag/)'s
 built-in 6 (PgVector, FAISS, Pinecone, Weaviate, Qdrant, Milvus).
 
-**Status: scaffold only - no backends implemented yet.** This package is
-under active development. See the
+This package is under active development - more backends will be added
+over time. See the
 [roadmap](https://github.com/antonyrag/ragleap-core/wiki/Roadmap) for status.
+
+## Available backends
+
+| Backend | Extra | Notes |
+|---|---|---|
+| Chroma | `chroma` | Embedded/local via chromadb's PersistentClient - no server required. No native sparse/keyword search (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 
 ## Design
 
@@ -17,7 +23,13 @@ pulls in no heavy dependencies beyond `ragleap-rag` itself.
 ## Install
 
 ```bash
-pip install ragleap-vectorstores[<backend>]
+pip install ragleap-vectorstores[chroma]
 ```
 
-(No backends published yet.)
+## Usage
+
+```python
+from ragleap_vectorstores import ChromaBackend
+
+backend = ChromaBackend(persist_directory="./chroma_data")
+```
