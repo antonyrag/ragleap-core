@@ -10,6 +10,7 @@ from core.integrations.csv_connector import CSVConnector
 from core.integrations.slack_connector import SlackConnector
 from core.integrations.notion_connector import NotionConnector
 from core.integrations.airtable_connector import AirtableConnector
+from core.integrations.razorpay_connector import RazorpayConnector
 from core.integrations.crm_connectors import (
     SalesforceConnector,
     HubSpotConnector,
@@ -32,6 +33,7 @@ CONNECTOR_MAP = {
     'slack': SlackConnector,
     'notion': NotionConnector,
     'airtable': AirtableConnector,
+    'razorpay': RazorpayConnector,
 }
 
 
