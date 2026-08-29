@@ -8,7 +8,9 @@ the package.
 """
 from ragleap.vectorstores.base import VectorBackend
 
-__all__ = ["VectorBackend"]
+__version__ = "0.1.0"
+
+__all__ = ["VectorBackend", "__version__"]
 
 try:
     from ragleap_vectorstores.chroma_backend import ChromaBackend
