@@ -5,6 +5,15 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.8]
+### Fixed
+- CO_OCCURS_WITH relationship-MERGE race, noticed but deliberately left open in the v0.6.7 fix (that release closed the four NODE-level races for Document/Entity/PairWeight/RelationWeight; this closes the equivalent race at the relationship level). `MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)` matched only on the two Entity endpoints and relationship type - not atomic against concurrent writers, same class of bug as the v0.6.7 node-level races.
+- Fix: a `composite_key` property (same `_composite_key()` helper as the four node types) is now MERGE'd on the CO_OCCURS_WITH relationship, backed by a relationship-level uniqueness constraint (`FOR ()-[r:CO_OCCURS_WITH]-() REQUIRE r.composite_key IS UNIQUE`), created idempotently alongside the existing four node constraints. CO_OCCURS_WITH is undirected and entity-pair order wasn't canonicalized anywhere in the existing code, so the composite_key is computed from a sorted (a, b) pair - without this, the same logical entity pair extracted in different orders across different documents would compute two different keys and MERGE could still create a duplicate relationship.
+- Added `backfill_co_occurs_with_composite_key(namespace=None, batch_size=500)` - the same one-time, idempotent migration pattern as `backfill_composite_key()` (v0.6.7), for CO_OCCURS_WITH relationships written before this version. Deduplicates on relationship identity (`WITH DISTINCT r`) before reading endpoint names via `startNode(r)`/`endNode(r)`, since Neo4j's undirected-match semantics can otherwise surface the same relationship via more than one traversal direction.
+### Verified
+- Live concurrency test (8 concurrent `upsert_document()` calls, 8 different document_ids, all mentioning the same two entities) against real Neo4j: exactly 1 CO_OCCURS_WITH relationship resulted, with composite_key correctly set - confirming the fix under real contention, not just code review. This is a different race shape than v0.6.7's Document-race test (same document_id, concurrent calls), since CO_OCCURS_WITH deliberately aggregates across DIFFERENT documents by design.
+- Full suite: 79 passed, 12 skipped - zero regressions.
+
 ## [0.6.7]
 ### Fixed
 - Real, confirmed concurrency bug (issue #183): concurrent upsert_document() calls with identical document_id/user_id/namespace could create duplicate Document/Entity/PairWeight/RelationWeight nodes. MERGE on multiple plain properties is not atomic against concurrent writers without a uniqueness constraint, and Neo4j Community Edition only supports single-property uniqueness constraints (no composite constraints, unlike Enterprise Edition). Reproduced live before fixing: 8 duplicate Document nodes from 6 "successful" concurrent upserts of the same document.
