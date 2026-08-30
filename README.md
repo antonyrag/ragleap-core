@@ -43,6 +43,13 @@ Add `ragleap-graph` too if you want Neo4j-backed knowledge graph retrieval:
 pip install ragleap-rag ragleap-graph
 ```
 
+Add `ragleap-vectorstores` too if you want pluggable vector backends beyond ragleap-rag's built-in six (Chroma today):
+```bash
+pip install ragleap-rag ragleap-vectorstores[chroma]
+# or, with uv
+uv add ragleap-rag ragleap-vectorstores[chroma]
+```
+
 Or run the full self-hosted app (channels, web chat UI, Docker Compose) — see [Quickstart](#quickstart) below. Browse every package at [packages.ragleap.com](https://packages.ragleap.com). Try it hands-on with the runnable scripts in [examples/](examples/) — `01_ingest_and_query.py` (upload a document, ask a question via the API) and `02_test_channel_directly.py` (test channel answering logic without real bot credentials).
 
 ## If a RAG chatbot answers questions, RagLeap runs your business
