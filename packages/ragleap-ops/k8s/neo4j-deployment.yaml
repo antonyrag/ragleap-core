@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-neo4j
+  labels:
+    app: ragleap-neo4j
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ragleap-neo4j
+  template:
+    metadata:
+      labels:
+        app: ragleap-neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: neo4j:5-community
+          envFrom:
+            - secretRef:
+                name: ragleap-neo4j-secret
+          env:
+            - name: NEO4J_PLUGINS
+              value: "[]"
+          ports:
+            - containerPort: 7474
+            - containerPort: 7687
+          volumeMounts:
+            - name: neo4j-data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 7474
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 7474
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: neo4j-data
+          persistentVolumeClaim:
+            claimName: ragleap-neo4j-data
