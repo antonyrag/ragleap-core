@@ -6,6 +6,7 @@ on:
       - 'ragleap-rag-v*'
       - 'ragleap-graph-v*'
       - 'ragleap-vectorstores-v*'
+      - 'ragleap-ops-v*'
   workflow_dispatch:
     inputs:
       package:
@@ -16,6 +17,7 @@ on:
           - ragleap-rag
           - ragleap-graph
           - ragleap-vectorstores
+          - ragleap-ops
       target:
         description: 'Publish target'
         required: true
@@ -132,4 +134,39 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: packages/ragleap-vectorstores/dist/
+          skip-existing: true
+  publish-ragleap-ops:
+    if: |
+      startsWith(github.ref, 'refs/tags/ragleap-ops-v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.package == 'ragleap-ops')
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/ragleap-ops
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install build tooling
+        run: pip install build
+      - name: Build
+        run: |
+          rm -rf dist/
+          python -m build
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-ops/dist/
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: github.event_name != 'workflow_dispatch' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-ops/dist/
           skip-existing: true
