@@ -4,6 +4,7 @@ Ported from production's DatabaseConnector.get_connector().
 """
 from core.integrations.base import BaseDatabaseConnector, DataSource
 from core.integrations.sql_connectors import MySQLConnector, PostgreSQLConnector
+from core.integrations.snowflake_connector import SnowflakeConnector
 from core.integrations.mongodb import MongoDBConnector
 from core.integrations.rest_api import RestAPIConnector
 from core.integrations.csv_connector import CSVConnector
@@ -23,6 +24,7 @@ from core.integrations.crm_connectors import (
 CONNECTOR_MAP = {
     'mysql': MySQLConnector,
     'postgresql': PostgreSQLConnector,
+    'snowflake': SnowflakeConnector,
     'mongodb': MongoDBConnector,
     'rest_api': RestAPIConnector,
     'csv': CSVConnector,
