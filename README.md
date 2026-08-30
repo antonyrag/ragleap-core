@@ -485,7 +485,7 @@ pip install --index-url https://packages.ragleap.com/simple/ ragleap-rag
 
 - **`ragleap-rag`** — the chunking → embedding → retrieval → generation pipeline as a library. Pluggable embeddings (12+ providers), 6 vector backends (FAISS, PgVector, Pinecone, Weaviate, Qdrant, Milvus), cross-encoder reranking, and more.
 - **`ragleap-graph`** — Neo4j-backed knowledge graph retrieval, usable standalone or alongside `ragleap-rag`.
-- **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. First backend: Chroma, embedded/local via chromadb's `PersistentClient` — no server required. Install with `pip install ragleap-vectorstores[chroma]`.
+- **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. First backend: Chroma, embedded/local via chromadb's `PersistentClient` — no server required. Install with `pip install ragleap-vectorstores[chroma]` or `uv add ragleap-vectorstores[chroma]`.
 
 All three are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
 
