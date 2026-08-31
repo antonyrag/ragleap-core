@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-voice
+  labels:
+    app: ragleap-voice
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragleap-voice
+  template:
+    metadata:
+      labels:
+        app: ragleap-voice
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.voice.imagePullSecret }}
+      initContainers:
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h ragleap-db -p 5432 -U {{ .Values.db.credentials.user }}; do sleep 2; done"]
+      containers:
+        - name: voice
+          image: {{ .Values.voice.image }}
+          command: {{ .Values.voice.command | toJson }}
+          ports:
+            - containerPort: {{ .Values.voice.port }}
+          envFrom:
+            - secretRef:
+                name: ragleap-app-env
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.db.credentials.user }}:{{ .Values.db.credentials.password }}@ragleap-db:5432/{{ .Values.db.credentials.database }}"

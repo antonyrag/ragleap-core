@@ -1,0 +1,57 @@
+db:
+  image: pgvector/pgvector:pg16
+  storage: 5Gi   # UNVERIFIED — compose used an unbounded volume, size for real capacity needs
+  credentials:
+    user: ragleap
+    password: ragleap   # override via --set or a values-prod.yaml — never commit real prod creds
+    database: ragleap_core
+  probes:
+    readiness:
+      initialDelaySeconds: 15
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 6
+    liveness:
+      initialDelaySeconds: 45
+      periodSeconds: 10
+      failureThreshold: 6
+
+app:
+  image: ghcr.io/antonyrag/ragleap-app:latest
+  imagePullSecret: ghcr-pull-secret
+  port: 8000
+  probes:
+    readiness:
+      initialDelaySeconds: 5
+    liveness:
+      initialDelaySeconds: 15
+
+voice:
+  image: ghcr.io/antonyrag/ragleap-app:latest
+  imagePullSecret: ghcr-pull-secret
+  port: 8765
+  command: ["python3", "-m", "channels.voice.server"]
+
+neo4j:
+  image: neo4j:5-community
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 50m
+    limits:
+      memory: 1Gi
+  storage: 5Gi   # UNVERIFIED — same as db, size for real capacity needs
+  auth: neo4j/ragleapgraph
+  plugins: "[]"
+  ports:
+    http: 7474
+    bolt: 7687
+  probes:
+    readiness:
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      failureThreshold: 12
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      failureThreshold: 6

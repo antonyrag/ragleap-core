@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-app
+  labels:
+    app: ragleap-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragleap-app
+  template:
+    metadata:
+      labels:
+        app: ragleap-app
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.app.imagePullSecret }}
+      initContainers:
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command: ["sh", "-c", "until pg_isready -h ragleap-db -p 5432 -U {{ .Values.db.credentials.user }}; do sleep 2; done"]
+      containers:
+        - name: app
+          image: {{ .Values.app.image }}
+          ports:
+            - containerPort: {{ .Values.app.port }}
+          envFrom:
+            - secretRef:
+                name: ragleap-app-env
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://{{ .Values.db.credentials.user }}:{{ .Values.db.credentials.password }}@ragleap-db:5432/{{ .Values.db.credentials.database }}"
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.app.port }}
+            initialDelaySeconds: {{ .Values.app.probes.readiness.initialDelaySeconds }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.app.port }}
+            initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds }}

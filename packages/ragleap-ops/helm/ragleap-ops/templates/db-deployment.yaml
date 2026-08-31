@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-db
+  labels:
+    app: ragleap-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ragleap-db
+  template:
+    metadata:
+      labels:
+        app: ragleap-db
+    spec:
+      containers:
+        - name: db
+          image: {{ .Values.db.image }}
+          envFrom:
+            - secretRef:
+                name: ragleap-db-secret
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/postgresql/data
+            - name: db-schema
+              mountPath: /docker-entrypoint-initdb.d/01-schema.sql
+              subPath: schema.sql
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.db.credentials.user | quote }}]
+            initialDelaySeconds: {{ .Values.db.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.db.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.db.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.db.probes.readiness.failureThreshold }}
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.db.credentials.user | quote }}]
+            initialDelaySeconds: {{ .Values.db.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.db.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.db.probes.liveness.failureThreshold }}
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: ragleap-db-data
+        - name: db-schema
+          configMap:
+            name: ragleap-db-schema
