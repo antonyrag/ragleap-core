@@ -51,6 +51,14 @@ pip install ragleap-rag ragleap-vectorstores[chroma]
 uv add ragleap-rag ragleap-vectorstores[chroma]
 ```
 
+Deploying to Kubernetes? `ragleap-ops` ships live-tested manifests and a Helm chart for the full stack:
+
+```bash
+pip install ragleap-ops
+# or, with uv
+uv add ragleap-ops
+```
+
 Or run the full self-hosted app (channels, web chat UI, Docker Compose) — see [Quickstart](#quickstart) below. Browse every package at [packages.ragleap.com](https://packages.ragleap.com). Try it hands-on with the runnable scripts in [examples/](examples/) — `01_ingest_and_query.py` (upload a document, ask a question via the API) and `02_test_channel_directly.py` (test channel answering logic without real bot credentials).
 
 ## If a RAG chatbot answers questions, RagLeap runs your business
