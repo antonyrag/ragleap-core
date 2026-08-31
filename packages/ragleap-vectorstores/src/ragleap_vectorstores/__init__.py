@@ -17,3 +17,9 @@ try:
     __all__.append("ChromaBackend")
 except ImportError:
     pass  # chroma extra not installed - ChromaBackend simply unavailable, not an error
+
+try:
+    from ragleap_vectorstores.lancedb_backend import LanceDBBackend
+    __all__.append("LanceDBBackend")
+except ImportError:
+    pass  # lancedb extra not installed - LanceDBBackend simply unavailable, not an error
