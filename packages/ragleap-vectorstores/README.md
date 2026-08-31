@@ -12,6 +12,7 @@ over time. See the
 | Backend | Extra | Notes |
 |---|---|---|
 | Chroma | `chroma` | Embedded/local via chromadb's PersistentClient - no server required. No native sparse/keyword search (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
+| LanceDB | `lancedb` | Embedded/local via a directory path - no server required. Real upsert semantics via `merge_insert()`. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 
 ## Design
 
@@ -24,6 +25,8 @@ pulls in no heavy dependencies beyond `ragleap-rag` itself.
 
 ```bash
 pip install ragleap-vectorstores[chroma]
+# or
+pip install ragleap-vectorstores[lancedb]
 ```
 
 ## Usage
@@ -32,4 +35,10 @@ pip install ragleap-vectorstores[chroma]
 from ragleap_vectorstores import ChromaBackend
 
 backend = ChromaBackend(persist_directory="./chroma_data")
+```
+
+```python
+from ragleap_vectorstores import LanceDBBackend
+
+backend = LanceDBBackend(uri="./lancedb_data")
 ```
