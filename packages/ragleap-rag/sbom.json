@@ -1,7 +1,7 @@
 {
   "components": [
     {
-      "bom-ref": "Authlib==1.7.2",
+      "bom-ref": "Authlib==1.8.0",
       "description": "The ultimate Python library in building OAuth and OpenID Connect servers and clients.",
       "externalReferences": [
         {
@@ -50,9 +50,9 @@
         }
       ],
       "name": "Authlib",
-      "purl": "pkg:pypi/authlib@1.7.2",
+      "purl": "pkg:pypi/authlib@1.8.0",
       "type": "library",
-      "version": "1.7.2"
+      "version": "1.8.0"
     },
     {
       "bom-ref": "EbookLib==0.20",
@@ -179,7 +179,7 @@
       "version": "0.8.0"
     },
     {
-      "bom-ref": "anthropic==1.1.0",
+      "bom-ref": "anthropic==1.2.0",
       "description": "The official Python library for the anthropic API",
       "externalReferences": [
         {
@@ -202,9 +202,9 @@
         }
       ],
       "name": "anthropic",
-      "purl": "pkg:pypi/anthropic@1.1.0",
+      "purl": "pkg:pypi/anthropic@1.2.0",
       "type": "library",
-      "version": "1.1.0"
+      "version": "1.2.0"
     },
     {
       "bom-ref": "anyio==4.14.2",
@@ -1739,7 +1739,7 @@
       "version": "0.16.0"
     },
     {
-      "bom-ref": "joserfc==1.7.4",
+      "bom-ref": "joserfc==1.7.5",
       "description": "The ultimate Python library for JOSE RFCs, including JWS, JWE, JWK, JWA, JWT",
       "externalReferences": [
         {
@@ -1778,9 +1778,9 @@
         }
       ],
       "name": "joserfc",
-      "purl": "pkg:pypi/joserfc@1.7.4",
+      "purl": "pkg:pypi/joserfc@1.7.5",
       "type": "library",
-      "version": "1.7.4"
+      "version": "1.7.5"
     },
     {
       "bom-ref": "jsonpointer==3.1.1",
@@ -2196,7 +2196,7 @@
       "version": "1.29.0"
     },
     {
-      "bom-ref": "openai==3.5.0",
+      "bom-ref": "openai==3.6.0",
       "description": "The official Python library for the openai API",
       "externalReferences": [
         {
@@ -2219,9 +2219,9 @@
         }
       ],
       "name": "openai",
-      "purl": "pkg:pypi/openai@3.5.0",
+      "purl": "pkg:pypi/openai@3.6.0",
       "type": "library",
-      "version": "3.5.0"
+      "version": "3.6.0"
     },
     {
       "bom-ref": "openpyxl==3.1.5",
@@ -2813,7 +2813,7 @@
       "version": "3.0"
     },
     {
-      "bom-ref": "pydantic==2.13.4",
+      "bom-ref": "pydantic==2.13.5",
       "description": "Data validation using Python type hints",
       "externalReferences": [
         {
@@ -2851,12 +2851,12 @@
         }
       ],
       "name": "pydantic",
-      "purl": "pkg:pypi/pydantic@2.13.4",
+      "purl": "pkg:pypi/pydantic@2.13.5",
       "type": "library",
-      "version": "2.13.4"
+      "version": "2.13.5"
     },
     {
-      "bom-ref": "pydantic_core==2.46.4",
+      "bom-ref": "pydantic_core==2.46.5",
       "description": "Core functionality for Pydantic validation and serialization",
       "externalReferences": [
         {
@@ -2889,9 +2889,9 @@
         }
       ],
       "name": "pydantic_core",
-      "purl": "pkg:pypi/pydantic-core@2.46.4",
+      "purl": "pkg:pypi/pydantic-core@2.46.5",
       "type": "library",
-      "version": "2.46.4"
+      "version": "2.46.5"
     },
     {
       "bom-ref": "pymilvus==3.0.1",
@@ -3327,7 +3327,7 @@
       "version": "0.37.0"
     },
     {
-      "bom-ref": "regex==2026.7.19",
+      "bom-ref": "regex==2026.8.31",
       "description": "Alternative regular expression module, to replace re.",
       "externalReferences": [
         {
@@ -3343,9 +3343,9 @@
         }
       ],
       "name": "regex",
-      "purl": "pkg:pypi/regex@2026.7.19",
+      "purl": "pkg:pypi/regex@2026.8.31",
       "type": "library",
-      "version": "2026.7.19"
+      "version": "2026.8.31"
     },
     {
       "bom-ref": "requests==2.34.2",
@@ -4335,9 +4335,9 @@
     {
       "dependsOn": [
         "cryptography==50.0.1",
-        "joserfc==1.7.4"
+        "joserfc==1.7.5"
       ],
-      "ref": "Authlib==1.7.2"
+      "ref": "Authlib==1.8.0"
     },
     {
       "dependsOn": [
@@ -4359,11 +4359,11 @@
         "google-auth==2.57.0",
         "httpx2==2.12.0",
         "jiter==0.16.0",
-        "pydantic==2.13.4",
+        "pydantic==2.13.5",
         "sniffio==1.3.1",
         "typing_extensions==4.16.0"
       ],
-      "ref": "anthropic==1.1.0"
+      "ref": "anthropic==1.2.0"
     },
     {
       "dependsOn": [
@@ -4468,7 +4468,7 @@
       "dependsOn": [
         "python-dateutil==2.9.0.post0",
         "pytz==2026.3.post1",
-        "regex==2026.7.19",
+        "regex==2026.8.31",
         "tzlocal==5.4.4"
       ],
       "ref": "dateparser==1.4.2"
@@ -4531,7 +4531,7 @@
         "httpx==0.28.1",
         "pillow==12.3.0",
         "protobuf==6.33.6",
-        "pydantic==2.13.4",
+        "pydantic==2.13.5",
         "requests==2.34.2",
         "sniffio==1.3.1",
         "tenacity==9.1.4",
@@ -4615,7 +4615,7 @@
     },
     {
       "dependsOn": [
-        "Authlib==1.7.2",
+        "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
         "filelock==3.32.4",
@@ -4651,7 +4651,7 @@
       "dependsOn": [
         "cryptography==50.0.1"
       ],
-      "ref": "joserfc==1.7.4"
+      "ref": "joserfc==1.7.5"
     },
     {
       "ref": "jsonpointer==3.1.1"
@@ -4688,7 +4688,7 @@
     },
     {
       "dependsOn": [
-        "regex==2026.7.19"
+        "regex==2026.8.31"
       ],
       "ref": "lark==1.3.1"
     },
@@ -4742,13 +4742,13 @@
         "jiter==0.16.0",
         "numpy==2.4.6",
         "pandas==3.0.5",
-        "pydantic==2.13.4",
+        "pydantic==2.13.5",
         "sniffio==1.3.1",
         "typing_extensions==4.16.0",
         "urllib3==2.7.0",
         "websockets==16.1.1"
       ],
-      "ref": "openai==3.5.0"
+      "ref": "openai==3.6.0"
     },
     {
       "dependsOn": [
@@ -4848,18 +4848,18 @@
     {
       "dependsOn": [
         "annotated-types==0.8.0",
-        "pydantic_core==2.46.4",
+        "pydantic_core==2.46.5",
         "typing-inspection==0.4.4",
         "typing_extensions==4.16.0",
         "tzdata==2026.3"
       ],
-      "ref": "pydantic==2.13.4"
+      "ref": "pydantic==2.13.5"
     },
     {
       "dependsOn": [
         "typing_extensions==4.16.0"
       ],
-      "ref": "pydantic_core==2.46.4"
+      "ref": "pydantic_core==2.46.5"
     },
     {
       "dependsOn": [
@@ -4932,7 +4932,7 @@
         "numpy==2.4.6",
         "portalocker==3.2.0",
         "protobuf==6.33.6",
-        "pydantic==2.13.4",
+        "pydantic==2.13.5",
         "urllib3==2.7.0"
       ],
       "ref": "qdrant-client==1.19.0"
@@ -4953,7 +4953,7 @@
       "ref": "referencing==0.37.0"
     },
     {
-      "ref": "regex==2026.7.19"
+      "ref": "regex==2026.8.31"
     },
     {
       "dependsOn": [
@@ -4984,7 +4984,7 @@
       "dependsOn": [
         "EbookLib==0.20",
         "PyYAML==6.0.3",
-        "anthropic==1.1.0",
+        "anthropic==1.2.0",
         "beautifulsoup4==4.15.0",
         "faiss-cpu==1.15.0",
         "google-genai==2.20.0",
@@ -4992,7 +4992,7 @@
         "jsonschema==4.26.0",
         "odfpy==1.4.1",
         "onnxruntime==1.29.0",
-        "openai==3.5.0",
+        "openai==3.6.0",
         "openpyxl==3.1.5",
         "pillow==12.3.0",
         "pinecone==9.1.0",
@@ -5046,7 +5046,7 @@
     },
     {
       "dependsOn": [
-        "regex==2026.7.19",
+        "regex==2026.8.31",
         "requests==2.34.2"
       ],
       "ref": "tiktoken==0.14.0"
@@ -5118,12 +5118,12 @@
     },
     {
       "dependsOn": [
-        "Authlib==1.7.2",
+        "Authlib==1.8.0",
         "grpcio==1.78.0",
         "httpx==0.28.1",
         "packaging==26.3",
         "protobuf==6.33.6",
-        "pydantic==2.13.4",
+        "pydantic==2.13.5",
         "validators==0.35.0"
       ],
       "ref": "weaviate-client==4.23.0"
@@ -5179,7 +5179,7 @@
       "type": "library",
       "version": "0.12.4"
     },
-    "timestamp": "2026-08-27T19:18:04.242852+00:00",
+    "timestamp": "2026-08-31T11:15:39.577822+00:00",
     "tools": {
       "components": [
         {
@@ -5283,7 +5283,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:b78c2577-c547-43b8-a219-cbbe02ee5707",
+  "serialNumber": "urn:uuid:a1616dd4-3016-4614-9c8f-8ec7b192440d",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
