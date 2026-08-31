@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragleap-neo4j
+spec:
+  selector:
+    app: ragleap-neo4j
+  ports:
+    - name: http
+      port: {{ .Values.neo4j.ports.http }}
+      targetPort: {{ .Values.neo4j.ports.http }}
+    - name: bolt
+      port: {{ .Values.neo4j.ports.bolt }}
+      targetPort: {{ .Values.neo4j.ports.bolt }}

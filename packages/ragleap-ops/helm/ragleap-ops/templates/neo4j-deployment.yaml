@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-neo4j
+  labels:
+    app: ragleap-neo4j
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ragleap-neo4j
+  template:
+    metadata:
+      labels:
+        app: ragleap-neo4j
+    spec:
+      containers:
+        - name: neo4j
+          image: {{ .Values.neo4j.image }}
+          envFrom:
+            - secretRef:
+                name: ragleap-neo4j-secret
+          env:
+            - name: NEO4J_PLUGINS
+              value: {{ .Values.neo4j.plugins | quote }}
+          ports:
+            - containerPort: {{ .Values.neo4j.ports.http }}
+            - containerPort: {{ .Values.neo4j.ports.bolt }}
+          resources:
+            requests:
+              memory: {{ .Values.neo4j.resources.requests.memory }}
+              cpu: {{ .Values.neo4j.resources.requests.cpu }}
+            limits:
+              memory: {{ .Values.neo4j.resources.limits.memory }}
+          volumeMounts:
+            - name: neo4j-data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.neo4j.ports.http }}
+            initialDelaySeconds: {{ .Values.neo4j.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.neo4j.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.neo4j.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.neo4j.ports.http }}
+            initialDelaySeconds: {{ .Values.neo4j.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.neo4j.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.neo4j.probes.liveness.failureThreshold }}
+      volumes:
+        - name: neo4j-data
+          persistentVolumeClaim:
+            claimName: ragleap-neo4j-data
