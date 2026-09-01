@@ -25,8 +25,12 @@ pulls in no heavy dependencies beyond `ragleap-rag` itself.
 
 ```bash
 pip install ragleap-vectorstores[chroma]
-# or
+# or, with uv
+uv add ragleap-vectorstores[chroma]
+
 pip install ragleap-vectorstores[lancedb]
+# or, with uv
+uv add ragleap-vectorstores[lancedb]
 ```
 
 ## Usage

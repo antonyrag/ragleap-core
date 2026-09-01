@@ -5,6 +5,15 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-31
+### Fixed
+- README's Install section was missing `uv add` variants for both
+  extras (only `pip install` was shown) - caught by checking the real
+  rendered PyPI project page after the v0.2.0 publish, not caught
+  beforehand. Every other install example across this project's docs
+  shows both pip and uv; this brings the package's own README (which
+  becomes the permanent PyPI page content once published) in line.
+
 ## [0.2.0] - 2026-08-31
 ### Added
 - `LanceDBBackend` - second vector backend, via LanceDB's embedded/local
