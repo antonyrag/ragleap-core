@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ragleap-db
 spec:
-  replicas: 1
+  replicas: 1  # intentionally not configurable - stateful, single-writer, ReadWriteOnce PVC
   strategy:
     type: Recreate
   selector:

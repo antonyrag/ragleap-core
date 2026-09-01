@@ -1,0 +1,14 @@
+# Dev environment overrides — apply with:
+#   helm install ragleap-ops ./ragleap-ops -f values-dev.yaml
+#
+# Single replicas, minimal resources, ingress disabled (use port-forward
+# for local access instead). Not suitable for anything but local testing.
+
+app:
+  replicaCount: 1
+
+voice:
+  replicaCount: 1
+
+ingress:
+  enabled: false

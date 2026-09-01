@@ -1,0 +1,18 @@
+# Staging environment overrides — apply with:
+#   helm install ragleap-ops ./ragleap-ops -f values-staging.yaml
+#
+# Mirrors production shape (Ingress enabled, real hostname/issuer) but at
+# lower replica counts, to catch integration issues before they reach
+# production without paying full production resource cost.
+
+app:
+  replicaCount: 1
+
+voice:
+  replicaCount: 1
+
+ingress:
+  enabled: true
+  hostname: staging.example.com   # REPLACE with your real staging domain
+  ingressClassName: nginx
+  clusterIssuer: letsencrypt-prod   # REPLACE with your ClusterIssuer name
