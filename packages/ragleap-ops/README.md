@@ -67,3 +67,34 @@ against each target cluster's own cert instead.
 ## Status
 
 Both the raw manifests (v0.1.0) and the Helm chart (v0.2.0, `helm/ragleap-ops/`) are live-verified end-to-end on a real kind cluster — see CHANGELOG.md for the specific bugs found and fixed.
+
+## NetworkPolicies (restricting pod-to-pod traffic)
+
+Both k8s/ and helm/ragleap-ops/ include NetworkPolicy resources restricting
+which pods can reach ragleap-db (port 5432, from ragleap-app and
+ragleap-voice only) and ragleap-neo4j (ports 7474/7687, from ragleap-app
+only -- ragleap-voice does not use neo4j in the current codebase).
+
+Important: kind's default CNI (kindnet) does not enforce NetworkPolicy at
+all -- policies will apply without error but traffic will not actually be
+blocked. Testing NetworkPolicy enforcement requires a CNI that supports it,
+such as Calico:
+
+```bash
+kind create cluster --config kind-calico-config.yaml   # disableDefaultCNI: true
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/custom-resources.yaml
+```
+
+Verification performed: the enforcement mechanism itself was live-tested end
+to end on a real kind + Calico cluster (a labeled pod was correctly blocked
+from an unlabeled target, then allowed once correctly labeled -- confirmed
+via real timeout/success exit codes, not assumed). The real ragleap-db/
+ragleap-neo4j label selectors were verified to match the actual Deployment
+labels used elsewhere in this chart. A full live run of the complete
+ragleap stack under Calico was not completed in this session due to
+genuine memory constraints on the test VPS (which also runs unrelated
+production services) -- Calico's own baseline overhead left too little
+headroom for a 4-service stack reliably. This is an honest scope
+boundary, not a claim that the policies were fully integration-tested
+against the live application.
