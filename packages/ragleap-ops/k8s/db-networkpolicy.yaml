@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow-app-and-voice
+spec:
+  podSelector:
+    matchLabels:
+      app: ragleap-db
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ragleap-app
+        - podSelector:
+            matchLabels:
+              app: ragleap-voice
+      ports:
+        - protocol: TCP
+          port: 5432
