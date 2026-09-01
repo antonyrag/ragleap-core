@@ -28,6 +28,42 @@ kubectl create secret generic ragleap-app-env \
   --dry-run=client -o yaml > k8s/app-env-secret.yaml
 ```
 
+## Secrets management for production (Sealed Secrets)
+
+The kubectl create secret --from-env-file pattern above is fine for local
+testing, but it leaves real credentials sitting as plaintext files and shell
+history. For production, use Sealed Secrets instead (https://github.com/bitnami-labs/sealed-secrets) --
+secrets get encrypted against your specific cluster's public key, so the
+encrypted result is safe to commit to git. No other cluster can decrypt it.
+
+One-time setup (per cluster):
+
+```bash
+kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.39.1/controller.yaml
+```
+
+Sealing a secret (works offline once you have exported your cluster's public
+cert -- no live cluster connection needed at seal-time, safe to run in CI):
+
+```bash
+kubeseal --controller-name sealed-secrets-controller \
+  --controller-namespace kube-system --fetch-cert > sealed-secrets-pub-cert.pem
+
+kubectl create secret generic ragleap-db-secret \
+  --dry-run=client \
+  --from-literal=POSTGRES_USER=ragleap \
+  --from-literal=POSTGRES_PASSWORD=your-real-password \
+  --from-literal=POSTGRES_DB=ragleap_core \
+  -o yaml | kubeseal --format yaml --cert sealed-secrets-pub-cert.pem > db-secret-sealed.yaml
+
+kubectl apply -f db-secret-sealed.yaml
+```
+
+Important: a sealed secret is tied to the exact cluster whose public key
+encrypted it. A SealedSecret sealed for one cluster will not decrypt on a
+different cluster -- never copy a sealed file between environments; reseal
+against each target cluster's own cert instead.
+
 ## Status
 
 Both the raw manifests (v0.1.0) and the Helm chart (v0.2.0, `helm/ragleap-ops/`) are live-verified end-to-end on a real kind cluster — see CHANGELOG.md for the specific bugs found and fixed.
