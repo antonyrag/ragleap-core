@@ -209,6 +209,15 @@ class GraphIndex:
                         "CREATE CONSTRAINT co_occurs_with_composite_key IF NOT EXISTS "
                         "FOR ()-[r:CO_OCCURS_WITH]-() REQUIRE r.composite_key IS UNIQUE"
                     )
+                    # Relationship-level composite_key constraint for
+                    # RELATES_AS -- a real, previously-undocumented race
+                    # found while reviewing this code, same class of bug
+                    # as CO_OCCURS_WITH's (just directed, no sorting
+                    # needed since subject/object order is meaningful).
+                    _constraint_session.run(
+                        "CREATE CONSTRAINT relates_as_composite_key IF NOT EXISTS "
+                        "FOR ()-[r:RELATES_AS]-() REQUIRE r.composite_key IS UNIQUE"
+                    )
             except Exception as constraint_exc:
                 logger.warning(
                     f"Failed to create Document composite_key constraint: {constraint_exc}"
@@ -662,6 +671,9 @@ class GraphIndex:
                     )
 
                 for (subject, relation_type, obj) in old_relations | current_relations:
+                    relates_as_composite_key = _composite_key(
+                        ns, uid, subject, relation_type, obj
+                    )
                     session.run(
                         """
                         MATCH (rw:RelationWeight {namespace: $namespace, subject: $subject, relation_type: $relation_type, object: $object, user_id: $user_id})
@@ -669,11 +681,12 @@ class GraphIndex:
                         MATCH (es:Entity {name: $subject, namespace: $namespace, user_id: $user_id})
                         MATCH (eo:Entity {name: $object, namespace: $namespace, user_id: $user_id})
                         FOREACH (_ IN CASE WHEN total > 0 THEN [1] ELSE [] END |
-                            MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)
+                            MERGE (es)-[r:RELATES_AS {composite_key: $relates_as_composite_key}]->(eo)
+                            ON CREATE SET r.relation_type = $relation_type, r.namespace = $namespace, r.user_id = $user_id
                             SET r.weight = total
                         )
                         FOREACH (_ IN CASE WHEN total = 0 THEN [1] ELSE [] END |
-                            MERGE (es)-[r2:RELATES_AS {relation_type: $relation_type}]->(eo)
+                            MERGE (es)-[r2:RELATES_AS {composite_key: $relates_as_composite_key}]->(eo)
                             DELETE r2
                         )
                         """,
@@ -682,6 +695,7 @@ class GraphIndex:
                         relation_type=relation_type,
                         object=obj,
                         user_id=uid,
+                        relates_as_composite_key=relates_as_composite_key,
                     )
                     summary["relations_indexed"] += 1
 
