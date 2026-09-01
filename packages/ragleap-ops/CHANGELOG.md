@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Optional Helm chart Ingress + cert-manager Certificate (`ingress.enabled`, default `false`) for exposing the app outside the cluster over TLS.
+
+### Verified
+
+- Full Ingress + TLS chain live-tested end-to-end on a real kind cluster with a genuine NGINX Ingress Controller and cert-manager, using a self-signed ClusterIssuer. Confirmed via openssl that the correct certificate (matching SNI hostname) was served, not a generic fallback. HTTP routing through the Ingress to the backend independently confirmed.
+
+### Known limitations
+
+- Production Let's Encrypt issuance was not live-tested this session — real ACME HTTP-01 challenges require public DNS and an internet-reachable port 80, which a local kind cluster cannot satisfy. The provided ClusterIssuer example is the standard, documented cert-manager pattern, not independently verified against a real domain.
 
 ### Added
 
