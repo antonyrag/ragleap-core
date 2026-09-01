@@ -98,3 +98,57 @@ production services) -- Calico's own baseline overhead left too little
 headroom for a 4-service stack reliably. This is an honest scope
 boundary, not a claim that the policies were fully integration-tested
 against the live application.
+
+## Ingress + TLS
+
+The Helm chart includes an optional Ingress + cert-manager Certificate
+(disabled by default via `ingress.enabled: false`). Enabling it requires:
+
+1. An NGINX Ingress Controller installed on your cluster
+2. cert-manager installed, with a real ClusterIssuer configured (Let's
+   Encrypt for production, or a self-signed issuer for local testing)
+3. A real hostname you own, set via `ingress.hostname` in values.yaml
+4. Your ClusterIssuer's name set via `ingress.clusterIssuer`
+
+Example production ClusterIssuer (Let's Encrypt, replace the email):
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: you@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+EOF
+```
+
+Then deploy with:
+
+```bash
+helm install ragleap-ops ./ragleap-ops \
+  --set ingress.enabled=true \
+  --set ingress.hostname=your-real-domain.com \
+  --set ingress.clusterIssuer=letsencrypt-prod
+```
+
+Verification performed: the full Ingress + TLS chain was live-tested end to
+end on a real kind cluster with a genuine NGINX Ingress Controller and
+cert-manager, using a self-signed ClusterIssuer (Let's Encrypt itself
+requires public DNS and internet-reachable ports, which a local kind
+cluster cannot satisfy for a real ACME challenge). Confirmed via openssl:
+the correct certificate was served over TLS via SNI, matching the exact
+hostname requested, not a generic fallback certificate. HTTP routing
+through the Ingress to the backend service was independently confirmed
+working. Production Let's Encrypt issuance was not live-tested in this
+session for the reason above -- the issuer configuration shown is the
+standard, documented cert-manager pattern, not independently verified
+against a real public domain here.
