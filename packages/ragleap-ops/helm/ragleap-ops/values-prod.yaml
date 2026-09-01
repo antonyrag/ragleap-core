@@ -1,0 +1,24 @@
+# Production environment overrides — apply with:
+#   helm install ragleap-ops ./ragleap-ops -f values-prod.yaml
+#
+# Higher app/voice replica counts for real traffic. db/neo4j stay at a
+# single replica regardless of environment — they're stateful,
+# single-writer services with ReadWriteOnce PVCs; horizontal scaling
+# would require a different storage/clustering architecture entirely,
+# not a values.yaml change.
+#
+# IMPORTANT: never commit real production database credentials here.
+# Override db.credentials via --set or, better, use the Sealed Secrets
+# workflow documented above instead of values.yaml for anything secret.
+
+app:
+  replicaCount: 3
+
+voice:
+  replicaCount: 2
+
+ingress:
+  enabled: true
+  hostname: app.example.com   # REPLACE with your real production domain
+  ingressClassName: nginx
+  clusterIssuer: letsencrypt-prod   # REPLACE with your ClusterIssuer name

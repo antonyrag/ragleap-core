@@ -152,3 +152,29 @@ working. Production Let's Encrypt issuance was not live-tested in this
 session for the reason above -- the issuer configuration shown is the
 standard, documented cert-manager pattern, not independently verified
 against a real public domain here.
+
+## Multi-environment deployment
+
+Environment-specific overrides live in `helm/ragleap-ops/values-{dev,staging,prod}.yaml`,
+layered on top of the base `values.yaml` (never edit the base file for a
+single environment):
+
+```bash
+helm install ragleap-ops ./ragleap-ops -f values-dev.yaml       # local/dev
+helm install ragleap-ops ./ragleap-ops -f values-staging.yaml   # staging
+helm install ragleap-ops ./ragleap-ops -f values-prod.yaml      # production
+```
+
+`db` and `neo4j` intentionally have no `replicaCount` in any environment
+file and stay hardcoded at 1 in the templates -- both are stateful,
+single-writer services backed by `ReadWriteOnce` PVCs. Horizontal scaling
+for either would require a genuinely different storage/clustering
+architecture, not a values.yaml change, so this isn't offered as a
+configurable option that would silently produce a broken multi-writer
+setup if someone bumped the number.
+
+Verified: rendered output for `app.replicaCount`/`voice.replicaCount`
+and `ingress.enabled`/`ingress.hostname` confirmed to differ correctly
+across all three overlay files via `helm template -f values-<env>.yaml`
+-- dev (1/1, no ingress), staging (1/1, ingress enabled with its own
+hostname), prod (3/2, ingress enabled with its own hostname).

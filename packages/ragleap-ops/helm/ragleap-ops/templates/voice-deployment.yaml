@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ragleap-voice
 spec:
-  replicas: 1
+  replicas: {{ .Values.voice.replicaCount }}
   selector:
     matchLabels:
       app: ragleap-voice

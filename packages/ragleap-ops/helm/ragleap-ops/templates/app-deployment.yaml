@@ -5,7 +5,7 @@ metadata:
   labels:
     app: ragleap-app
 spec:
-  replicas: 1
+  replicas: {{ .Values.app.replicaCount }}
   selector:
     matchLabels:
       app: ragleap-app

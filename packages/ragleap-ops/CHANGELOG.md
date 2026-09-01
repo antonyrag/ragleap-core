@@ -7,6 +7,15 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Environment overlay files (`values-dev.yaml`, `values-staging.yaml`, `values-prod.yaml`) for the Helm chart, layered on top of the base `values.yaml`.
+- `app.replicaCount`/`voice.replicaCount` parameterized (were previously hardcoded to `1` in the templates, which would have silently made environment-based replica scaling impossible). `db`/`neo4j` intentionally remain hardcoded at 1 replica -- both are stateful, single-writer services on `ReadWriteOnce` PVCs.
+
+### Verified
+
+- Rendered output confirmed to differ correctly across all three overlays via `helm template -f values-<env>.yaml`: dev (1/1 replicas, ingress disabled), staging (1/1 replicas, ingress enabled with its own hostname), prod (3/2 replicas, ingress enabled with its own hostname).
+
+### Added
+
 - Optional Helm chart Ingress + cert-manager Certificate (`ingress.enabled`, default `false`) for exposing the app outside the cluster over TLS.
 
 ### Verified

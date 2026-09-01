@@ -17,6 +17,7 @@ db:
       failureThreshold: 6
 
 app:
+  replicaCount: 1
   image: ghcr.io/antonyrag/ragleap-app:latest
   imagePullSecret: ghcr-pull-secret
   port: 8000
@@ -27,6 +28,7 @@ app:
       initialDelaySeconds: 15
 
 voice:
+  replicaCount: 1
   image: ghcr.io/antonyrag/ragleap-app:latest
   imagePullSecret: ghcr-pull-secret
   port: 8765
