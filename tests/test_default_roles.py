@@ -1,4 +1,4 @@
-"""Tests for the expanded DEFAULT_ROLES catalog (27 new global professional roles across two batches)."""
+"""Tests for the expanded DEFAULT_ROLES catalog (37 new global professional roles across three batches)."""
 import pytest
 from core.employees.defaults import (
     ROLE_CHOICES, ROLE_SKILL_TAGS, DEFAULT_ROLES, SENSITIVE_DOMAIN_ROLES,
@@ -14,6 +14,10 @@ NEW_ROLES = [
     "veterinary_intake", "tax_preparation_intake", "immigration_intake",
     "volunteer_coordinator", "membership_agent", "admissions_agent",
     "vehicle_sales_agent",
+    "photography_booking_agent", "salon_spa_agent", "warehouse_operations_agent",
+    "b2b_lead_qualifier", "returns_refunds_agent", "property_management_agent",
+    "franchise_inquiry_agent", "warranty_claims_agent", "coworking_space_agent",
+    "delivery_dispatch_agent",
 ]
 
 SENSITIVE_EXPECTED = {
@@ -74,5 +78,18 @@ def test_no_role_in_default_roles_is_missing_from_role_choices():
         assert r["role"] in ROLE_CHOICES, f"{r['role']} in DEFAULT_ROLES but not ROLE_CHOICES"
 
 
-def test_total_role_count_at_least_36():
-    assert len(DEFAULT_ROLES) >= 36
+def test_total_role_count_at_least_46():
+    assert len(DEFAULT_ROLES) >= 46
+
+
+def test_every_real_role_has_core_and_owner_instruction_tags():
+    # ROLE_SKILL_TAGS is what core/employees/skills.py's get_role_skills()
+    # actually uses for tag_search() -- missing "core"/"owner_instruction"
+    # here means that role silently skips business-identity, escalation,
+    # privacy, and approval-workflow memories on the tag-search fallback path.
+    for role in ROLE_CHOICES:
+        if role == "custom":
+            continue
+        tags = ROLE_SKILL_TAGS.get(role, [])
+        assert "core" in tags, f"{role} missing 'core' tag in ROLE_SKILL_TAGS"
+        assert "owner_instruction" in tags, f"{role} missing 'owner_instruction' tag in ROLE_SKILL_TAGS"
