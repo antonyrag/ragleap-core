@@ -6,7 +6,7 @@
 
 **Autonomous AI Agents — Not Just RAG.**
 
-[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Core Release](https://img.shields.io/github/v/release/antonyrag/ragleap-core?filter=v*&label=ragleap-core&color=blue)](https://github.com/antonyrag/ragleap-core/releases) [![9 AI Employees](https://img.shields.io/badge/9-AI%20Employees-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Autonomous](https://img.shields.io/badge/Autonomous-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Self--Hosted](https://img.shields.io/badge/Self--Hosted-brightgreen)](https://github.com/antonyrag/ragleap-core)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) [![Core Release](https://img.shields.io/github/v/release/antonyrag/ragleap-core?filter=v*&label=ragleap-core&color=blue)](https://github.com/antonyrag/ragleap-core/releases) [![36 AI Employees](https://img.shields.io/badge/36-AI%20Employees-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Autonomous](https://img.shields.io/badge/Autonomous-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Self--Hosted](https://img.shields.io/badge/Self--Hosted-brightgreen)](https://github.com/antonyrag/ragleap-core)
 [![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
 [![PyPI ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
 [![PyPI ragleap-vectorstores](https://img.shields.io/pypi/v/ragleap-vectorstores?label=ragleap-vectorstores)](https://pypi.org/project/ragleap-vectorstores/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-vectorstores?label=downloads)](https://pypi.org/project/ragleap-vectorstores/)
@@ -17,7 +17,7 @@
 
 RagLeap Core is the open-source engine behind RagLeap — a self-hosted, agentic system that runs your business from your own documents on your own server, with no vendor lock-in.
 
-**9 role-based AI Employees:** AI Manager, Personal Secretary, Customer Support, Telecaller, DB Analyst, Broadcast Agent, Personal Assistant, AI COO, AI Engineer.
+**36 role-based AI Employees:** 9 core generalist roles (AI Manager, Secretary, CEO, Sales, Support, HR, Finance, Marketing, Operations) plus 27 vertical-specific global roles (Recruiter, Real Estate Agent, Legal Intake, Healthcare Intake, Insurance Agent, and more) — full list in [`core/employees/defaults.py`](core/employees/defaults.py).
 
 **What it does:**
 - Self-learning, outcome-weighted memory
@@ -133,7 +133,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | ⚡ **Streaming responses** | Answers stream token-by-token instead of waiting for the full response |
 | 🔁 **Provider fallback** | Automatically retries with a backup LLM provider if the primary fails |
 | 💰 **Token usage reporting** | Real per-call token counts from the provider, plus context-size budget trimming |
-| 🧑‍💼 **AI Employees** | Role-based agents (9 default roles) with persistent business-context memory, wired into `/chat` via `role=<role>` |
+| 🧑‍💼 **AI Employees** | Role-based agents (36 default roles) with persistent business-context memory, wired into `/chat` via `role=<role>` |
 | 🔗 **n8n workflow automation** | Fire a webhook after the AI replies on WhatsApp/Telegram/Discord — no-code automations triggered directly from a conversation |
 ## Architecture
 
@@ -224,7 +224,7 @@ RagLeap Core covers document upload, retrieval, and web chat. The hosted platfor
 | Area | What it adds |
 |---|---|
 | **Manager AI** | A private executive assistant for the owner — sees documents, analytics, team permissions, and database connections; can send emails, generate reports, and manage settings by conversation, reachable via Web, WhatsApp, Telegram, or phone call |
-| **AI Employees** | Single-tenant runtime (9 roles, pgvector-backed learned memory) is open in this repo's `core/employees/`; the hosted platform adds multi-tenant per-workspace seeding and Manager AI integration on top |
+| **AI Employees** | Single-tenant runtime (36 roles, pgvector-backed learned memory) is open in this repo's `core/employees/`; the hosted platform adds multi-tenant per-workspace seeding and Manager AI integration on top |
 | **Voice AI** | Real inbound phone calls via Twilio — speech-to-text, RAG-grounded response, text-to-speech, with owner vs. customer call routing |
 | **Multi-channel bots (multi-tenant)** | WhatsApp (Twilio or Gupshup), Telegram, and Discord — single-tenant versions are in this repo; the hosted version adds multi-tenancy, per-workspace routing, and shared config across channels |
 | **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
@@ -267,7 +267,7 @@ flowchart TD
     Addon --> RAG["RAG Retrieval<br/>pgvector cosine search + Neo4j entity-graph boost"]
     RAGShared --- RAG
 
-    RAG --> Employees["AI Employees<br/>9 roles, pgvector learned memory,<br/>skill-based context injection"]
+    RAG --> Employees["AI Employees<br/>36 roles, pgvector learned memory,<br/>skill-based context injection"]
     Employees --> Gen["Generation<br/>19-provider BYOK (Gemini/OpenAI/Anthropic/etc.)"]
 
     Gen --> Mem["Persistent Memory<br/>transactional outbox: embedding/graph/TTS writes<br/>queued in the same DB transaction as the memory row"]
