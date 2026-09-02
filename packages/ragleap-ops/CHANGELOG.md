@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `k8s/neo4j-deployment.yaml`'s liveness probe still had the original, pre-fix timing (`initialDelaySeconds: 20`, no explicit `failureThreshold`) even though the equivalent bug was already found and fixed in the Helm chart's neo4j template earlier this session. The two deployment paths had silently diverged. Found while live-testing backup/DR tooling on a fresh cluster -- neo4j genuinely crash-looped (kubelet killing it ~7 seconds into JVM startup, well before the database could bind its HTTP listener). Fixed to match the Helm chart's already-proven values (`initialDelaySeconds: 60`, `failureThreshold: 6`), then re-verified stable (0 further restarts after the one within the expected startup window).
+
 ### Added
 
 - Environment overlay files (`values-dev.yaml`, `values-staging.yaml`, `values-prod.yaml`) for the Helm chart, layered on top of the base `values.yaml`.

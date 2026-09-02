@@ -42,8 +42,9 @@ spec:
             httpGet:
               path: /
               port: 7474
-            initialDelaySeconds: 20
+            initialDelaySeconds: 60
             periodSeconds: 10
+            failureThreshold: 6
       volumes:
         - name: neo4j-data
           persistentVolumeClaim:
