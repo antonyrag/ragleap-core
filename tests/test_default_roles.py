@@ -1,4 +1,4 @@
-"""Tests for the expanded DEFAULT_ROLES catalog (17 new global professional roles)."""
+"""Tests for the expanded DEFAULT_ROLES catalog (27 new global professional roles across two batches)."""
 import pytest
 from core.employees.defaults import (
     ROLE_CHOICES, ROLE_SKILL_TAGS, DEFAULT_ROLES, SENSITIVE_DOMAIN_ROLES,
@@ -10,7 +10,16 @@ NEW_ROLES = [
     "compliance_officer", "content_writer", "social_media_manager", "data_analyst",
     "legal_intake", "healthcare_intake", "event_planner", "travel_agent",
     "insurance_agent",
+    "fitness_studio_agent", "tutoring_agent", "auto_service_agent",
+    "veterinary_intake", "tax_preparation_intake", "immigration_intake",
+    "volunteer_coordinator", "membership_agent", "admissions_agent",
+    "vehicle_sales_agent",
 ]
+
+SENSITIVE_EXPECTED = {
+    "legal_intake", "healthcare_intake", "insurance_agent", "compliance_officer",
+    "veterinary_intake", "tax_preparation_intake", "immigration_intake",
+}
 
 
 def _role_map():
@@ -48,9 +57,8 @@ def test_sensitive_domain_roles_are_a_subset_of_role_choices():
     assert SENSITIVE_DOMAIN_ROLES.issubset(set(ROLE_CHOICES))
 
 
-def test_sensitive_domain_roles_include_intake_and_regulated_roles():
-    expected = {"legal_intake", "healthcare_intake", "insurance_agent", "compliance_officer"}
-    assert expected.issubset(SENSITIVE_DOMAIN_ROLES)
+def test_sensitive_domain_roles_include_all_expected():
+    assert SENSITIVE_EXPECTED.issubset(SENSITIVE_DOMAIN_ROLES)
 
 
 def test_existing_nine_roles_untouched():
@@ -64,3 +72,7 @@ def test_existing_nine_roles_untouched():
 def test_no_role_in_default_roles_is_missing_from_role_choices():
     for r in DEFAULT_ROLES:
         assert r["role"] in ROLE_CHOICES, f"{r['role']} in DEFAULT_ROLES but not ROLE_CHOICES"
+
+
+def test_total_role_count_at_least_36():
+    assert len(DEFAULT_ROLES) >= 36
