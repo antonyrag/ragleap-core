@@ -1211,7 +1211,10 @@ def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship
         graph.close()
 
 
-@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+@pytest.mark.skipif(
+    not (HAS_LIVE_NEO4J and ollama_available),
+    reason="Needs both live Neo4j credentials and Ollama running on localhost:11434",
+)
 def test_concurrent_relates_as_different_documents_no_duplicate_relationship():
     """
     Regression test for the RELATES_AS relationship-MERGE race -- a
