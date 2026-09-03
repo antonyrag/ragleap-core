@@ -5,6 +5,14 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.9]
+### Fixed
+- RELATES_AS relationship-MERGE race - a real, previously-undocumented bug found while reviewing this code (distinct from the deferred "RelationWeight stress test" item from the v0.6.7 handoff - the RelationWeight NODE already had its composite_key fix; this relationship was never touched until now). `MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)` matched only on the two Entity endpoints plus relation_type - not atomic against concurrent writers, same class of bug as the v0.6.7/v0.6.8 node- and relationship-level races.
+- Fix: a `composite_key` property (namespace/user_id/subject/relation_type/object) is now MERGE'd on the RELATES_AS relationship, backed by a relationship-level uniqueness constraint. RELATES_AS is directed (subject -> object via a specific relation_type), unlike CO_OCCURS_WITH, so no pair-sorting/canonicalization was needed. `relation_type` is kept as a real property via `ON CREATE SET` (not removed) since `find_relations()` and `find_lineage()` read it directly.
+### Verified
+- Live concurrency test using real Ollama (qwen2.5:0.5b) extraction: 4 concurrent `upsert_document()` calls, 4 different document_ids, same real relation-bearing sentence. Deliberately does not assert an exact relationship count, since real LLM extraction can legitimately produce more than one distinct relation_type string for the same input; instead asserts the property the fix actually guarantees - no two relationships share a composite_key. Passed against real Neo4j + real Ollama.
+- Full suite: 79 passed, 13 skipped - zero regressions.
+
 ## [0.6.8]
 ### Fixed
 - CO_OCCURS_WITH relationship-MERGE race, noticed but deliberately left open in the v0.6.7 fix (that release closed the four NODE-level races for Document/Entity/PairWeight/RelationWeight; this closes the equivalent race at the relationship level). `MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)` matched only on the two Entity endpoints and relationship type - not atomic against concurrent writers, same class of bug as the v0.6.7 node-level races.
