@@ -127,3 +127,107 @@ def test_process_approval_response_unknown_id():
     reply = autonomy.process_approval_response("YES ZZZZZZZZ")
     assert reply is not None
     assert "not found" in reply.lower()
+
+
+def test_sensitive_role_forces_full_to_semi():
+    """core.employees.defaults.SENSITIVE_DOMAIN_ROLES enforcement: a role
+    in that set must never execute directly even when general mode is
+    'full' -- it should be forced down to the approval flow instead."""
+    autonomy.set_autonomy(mode="full", actions=[], channels=[])
+    called = {}
+
+    def fake_execute():
+        called["ran"] = True
+        return "should not run"
+
+    result = autonomy.execute_or_request(
+        action_type="followup", channel="telegram", target="123",
+        content="hi", execute_fn=fake_execute, role="legal_intake",
+    )
+    assert result["status"] == "pending_approval"
+    assert "ran" not in called, "sensitive-domain role executed directly in full mode -- guardrail not enforced"
+
+
+def test_non_sensitive_role_full_mode_executes_normally():
+    """A role NOT in SENSITIVE_DOMAIN_ROLES should behave exactly like
+    the no-role case -- full mode executes directly, no forced downgrade."""
+    autonomy.set_autonomy(mode="full", actions=[], channels=[])
+    called = {}
+
+    def fake_execute():
+        called["ran"] = True
+        return "custom result"
+
+    result = autonomy.execute_or_request(
+        action_type="followup", channel="telegram", target="123",
+        content="hi", execute_fn=fake_execute, role="sales",
+    )
+    assert result["status"] == "executed"
+    assert called["ran"] is True
+
+
+def test_role_is_persisted_in_autonomy_log():
+    autonomy.set_autonomy(mode="full", actions=[], channels=[])
+    autonomy.execute_or_request(
+        action_type="followup", channel="telegram", target="123",
+        content="hi", execute_fn=lambda: "ok", role="support",
+    )
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT role FROM autonomy_log ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row[0] == "support"
+
+
+def test_role_is_persisted_through_semi_approval_flow():
+    autonomy.set_autonomy(
+        mode="semi", actions=[], channels=[],
+        approval_channel="telegram", approval_target="",
+    )
+    result = autonomy.execute_or_request(
+        action_type="followup", channel="telegram", target="999",
+        content="test message", role="healthcare_intake",
+    )
+    assert result["status"] == "pending_approval"
+    action_id = result["action_id"]
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT role FROM autonomy_pending WHERE action_id = %s", (action_id,))
+        row = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row[0] == "healthcare_intake"
+
+    reply = autonomy.process_approval_response(f"NO {action_id}")
+    assert reply is not None
+
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT role FROM autonomy_log ORDER BY id DESC LIMIT 1")
+        log_row = cur.fetchone()
+        cur.close()
+    finally:
+        conn.close()
+    assert log_row is not None
+    assert log_row[0] == "healthcare_intake"
+
+
+def test_role_optional_backward_compatible():
+    """Existing callers that never pass role must keep working exactly
+    as before -- role stays None throughout, nothing breaks."""
+    autonomy.set_autonomy(mode="full", actions=[], channels=[])
+    result = autonomy.execute_or_request(
+        action_type="followup", channel="telegram", target="123",
+        content="hi", execute_fn=lambda: "ok",
+    )
+    assert result["status"] == "executed"

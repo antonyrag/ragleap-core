@@ -19,6 +19,16 @@ Safety note: "semi" is the strongly recommended default for anything
 acting on sensitive data (health, financial, legal contexts) until
 there is a real track record - the approval step is the actual safety
 mechanism here, not a formality.
+
+Sensitive-role enforcement: if a caller passes a `role` that's listed
+in core.employees.defaults.SENSITIVE_DOMAIN_ROLES, execute_or_request()
+forces that single call down to "semi" even when the owner's general
+mode is "full" -- this is the actual enforcement of the guardrail
+documented in defaults.py's SENSITIVE_DOMAIN_ROLES comment, which
+previously existed only as a convention nothing in code checked. It
+only ever forces full->semi, never semi/off->something looser, and
+role is optional throughout (existing callers with no role context
+keep working exactly as before).
 """
 import json
 import logging
@@ -99,16 +109,18 @@ def set_autonomy(mode: str, channels: Optional[List[str]] = None,
 
 
 def log_autonomous_action(action_type: str, channel: str, target: str,
-                           content: str, result: str, approved: bool = True) -> None:
+                           content: str, result: str, approved: bool = True,
+                           role: Optional[str] = None) -> None:
     """Log an autonomous action. Table keeps unbounded history; callers
-    wanting production's "last 200" behavior should query with LIMIT."""
+    wanting production's "last 200" behavior should query with LIMIT.
+    role is optional and nullable -- older callers/rows keep working."""
     conn = get_connection()
     try:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO autonomy_log (action_type, channel, target, content, result, approved) "
-            "VALUES (%s, %s, %s, %s, %s, %s)",
-            (action_type, channel, target, content[:2000], result[:2000], approved),
+            "INSERT INTO autonomy_log (action_type, channel, target, content, result, approved, role) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (action_type, channel, target, content[:2000], result[:2000], approved, role),
         )
         conn.commit()
         cur.close()
@@ -143,11 +155,12 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
 
 
 def request_approval(action_type: str, channel: str, target: str,
-                      content: str, action_id: str) -> bool:
+                      content: str, action_id: str, role: Optional[str] = None) -> bool:
     """
     Send an approval request to the owner over the configured approval
     channel. Uses the same channel senders as _send_via_channel - approval
-    requests themselves are just messages.
+    requests themselves are just messages. role is shown to the owner
+    when present so they know which AI Employee is asking.
     """
     settings = get_autonomy_settings()
     approval_ch = settings["approval_channel"]
@@ -156,9 +169,11 @@ def request_approval(action_type: str, channel: str, target: str,
         logger.warning("No approval_target configured - cannot send approval request")
         return False
 
+    role_line = f"Role: {role}\n" if role else ""
     msg = (
         f"Approval Request\n\n"
         f"Action: {action_type}\n"
+        f"{role_line}"
         f"Channel: {channel}\n"
         f"Target: {target}\n\n"
         f"Message preview:\n{content[:300]}\n\n"
@@ -171,7 +186,7 @@ def request_approval(action_type: str, channel: str, target: str,
 
 def execute_or_request(action_type: str, channel: str, target: str,
                         content: str, execute_fn: Optional[Callable] = None,
-                        subject: str = "") -> Dict:
+                        subject: str = "", role: Optional[str] = None) -> Dict:
     """
     Core autonomy dispatcher.
     - off mode: skip
@@ -179,6 +194,13 @@ def execute_or_request(action_type: str, channel: str, target: str,
     - full mode: execute directly (via execute_fn if given, else the
       default channel sender), log
     - semi mode: store pending, request approval, wait for owner reply
+
+    role (optional): when provided and present in
+    core.employees.defaults.SENSITIVE_DOMAIN_ROLES, this single call is
+    forced from "full" down to "semi" regardless of the owner's general
+    autonomy mode -- the actual enforcement of the guardrail documented
+    in defaults.py. Only ever tightens (full->semi), never loosens.
+
     Returns: {"status": "executed"|"pending_approval"|"skipped"|"error", ...}
     """
     settings = get_autonomy_settings()
@@ -195,16 +217,28 @@ def execute_or_request(action_type: str, channel: str, target: str,
     if channels and channel not in channels:
         return {"status": "skipped", "result": f"{channel} not in allowed channels"}
 
+    if mode == "full" and role:
+        try:
+            from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
+            if role in SENSITIVE_DOMAIN_ROLES:
+                logger.info(
+                    f"Sensitive-domain role '{role}' forced full->semi for "
+                    f"action_type={action_type} (SENSITIVE_DOMAIN_ROLES guardrail)"
+                )
+                mode = "semi"
+        except Exception as e:
+            logger.warning(f"SENSITIVE_DOMAIN_ROLES check failed, proceeding with configured mode: {e}")
+
     if mode == "full":
         try:
             if execute_fn:
                 result = execute_fn()
             else:
                 result = _send_via_channel(channel, target, content)
-            log_autonomous_action(action_type, channel, target, content, str(result), approved=True)
+            log_autonomous_action(action_type, channel, target, content, str(result), approved=True, role=role)
             return {"status": "executed", "result": result}
         except Exception as e:
-            log_autonomous_action(action_type, channel, target, content, f"ERROR: {e}", approved=True)
+            log_autonomous_action(action_type, channel, target, content, f"ERROR: {e}", approved=True, role=role)
             return {"status": "error", "result": str(e)}
 
     elif mode == "semi":
@@ -213,9 +247,9 @@ def execute_or_request(action_type: str, channel: str, target: str,
         try:
             cur = conn.cursor()
             cur.execute(
-                "INSERT INTO autonomy_pending (action_id, action_type, channel, target, content, subject) "
-                "VALUES (%s, %s, %s, %s, %s, %s)",
-                (action_id, action_type, channel, target, content, subject),
+                "INSERT INTO autonomy_pending (action_id, action_type, channel, target, content, subject, role) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                (action_id, action_type, channel, target, content, subject, role),
             )
             conn.commit()
             cur.close()
@@ -224,7 +258,7 @@ def execute_or_request(action_type: str, channel: str, target: str,
         finally:
             conn.close()
 
-        sent = request_approval(action_type, channel, target, content, action_id)
+        sent = request_approval(action_type, channel, target, content, action_id, role=role)
         return {"status": "pending_approval", "action_id": action_id, "approval_sent": sent}
 
     return {"status": "skipped", "result": "unknown mode"}
@@ -248,7 +282,7 @@ def process_approval_response(message: str) -> Optional[str]:
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT action_type, channel, target, content, subject FROM autonomy_pending WHERE action_id = %s",
+            "SELECT action_type, channel, target, content, subject, role FROM autonomy_pending WHERE action_id = %s",
             (action_id,),
         )
         row = cur.fetchone()
@@ -256,7 +290,7 @@ def process_approval_response(message: str) -> Optional[str]:
             cur.close()
             return f"Action {action_id} not found or already processed."
 
-        action_type, channel, target, content, subject = row
+        action_type, channel, target, content, subject, role = row
         cur.execute("DELETE FROM autonomy_pending WHERE action_id = %s", (action_id,))
         conn.commit()
         cur.close()
@@ -267,11 +301,11 @@ def process_approval_response(message: str) -> Optional[str]:
         conn.close()
 
     if not approved:
-        log_autonomous_action(action_type, channel, target, content, "REJECTED by owner", approved=False)
+        log_autonomous_action(action_type, channel, target, content, "REJECTED by owner", approved=False, role=role)
         return f"Action {action_id} rejected and cancelled."
 
     result = _send_via_channel(channel, target, content)
-    log_autonomous_action(action_type, channel, target, content, result, approved=True)
+    log_autonomous_action(action_type, channel, target, content, result, approved=True, role=role)
     return f"Action {action_id} approved and executed.\n{result}"
 
 

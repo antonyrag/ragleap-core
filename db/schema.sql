@@ -182,6 +182,7 @@ CREATE TABLE IF NOT EXISTS autonomy_pending (
     target        TEXT NOT NULL,
     content       TEXT NOT NULL,
     subject       TEXT NOT NULL DEFAULT '',
+    role          TEXT,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -194,6 +195,7 @@ CREATE TABLE IF NOT EXISTS autonomy_log (
     content      TEXT NOT NULL,
     result       TEXT NOT NULL,
     approved     BOOLEAN NOT NULL DEFAULT true,
+    role         TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS autonomy_log_created_idx
