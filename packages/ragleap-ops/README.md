@@ -28,6 +28,153 @@ kubectl create secret generic ragleap-app-env \
   --dry-run=client -o yaml > k8s/app-env-secret.yaml
 ```
 
+## Secrets management for production (Sealed Secrets)
+
+The kubectl create secret --from-env-file pattern above is fine for local
+testing, but it leaves real credentials sitting as plaintext files and shell
+history. For production, use Sealed Secrets instead (https://github.com/bitnami-labs/sealed-secrets) --
+secrets get encrypted against your specific cluster's public key, so the
+encrypted result is safe to commit to git. No other cluster can decrypt it.
+
+One-time setup (per cluster):
+
+```bash
+kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.39.1/controller.yaml
+```
+
+Sealing a secret (works offline once you have exported your cluster's public
+cert -- no live cluster connection needed at seal-time, safe to run in CI):
+
+```bash
+kubeseal --controller-name sealed-secrets-controller \
+  --controller-namespace kube-system --fetch-cert > sealed-secrets-pub-cert.pem
+
+kubectl create secret generic ragleap-db-secret \
+  --dry-run=client \
+  --from-literal=POSTGRES_USER=ragleap \
+  --from-literal=POSTGRES_PASSWORD=your-real-password \
+  --from-literal=POSTGRES_DB=ragleap_core \
+  -o yaml | kubeseal --format yaml --cert sealed-secrets-pub-cert.pem > db-secret-sealed.yaml
+
+kubectl apply -f db-secret-sealed.yaml
+```
+
+Important: a sealed secret is tied to the exact cluster whose public key
+encrypted it. A SealedSecret sealed for one cluster will not decrypt on a
+different cluster -- never copy a sealed file between environments; reseal
+against each target cluster's own cert instead.
+
 ## Status
 
 Both the raw manifests (v0.1.0) and the Helm chart (v0.2.0, `helm/ragleap-ops/`) are live-verified end-to-end on a real kind cluster — see CHANGELOG.md for the specific bugs found and fixed.
+
+## NetworkPolicies (restricting pod-to-pod traffic)
+
+Both k8s/ and helm/ragleap-ops/ include NetworkPolicy resources restricting
+which pods can reach ragleap-db (port 5432, from ragleap-app and
+ragleap-voice only) and ragleap-neo4j (ports 7474/7687, from ragleap-app
+only -- ragleap-voice does not use neo4j in the current codebase).
+
+Important: kind's default CNI (kindnet) does not enforce NetworkPolicy at
+all -- policies will apply without error but traffic will not actually be
+blocked. Testing NetworkPolicy enforcement requires a CNI that supports it,
+such as Calico:
+
+```bash
+kind create cluster --config kind-calico-config.yaml   # disableDefaultCNI: true
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/tigera-operator.yaml
+kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.0/manifests/custom-resources.yaml
+```
+
+Verification performed: the enforcement mechanism itself was live-tested end
+to end on a real kind + Calico cluster (a labeled pod was correctly blocked
+from an unlabeled target, then allowed once correctly labeled -- confirmed
+via real timeout/success exit codes, not assumed). The real ragleap-db/
+ragleap-neo4j label selectors were verified to match the actual Deployment
+labels used elsewhere in this chart. A full live run of the complete
+ragleap stack under Calico was not completed in this session due to
+genuine memory constraints on the test VPS (which also runs unrelated
+production services) -- Calico's own baseline overhead left too little
+headroom for a 4-service stack reliably. This is an honest scope
+boundary, not a claim that the policies were fully integration-tested
+against the live application.
+
+## Ingress + TLS
+
+The Helm chart includes an optional Ingress + cert-manager Certificate
+(disabled by default via `ingress.enabled: false`). Enabling it requires:
+
+1. An NGINX Ingress Controller installed on your cluster
+2. cert-manager installed, with a real ClusterIssuer configured (Let's
+   Encrypt for production, or a self-signed issuer for local testing)
+3. A real hostname you own, set via `ingress.hostname` in values.yaml
+4. Your ClusterIssuer's name set via `ingress.clusterIssuer`
+
+Example production ClusterIssuer (Let's Encrypt, replace the email):
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: you@example.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx
+EOF
+```
+
+Then deploy with:
+
+```bash
+helm install ragleap-ops ./ragleap-ops \
+  --set ingress.enabled=true \
+  --set ingress.hostname=your-real-domain.com \
+  --set ingress.clusterIssuer=letsencrypt-prod
+```
+
+Verification performed: the full Ingress + TLS chain was live-tested end to
+end on a real kind cluster with a genuine NGINX Ingress Controller and
+cert-manager, using a self-signed ClusterIssuer (Let's Encrypt itself
+requires public DNS and internet-reachable ports, which a local kind
+cluster cannot satisfy for a real ACME challenge). Confirmed via openssl:
+the correct certificate was served over TLS via SNI, matching the exact
+hostname requested, not a generic fallback certificate. HTTP routing
+through the Ingress to the backend service was independently confirmed
+working. Production Let's Encrypt issuance was not live-tested in this
+session for the reason above -- the issuer configuration shown is the
+standard, documented cert-manager pattern, not independently verified
+against a real public domain here.
+
+## Multi-environment deployment
+
+Environment-specific overrides live in `helm/ragleap-ops/values-{dev,staging,prod}.yaml`,
+layered on top of the base `values.yaml` (never edit the base file for a
+single environment):
+
+```bash
+helm install ragleap-ops ./ragleap-ops -f values-dev.yaml       # local/dev
+helm install ragleap-ops ./ragleap-ops -f values-staging.yaml   # staging
+helm install ragleap-ops ./ragleap-ops -f values-prod.yaml      # production
+```
+
+`db` and `neo4j` intentionally have no `replicaCount` in any environment
+file and stay hardcoded at 1 in the templates -- both are stateful,
+single-writer services backed by `ReadWriteOnce` PVCs. Horizontal scaling
+for either would require a genuinely different storage/clustering
+architecture, not a values.yaml change, so this isn't offered as a
+configurable option that would silently produce a broken multi-writer
+setup if someone bumped the number.
+
+Verified: rendered output for `app.replicaCount`/`voice.replicaCount`
+and `ingress.enabled`/`ingress.hostname` confirmed to differ correctly
+across all three overlay files via `helm template -f values-<env>.yaml`
+-- dev (1/1, no ingress), staging (1/1, ingress enabled with its own
+hostname), prod (3/2, ingress enabled with its own hostname).

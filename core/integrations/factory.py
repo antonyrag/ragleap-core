@@ -6,6 +6,7 @@ from core.integrations.base import BaseDatabaseConnector, DataSource
 from core.integrations.sql_connectors import MySQLConnector, PostgreSQLConnector
 from core.integrations.snowflake_connector import SnowflakeConnector
 from core.integrations.bigquery_connector import BigQueryConnector
+from core.integrations.gmail_connector import GmailConnector
 from core.integrations.mongodb import MongoDBConnector
 from core.integrations.rest_api import RestAPIConnector
 from core.integrations.csv_connector import CSVConnector
@@ -27,6 +28,7 @@ CONNECTOR_MAP = {
     'postgresql': PostgreSQLConnector,
     'snowflake': SnowflakeConnector,
     'bigquery': BigQueryConnector,
+    'gmail': GmailConnector,
     'mongodb': MongoDBConnector,
     'rest_api': RestAPIConnector,
     'csv': CSVConnector,

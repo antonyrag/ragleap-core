@@ -17,6 +17,7 @@ db:
       failureThreshold: 6
 
 app:
+  replicaCount: 1
   image: ghcr.io/antonyrag/ragleap-app:latest
   imagePullSecret: ghcr-pull-secret
   port: 8000
@@ -27,6 +28,7 @@ app:
       initialDelaySeconds: 15
 
 voice:
+  replicaCount: 1
   image: ghcr.io/antonyrag/ragleap-app:latest
   imagePullSecret: ghcr-pull-secret
   port: 8765
@@ -55,3 +57,9 @@ neo4j:
       initialDelaySeconds: 60
       periodSeconds: 10
       failureThreshold: 6
+
+ingress:
+  enabled: false   # set true once hostname and issuer are configured for your real cluster
+  hostname: app.example.com   # REPLACE with your real domain before enabling
+  ingressClassName: nginx
+  clusterIssuer: letsencrypt-prod   # REPLACE with your own ClusterIssuer name; see README for setup
