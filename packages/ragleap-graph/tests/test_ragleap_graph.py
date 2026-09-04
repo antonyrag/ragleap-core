@@ -983,6 +983,153 @@ def test_concurrent_upsert_same_key_no_duplicates():
         graph.close()
 
 
+@pytest.mark.skipif(
+    not (HAS_LIVE_NEO4J and ollama_available),
+    reason="Needs both live Neo4j credentials and Ollama running on localhost:11434",
+)
+def test_concurrent_upsert_same_key_relationweight_no_duplicates():
+    """
+    Closes the deferred RelationWeight stress-test gap noted in the
+    v0.6.7 handoff and the v0.6.8/v0.6.9 CHANGELOGs: RelationWeight's
+    composite_key fix (v0.6.7) uses the identical pattern as PairWeight
+    and passes the full test suite, but was never independently
+    concurrency-stress-tested, since the existing same-key concurrency
+    test (test_concurrent_upsert_same_key_no_duplicates, above) uses
+    plain regex extraction with no LLM relation extraction enabled --
+    it structurally never creates a RelationWeight node at all, so it
+    could not have caught a RelationWeight-specific race even if one
+    existed.
+
+    Design: mirrors test_concurrent_upsert_same_key_no_duplicates's
+    race shape exactly (SAME document_id/user_id/namespace across all
+    concurrent calls, not different documents like the RELATES_AS
+    cross-document test) but with real Ollama (qwen2.5:0.5b) extraction
+    and extract_relations=True enabled, so RelationWeight nodes are
+    actually created and actually contended over. Uses 3 threads (fewer
+    than the RELATES_AS test's 4) and a longer per-thread join timeout,
+    since same-document_id contention stacks real Neo4j lock/retry
+    overhead on top of Ollama's own serialization of concurrent LLM
+    calls -- confirmed live: an earlier 4-thread/60s attempt left at
+    least one thread still running after the join timeout elapsed and
+    the test's own cleanup had already closed the driver, surfacing as
+    a background "Driver closed" error and a false "0 RelationWeight
+    nodes" result that reflected an incomplete wait, not a real bug.
+
+    Assertion design: does not assert an exact RelationWeight count in
+    isolation -- real LLM extraction can produce different relation_type
+    strings across calls (e.g. "PARTNERED_WITH" vs "PARTNERS_WITH"),
+    which would legitimately create more than one distinct RelationWeight
+    node even under a correct fix. Instead asserts the property the
+    composite_key fix actually guarantees: no two RelationWeight nodes
+    for this document share a composite_key, and every one has a
+    non-null composite_key set -- true regardless of how many distinct
+    relation_types the LLM happens to extract from repeated concurrent
+    calls on the identical document_id.
+    """
+    from ragleap import ProviderConfig
+    from ragleap_graph import ExtractionConfig
+
+    provider = ProviderConfig(provider="ollama", model="qwen2.5:0.5b")
+    extraction = ExtractionConfig(method="llm", provider=provider, extract_relations=True)
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config, extraction=extraction)
+
+    document_id = f"pytest-relationweight-concurrency-doc-{uuid.uuid4()}"
+    user_id = f"pytest-relationweight-concurrency-user-{uuid.uuid4()}"
+    chunks = [
+        {"text": "Acme Corp partnered with Globex Corp last year."},
+    ]
+
+    try:
+        n_threads = 3
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_id,
+                    title="RelationWeight Concurrency Test Document",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            # Same-document_id contention stacks Neo4j lock/retry time on
+            # top of Ollama serializing concurrent LLM calls; 60s proved
+            # too short live (a thread was still running after the join
+            # timeout elapsed and after graph.close() had already run).
+            t.join(timeout=180)
+
+        still_running = [t for t in threads if t.is_alive()]
+        assert not still_running, (
+            f"{len(still_running)} of {n_threads} threads did not "
+            f"complete within the 180s join timeout -- results for "
+            f"this run are not trustworthy; rerun, and if this recurs "
+            f"consider whether Ollama/Neo4j load on this VPS has "
+            f"increased since this timeout was last tuned."
+        )
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rw_records = list(session.run(
+                "MATCH (rw:RelationWeight {document_id: $doc_id, user_id: $user_id, namespace: $ns}) "
+                "RETURN count(rw) AS total, count(DISTINCT rw.composite_key) AS distinct_keys, "
+                "count(rw.composite_key) AS with_key",
+                doc_id=document_id, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rw_records[0]["total"]
+            distinct_keys = rw_records[0]["distinct_keys"]
+            with_key = rw_records[0]["with_key"]
+
+        assert total >= 1, (
+            "expected at least one real RelationWeight node from live "
+            "Ollama extraction across the concurrent same-document-id "
+            "upserts, found 0 (all threads completed within the join "
+            "timeout with no raised errors, so the LLM itself returned "
+            "no extractable relation for this sentence in any thread -- "
+            "worth rerunning once, since qwen2.5:0.5b's extraction is "
+            "not perfectly deterministic)"
+        )
+        assert total == distinct_keys, (
+            f"Expected every RelationWeight node to have a distinct "
+            f"composite_key (no duplicate-MERGE race), found {total} "
+            f"nodes across only {distinct_keys} distinct keys."
+        )
+        assert with_key == total, (
+            f"Expected composite_key set on all {total} RelationWeight "
+            f"nodes, found only {with_key} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                doc_id=document_id, user_id=user_id,
+            )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (rw:RelationWeight {document_id: $doc_id, user_id: $user_id, namespace: $ns}) DETACH DELETE rw",
+                doc_id=document_id, user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
 @pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
 def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
     """
@@ -1331,6 +1478,690 @@ def test_concurrent_relates_as_different_documents_no_duplicate_relationship():
             )
             session.run(
                 "MATCH (rw:RelationWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE rw",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
+    """
+    Regression test for the CO_OCCURS_WITH relationship-MERGE race --
+    noticed but deliberately left open in the v0.6.7 fix (that release
+    closed the four NODE-level races for Document/Entity/PairWeight/
+    RelationWeight; this closes the equivalent race at the relationship
+    level for CO_OCCURS_WITH).
+
+    Design: fire 8 concurrent upsert_document() calls, each with a
+    DIFFERENT document_id but the SAME two entities co-occurring in
+    the text, and the SAME user_id/namespace. CO_OCCURS_WITH
+    deliberately aggregates across documents (that's the point of
+    co-occurrence weighting), so this is the realistic race for this
+    specific relationship type -- unlike the Document/Entity race
+    above, which uses the SAME document_id, this test's threads never
+    share a document_id at all; the shared resource under contention
+    is the single CO_OCCURS_WITH relationship between the two entities
+    that every thread's MERGE tries to touch.
+
+    Without the composite_key fix, MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+    matches only on the two endpoints and relationship type -- not
+    atomic against concurrent writers, same class of bug the node-level
+    fix closed. The fix adds composite_key (namespace + user_id +
+    sorted entity pair, canonicalized since the relationship is
+    undirected) to the MERGE pattern plus a matching uniqueness
+    constraint.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself -- same reasoning as the
+    Document-race test above.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    user_id = f"pytest-co-occurs-concurrency-user-{uuid.uuid4()}"
+    entity_a = "acme corporation"
+    entity_b = "beta industries"
+    document_ids = [
+        f"pytest-co-occurs-concurrency-doc-{i}-{uuid.uuid4()}" for i in range(8)
+    ]
+    chunks = [
+        {"text": "Acme Corporation announced a new partnership with Beta Industries today."},
+    ]
+
+    try:
+        n_threads = len(document_ids)
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_ids[index],
+                    title=f"Concurrency Regression Test Document {index}",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rel_records = list(session.run(
+                "MATCH (ea:Entity {name: $a, user_id: $user_id, namespace: $ns})"
+                "-[r:CO_OCCURS_WITH]-(eb:Entity {name: $b, user_id: $user_id, namespace: $ns}) "
+                "WITH DISTINCT r "
+                "RETURN count(r) AS total, count(r.composite_key) AS with_key",
+                a=entity_a, b=entity_b, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rel_records[0]["total"]
+            with_key = rel_records[0]["with_key"]
+
+        assert total == 1, (
+            f"Expected exactly 1 CO_OCCURS_WITH relationship between "
+            f"'{entity_a}' and '{entity_b}' after {n_threads} concurrent "
+            f"upserts from different documents, found {total}."
+        )
+        assert with_key == 1, (
+            f"Expected the relationship to have composite_key set, "
+            f"found {with_key} of {total} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            for doc_id in document_ids:
+                session.run(
+                    "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                    doc_id=doc_id, user_id=user_id,
+                )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
+    """
+    Regression test for the CO_OCCURS_WITH relationship-MERGE race --
+    noticed but deliberately left open in the v0.6.7 fix (that release
+    closed the four NODE-level races for Document/Entity/PairWeight/
+    RelationWeight; this closes the equivalent race at the relationship
+    level for CO_OCCURS_WITH).
+
+    Design: fire 8 concurrent upsert_document() calls, each with a
+    DIFFERENT document_id but the SAME two entities co-occurring in
+    the text, and the SAME user_id/namespace. CO_OCCURS_WITH
+    deliberately aggregates across documents (that's the point of
+    co-occurrence weighting), so this is the realistic race for this
+    specific relationship type -- unlike the Document/Entity race
+    above, which uses the SAME document_id, this test's threads never
+    share a document_id at all; the shared resource under contention
+    is the single CO_OCCURS_WITH relationship between the two entities
+    that every thread's MERGE tries to touch.
+
+    Without the composite_key fix, MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+    matches only on the two endpoints and relationship type -- not
+    atomic against concurrent writers, same class of bug the node-level
+    fix closed. The fix adds composite_key (namespace + user_id +
+    sorted entity pair, canonicalized since the relationship is
+    undirected) to the MERGE pattern plus a matching uniqueness
+    constraint.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself -- same reasoning as the
+    Document-race test above.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    user_id = f"pytest-co-occurs-concurrency-user-{uuid.uuid4()}"
+    entity_a = "acme corporation"
+    entity_b = "beta industries"
+    document_ids = [
+        f"pytest-co-occurs-concurrency-doc-{i}-{uuid.uuid4()}" for i in range(8)
+    ]
+    chunks = [
+        {"text": "Acme Corporation announced a new partnership with Beta Industries today."},
+    ]
+
+    try:
+        n_threads = len(document_ids)
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_ids[index],
+                    title=f"Concurrency Regression Test Document {index}",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rel_records = list(session.run(
+                "MATCH (ea:Entity {name: $a, user_id: $user_id, namespace: $ns})"
+                "-[r:CO_OCCURS_WITH]-(eb:Entity {name: $b, user_id: $user_id, namespace: $ns}) "
+                "WITH DISTINCT r "
+                "RETURN count(r) AS total, count(r.composite_key) AS with_key",
+                a=entity_a, b=entity_b, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rel_records[0]["total"]
+            with_key = rel_records[0]["with_key"]
+
+        assert total == 1, (
+            f"Expected exactly 1 CO_OCCURS_WITH relationship between "
+            f"'{entity_a}' and '{entity_b}' after {n_threads} concurrent "
+            f"upserts from different documents, found {total}."
+        )
+        assert with_key == 1, (
+            f"Expected the relationship to have composite_key set, "
+            f"found {with_key} of {total} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            for doc_id in document_ids:
+                session.run(
+                    "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                    doc_id=doc_id, user_id=user_id,
+                )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
+    """
+    Regression test for the CO_OCCURS_WITH relationship-MERGE race --
+    noticed but deliberately left open in the v0.6.7 fix (that release
+    closed the four NODE-level races for Document/Entity/PairWeight/
+    RelationWeight; this closes the equivalent race at the relationship
+    level for CO_OCCURS_WITH).
+
+    Design: fire 8 concurrent upsert_document() calls, each with a
+    DIFFERENT document_id but the SAME two entities co-occurring in
+    the text, and the SAME user_id/namespace. CO_OCCURS_WITH
+    deliberately aggregates across documents (that's the point of
+    co-occurrence weighting), so this is the realistic race for this
+    specific relationship type -- unlike the Document/Entity race
+    above, which uses the SAME document_id, this test's threads never
+    share a document_id at all; the shared resource under contention
+    is the single CO_OCCURS_WITH relationship between the two entities
+    that every thread's MERGE tries to touch.
+
+    Without the composite_key fix, MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+    matches only on the two endpoints and relationship type -- not
+    atomic against concurrent writers, same class of bug the node-level
+    fix closed. The fix adds composite_key (namespace + user_id +
+    sorted entity pair, canonicalized since the relationship is
+    undirected) to the MERGE pattern plus a matching uniqueness
+    constraint.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself -- same reasoning as the
+    Document-race test above.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    user_id = f"pytest-co-occurs-concurrency-user-{uuid.uuid4()}"
+    entity_a = "acme corporation"
+    entity_b = "beta industries"
+    document_ids = [
+        f"pytest-co-occurs-concurrency-doc-{i}-{uuid.uuid4()}" for i in range(8)
+    ]
+    chunks = [
+        {"text": "Acme Corporation announced a new partnership with Beta Industries today."},
+    ]
+
+    try:
+        n_threads = len(document_ids)
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_ids[index],
+                    title=f"Concurrency Regression Test Document {index}",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rel_records = list(session.run(
+                "MATCH (ea:Entity {name: $a, user_id: $user_id, namespace: $ns})"
+                "-[r:CO_OCCURS_WITH]-(eb:Entity {name: $b, user_id: $user_id, namespace: $ns}) "
+                "WITH DISTINCT r "
+                "RETURN count(r) AS total, count(r.composite_key) AS with_key",
+                a=entity_a, b=entity_b, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rel_records[0]["total"]
+            with_key = rel_records[0]["with_key"]
+
+        assert total == 1, (
+            f"Expected exactly 1 CO_OCCURS_WITH relationship between "
+            f"'{entity_a}' and '{entity_b}' after {n_threads} concurrent "
+            f"upserts from different documents, found {total}."
+        )
+        assert with_key == 1, (
+            f"Expected the relationship to have composite_key set, "
+            f"found {with_key} of {total} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            for doc_id in document_ids:
+                session.run(
+                    "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                    doc_id=doc_id, user_id=user_id,
+                )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
+    """
+    Regression test for the CO_OCCURS_WITH relationship-MERGE race --
+    noticed but deliberately left open in the v0.6.7 fix (that release
+    closed the four NODE-level races for Document/Entity/PairWeight/
+    RelationWeight; this closes the equivalent race at the relationship
+    level for CO_OCCURS_WITH).
+
+    Design: fire 8 concurrent upsert_document() calls, each with a
+    DIFFERENT document_id but the SAME two entities co-occurring in
+    the text, and the SAME user_id/namespace. CO_OCCURS_WITH
+    deliberately aggregates across documents (that's the point of
+    co-occurrence weighting), so this is the realistic race for this
+    specific relationship type -- unlike the Document/Entity race
+    above, which uses the SAME document_id, this test's threads never
+    share a document_id at all; the shared resource under contention
+    is the single CO_OCCURS_WITH relationship between the two entities
+    that every thread's MERGE tries to touch.
+
+    Without the composite_key fix, MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+    matches only on the two endpoints and relationship type -- not
+    atomic against concurrent writers, same class of bug the node-level
+    fix closed. The fix adds composite_key (namespace + user_id +
+    sorted entity pair, canonicalized since the relationship is
+    undirected) to the MERGE pattern plus a matching uniqueness
+    constraint.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself -- same reasoning as the
+    Document-race test above.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    user_id = f"pytest-co-occurs-concurrency-user-{uuid.uuid4()}"
+    entity_a = "acme corporation"
+    entity_b = "beta industries"
+    document_ids = [
+        f"pytest-co-occurs-concurrency-doc-{i}-{uuid.uuid4()}" for i in range(8)
+    ]
+    chunks = [
+        {"text": "Acme Corporation announced a new partnership with Beta Industries today."},
+    ]
+
+    try:
+        n_threads = len(document_ids)
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_ids[index],
+                    title=f"Concurrency Regression Test Document {index}",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rel_records = list(session.run(
+                "MATCH (ea:Entity {name: $a, user_id: $user_id, namespace: $ns})"
+                "-[r:CO_OCCURS_WITH]-(eb:Entity {name: $b, user_id: $user_id, namespace: $ns}) "
+                "WITH DISTINCT r "
+                "RETURN count(r) AS total, count(r.composite_key) AS with_key",
+                a=entity_a, b=entity_b, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rel_records[0]["total"]
+            with_key = rel_records[0]["with_key"]
+
+        assert total == 1, (
+            f"Expected exactly 1 CO_OCCURS_WITH relationship between "
+            f"'{entity_a}' and '{entity_b}' after {n_threads} concurrent "
+            f"upserts from different documents, found {total}."
+        )
+        assert with_key == 1, (
+            f"Expected the relationship to have composite_key set, "
+            f"found {with_key} of {total} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            for doc_id in document_ids:
+                session.run(
+                    "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                    doc_id=doc_id, user_id=user_id,
+                )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
+    """
+    Regression test for the CO_OCCURS_WITH relationship-MERGE race --
+    noticed but deliberately left open in the v0.6.7 fix (that release
+    closed the four NODE-level races for Document/Entity/PairWeight/
+    RelationWeight; this closes the equivalent race at the relationship
+    level for CO_OCCURS_WITH).
+
+    Design: fire 8 concurrent upsert_document() calls, each with a
+    DIFFERENT document_id but the SAME two entities co-occurring in
+    the text, and the SAME user_id/namespace. CO_OCCURS_WITH
+    deliberately aggregates across documents (that's the point of
+    co-occurrence weighting), so this is the realistic race for this
+    specific relationship type -- unlike the Document/Entity race
+    above, which uses the SAME document_id, this test's threads never
+    share a document_id at all; the shared resource under contention
+    is the single CO_OCCURS_WITH relationship between the two entities
+    that every thread's MERGE tries to touch.
+
+    Without the composite_key fix, MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+    matches only on the two endpoints and relationship type -- not
+    atomic against concurrent writers, same class of bug the node-level
+    fix closed. The fix adds composite_key (namespace + user_id +
+    sorted entity pair, canonicalized since the relationship is
+    undirected) to the MERGE pattern plus a matching uniqueness
+    constraint.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself -- same reasoning as the
+    Document-race test above.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    user_id = f"pytest-co-occurs-concurrency-user-{uuid.uuid4()}"
+    entity_a = "acme corporation"
+    entity_b = "beta industries"
+    document_ids = [
+        f"pytest-co-occurs-concurrency-doc-{i}-{uuid.uuid4()}" for i in range(8)
+    ]
+    chunks = [
+        {"text": "Acme Corporation announced a new partnership with Beta Industries today."},
+    ]
+
+    try:
+        n_threads = len(document_ids)
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_ids[index],
+                    title=f"Concurrency Regression Test Document {index}",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rel_records = list(session.run(
+                "MATCH (ea:Entity {name: $a, user_id: $user_id, namespace: $ns})"
+                "-[r:CO_OCCURS_WITH]-(eb:Entity {name: $b, user_id: $user_id, namespace: $ns}) "
+                "WITH DISTINCT r "
+                "RETURN count(r) AS total, count(r.composite_key) AS with_key",
+                a=entity_a, b=entity_b, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rel_records[0]["total"]
+            with_key = rel_records[0]["with_key"]
+
+        assert total == 1, (
+            f"Expected exactly 1 CO_OCCURS_WITH relationship between "
+            f"'{entity_a}' and '{entity_b}' after {n_threads} concurrent "
+            f"upserts from different documents, found {total}."
+        )
+        assert with_key == 1, (
+            f"Expected the relationship to have composite_key set, "
+            f"found {with_key} of {total} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            for doc_id in document_ids:
+                session.run(
+                    "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                    doc_id=doc_id, user_id=user_id,
+                )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
+def test_concurrent_co_occurs_with_different_documents_no_duplicate_relationship():
+    """
+    Regression test for the CO_OCCURS_WITH relationship-MERGE race --
+    noticed but deliberately left open in the v0.6.7 fix (that release
+    closed the four NODE-level races for Document/Entity/PairWeight/
+    RelationWeight; this closes the equivalent race at the relationship
+    level for CO_OCCURS_WITH).
+
+    Design: fire 8 concurrent upsert_document() calls, each with a
+    DIFFERENT document_id but the SAME two entities co-occurring in
+    the text, and the SAME user_id/namespace. CO_OCCURS_WITH
+    deliberately aggregates across documents (that's the point of
+    co-occurrence weighting), so this is the realistic race for this
+    specific relationship type -- unlike the Document/Entity race
+    above, which uses the SAME document_id, this test's threads never
+    share a document_id at all; the shared resource under contention
+    is the single CO_OCCURS_WITH relationship between the two entities
+    that every thread's MERGE tries to touch.
+
+    Without the composite_key fix, MERGE (ea)-[r:CO_OCCURS_WITH]-(eb)
+    matches only on the two endpoints and relationship type -- not
+    atomic against concurrent writers, same class of bug the node-level
+    fix closed. The fix adds composite_key (namespace + user_id +
+    sorted entity pair, canonicalized since the relationship is
+    undirected) to the MERGE pattern plus a matching uniqueness
+    constraint.
+
+    A >0 deadlock count observed here is expected under real
+    contention, not a test failure by itself -- same reasoning as the
+    Document-race test above.
+    """
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config)
+
+    user_id = f"pytest-co-occurs-concurrency-user-{uuid.uuid4()}"
+    entity_a = "acme corporation"
+    entity_b = "beta industries"
+    document_ids = [
+        f"pytest-co-occurs-concurrency-doc-{i}-{uuid.uuid4()}" for i in range(8)
+    ]
+    chunks = [
+        {"text": "Acme Corporation announced a new partnership with Beta Industries today."},
+    ]
+
+    try:
+        n_threads = len(document_ids)
+        results = [None] * n_threads
+
+        def do_upsert(index):
+            try:
+                results[index] = graph.upsert_document(
+                    document_id=document_ids[index],
+                    title=f"Concurrency Regression Test Document {index}",
+                    chunks=chunks,
+                    namespace=TEST_NAMESPACE,
+                    user_id=user_id,
+                )
+            except Exception as exc:  # noqa: BLE001
+                results[index] = f"error: {exc!r}"
+
+        threads = [threading.Thread(target=do_upsert, args=(i,)) for i in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=30)
+
+        raw_errors = [r for r in results if isinstance(r, str) and r.startswith("error")]
+        other_failures = [
+            r for r in results
+            if isinstance(r, dict) and not r.get("success")
+            and "DeadlockDetected" not in str(r.get("error", ""))
+        ]
+        assert not raw_errors, f"upsert_document() raised uncaught exceptions: {raw_errors}"
+        assert not other_failures, f"upsert_document() failed for a non-deadlock reason: {other_failures}"
+
+        with graph.driver.session() as session:
+            rel_records = list(session.run(
+                "MATCH (ea:Entity {name: $a, user_id: $user_id, namespace: $ns})"
+                "-[r:CO_OCCURS_WITH]-(eb:Entity {name: $b, user_id: $user_id, namespace: $ns}) "
+                "WITH DISTINCT r "
+                "RETURN count(r) AS total, count(r.composite_key) AS with_key",
+                a=entity_a, b=entity_b, user_id=user_id, ns=TEST_NAMESPACE,
+            ))
+            total = rel_records[0]["total"]
+            with_key = rel_records[0]["with_key"]
+
+        assert total == 1, (
+            f"Expected exactly 1 CO_OCCURS_WITH relationship between "
+            f"'{entity_a}' and '{entity_b}' after {n_threads} concurrent "
+            f"upserts from different documents, found {total}."
+        )
+        assert with_key == 1, (
+            f"Expected the relationship to have composite_key set, "
+            f"found {with_key} of {total} with a non-null composite_key."
+        )
+    finally:
+        with graph.driver.session() as session:
+            for doc_id in document_ids:
+                session.run(
+                    "MATCH (d:Document {id: $doc_id, user_id: $user_id}) DETACH DELETE d",
+                    doc_id=doc_id, user_id=user_id,
+                )
+            session.run(
+                "MATCH (e:Entity {user_id: $user_id, namespace: $ns}) DETACH DELETE e",
+                user_id=user_id, ns=TEST_NAMESPACE,
+            )
+            session.run(
+                "MATCH (pw:PairWeight {user_id: $user_id, namespace: $ns}) DETACH DELETE pw",
                 user_id=user_id, ns=TEST_NAMESPACE,
             )
         graph.close()
