@@ -106,7 +106,17 @@ def get_owner_instructions() -> str:
     return "=== OWNER INSTRUCTIONS (obey always) ===\n" + "\n".join(lines)
 
 
-def semantic_search(query: str, top_k: int = 8) -> List[Dict]:
+def semantic_search(query: str, top_k: int = 8, tags: Optional[List[str]] = None) -> List[Dict]:
+    """
+    tags (optional): when provided, results are restricted to entries
+    that share at least one tag with this list -- the same role-scoping
+    tag_search() already applies. Without this, semantic similarity search
+    ran across the entire employee_memory table with no role boundary at
+    all, meaning a role could surface another role's stored memories
+    (including sensitive-domain roles) whenever they were semantically
+    similar. Passing None preserves the old unscoped behavior for any
+    caller that genuinely wants a global search.
+    """
     try:
         embed_service = EmbeddingService()
         query_embedding = embed_service.embed_text(query)
@@ -119,14 +129,25 @@ def semantic_search(query: str, top_k: int = 8) -> List[Dict]:
     conn = get_connection()
     try:
         cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, text_content, summary, tags, importance, created_at
-            FROM employee_memory WHERE embedding IS NOT NULL
-            ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s
-            """,
-            (literal, top_k),
-        )
+        if tags:
+            cur.execute(
+                """
+                SELECT id, text_content, summary, tags, importance, created_at
+                FROM employee_memory
+                WHERE embedding IS NOT NULL AND tags ?| %s::text[]
+                ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s
+                """,
+                (list(tags), literal, top_k),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, text_content, summary, tags, importance, created_at
+                FROM employee_memory WHERE embedding IS NOT NULL
+                ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s
+                """,
+                (literal, top_k),
+            )
         rows = cur.fetchall()
         cur.close()
         return [_row_to_dict(r) for r in rows]
