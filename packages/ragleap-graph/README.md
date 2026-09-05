@@ -62,6 +62,18 @@ one real-world entity into multiple candidates in the first place — see
 CHANGELOG.md for a real, measured example of this and how `method="llm"`
 avoids it at the source.
 
+## Operations
+
+`ragleap-graph` is a knowledge-graph retrieval library, not a database
+administration tool. Backup and restore of the underlying Neo4j database
+are explicitly the operator's responsibility, not something this library
+wraps or automates -- see
+[`docs/operations/backup-and-restore.md`](docs/operations/backup-and-restore.md)
+for a concrete, tested procedure using Neo4j's native `neo4j-admin`
+tooling, and
+[`docs/adr/0001-backup-restore-ownership.md`](docs/adr/0001-backup-restore-ownership.md)
+for the reasoning behind this scope decision.
+
 ## Status
 
 v0.6.5. Ported from a real production `GraphService`, adapted for standalone open-source use — see `HANDOFF.md` for the full design history. `ragleap-rag` >=0.12.0 is an optional dependency, required only for `method="llm"`.

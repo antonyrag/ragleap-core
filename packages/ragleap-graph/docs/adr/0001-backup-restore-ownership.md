@@ -2,7 +2,7 @@
 
 | Field        | Value                                                    |
 |--------------|----------------------------------------------------------|
-| **Status**   | Proposed (pending maintainer sign-off)                   |
+| **Status**   | Accepted (2026-09-04)                                     |
 | **Date**     | 2026-08-27                                               |
 | **Context**  | Issue: missing backup/restore tooling for Neo4j graph    |
 | **Relates**  | `docs/operations/backup-and-restore.md`, `docs/design/schema-migrations.md` |
