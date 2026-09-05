@@ -8,7 +8,7 @@ the package.
 """
 from ragleap.vectorstores.base import VectorBackend
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = ["VectorBackend", "__version__"]
 
@@ -23,3 +23,9 @@ try:
     __all__.append("LanceDBBackend")
 except ImportError:
     pass  # lancedb extra not installed - LanceDBBackend simply unavailable, not an error
+
+try:
+    from ragleap_vectorstores.redis_backend import RedisBackend
+    __all__.append("RedisBackend")
+except ImportError:
+    pass  # redis extra not installed - RedisBackend simply unavailable, not an error

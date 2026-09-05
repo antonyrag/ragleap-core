@@ -5,6 +5,32 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-05
+### Added
+- `RedisBackend` - third vector backend, via RediSearch/Redis Stack's
+  HNSW vector index over a real Redis connection. Available via the
+  `redis` optional extra (`pip install ragleap-vectorstores[redis]`).
+  Unlike Chroma/LanceDB, this backend requires a real running server -
+  plain Redis has no vector search; it must be Redis Stack, or plain
+  Redis with the RediSearch module loaded. init_schema() checks
+  MODULE LIST and raises a clear RuntimeError immediately if 'search'
+  isn't present, rather than failing confusingly later at query time.
+- KNOWN LIMITATION, documented honestly: RediSearch requires fields to
+  be declared in the index schema up front, unlike Chroma's flexible
+  `where=`. search_dense()'s metadata_filter only narrows results by
+  `document_id` (a declared TAG field) - additional keys are accepted
+  but ignored rather than raising, same 'don't claim a capability that
+  isn't there' spirit as supports_sparse().
+- `supports_sparse()` correctly reports `False` for Redis - RediSearch
+  does support real full-text search via TextField/BM25, but that
+  surface wasn't implemented or tested in this release.
+### Fixed
+- TAG field values (e.g. UUID document_ids containing hyphens) must be
+  escaped before use in RediSearch query strings - live-verified that
+  an un-escaped hyphenated document_id silently returns zero matches
+  rather than erroring, since RediSearch parses hyphens as query syntax.
+  Handled by _escape_tag() and covered by a dedicated regression test.
+
 ## [0.2.1] - 2026-08-31
 ### Fixed
 - README's Install section was missing `uv add` variants for both

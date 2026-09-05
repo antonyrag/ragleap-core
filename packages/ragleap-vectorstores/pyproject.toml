@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-vectorstores"
-version = "0.2.1"
+version = "0.3.0"
 description = "Pluggable vector backends beyond ragleap-rag core's 6 (PgVector, FAISS, Pinecone, Weaviate, Qdrant, Milvus) - additional VectorBackend implementations as optional extras, no vendor lock-in, no bloated core dependency footprint."
 readme = "README.md"
 license = "MIT"
@@ -31,6 +31,7 @@ dependencies = [
 test = ["pytest>=8.0.0", "pytest-asyncio>=0.24.0"]
 chroma = ["chromadb>=1.0.0"]
 lancedb = ["lancedb>=0.15.0", "pyarrow>=14.0.0"]
+redis = ["redis>=5.0.0", "numpy>=1.24.0"]
 
 [project.urls]
 Homepage = "https://github.com/antonyrag/ragleap-core"
