@@ -1,0 +1,183 @@
+"""
+Tests for RedisBackend. Uses a real Redis Stack instance (RediSearch module
+loaded) running in an isolated dev container on port 6380 - separate from
+any production Redis used for caching/Celery. Each test gets its own
+random index_name/key_prefix so parallel/repeated runs never collide, and
+the index is dropped in teardown.
+
+Unlike Chroma/LanceDB (embedded, no live-credentials gap to skip around),
+this backend needs a real running server - REDIS_TEST_URL below must point
+at one with the 'search' module loaded, or every test here will fail at
+init_schema() with the same RuntimeError users would see in production.
+"""
+import uuid
+
+import pytest
+
+from ragleap_vectorstores.redis_backend import RedisBackend
+
+REDIS_TEST_URL = "redis://localhost:6380/0"
+# A separate, real production-shaped Redis with NO search module loaded -
+# used only by test_missing_search_module_raises() to prove the real error
+# path, exactly as encountered live on srv1477778's production Redis 6.0.16.
+REDIS_NO_SEARCH_URL = "redis://localhost:6379/2"
+
+
+@pytest.fixture
+def backend(tmp_path):
+    suffix = uuid.uuid4().hex[:8]
+    b = RedisBackend(
+        redis_url=REDIS_TEST_URL,
+        index_name=f"test_idx_{suffix}",
+        key_prefix=f"test:chunk:{suffix}:",
+        registry_path=str(tmp_path / "registry.sqlite3"),
+    )
+    b.init_schema(dimensions=3)
+    yield b
+    try:
+        b._client.ft(b.index_name).dropindex(delete_documents=True)
+    except Exception:
+        pass
+
+
+def _seed(backend):
+    backend.insert_document("doc1", "report.pdf", {"source": "upload"})
+    backend.insert_chunk("doc1", "report.pdf", 0, "The cat sat on the mat.", 6, [0.1, 0.2, 0.3], {})
+    backend.insert_chunk("doc1", "report.pdf", 1, "Dogs bark loudly outside.", 5, [0.9, 0.1, 0.1], {})
+    backend.insert_document("doc2", "notes.txt", {"source": "manual"})
+    backend.insert_chunk("doc2", "notes.txt", 0, "Unrelated content here.", 4, [0.5, 0.5, 0.5], {})
+
+
+def test_requires_redis_url():
+    with pytest.raises(ValueError):
+        RedisBackend(redis_url="")
+
+
+def test_missing_search_module_raises(tmp_path):
+    """Regression guard for the real gotcha encountered live: production
+    Redis 6.0.16 on srv1477778 has no RediSearch module (MODULE LIST
+    returned []). init_schema() must raise a clear RuntimeError rather
+    than failing confusingly later at query time."""
+    b = RedisBackend(
+        redis_url=REDIS_NO_SEARCH_URL,
+        index_name="should_never_be_created",
+        registry_path=str(tmp_path / "registry.sqlite3"),
+    )
+    with pytest.raises(RuntimeError, match="search"):
+        b.init_schema(dimensions=3)
+
+
+def test_insert_and_search_dense_shape(backend):
+    _seed(backend)
+    results = backend.search_dense([0.1, 0.2, 0.3], top_k=5)
+    assert results, "expected at least one result"
+    assert set(results[0].keys()) == {
+        "chunk_id", "text", "similarity_score", "document_id", "document_name", "chunk_index",
+    }
+    assert results[0]["document_id"] == "doc1"
+    assert results[0]["chunk_index"] == 0
+    assert results[0]["text"] == "The cat sat on the mat."
+    assert results[0]["similarity_score"] == 1.0
+
+
+def test_search_dense_document_id_filter(backend):
+    _seed(backend)
+    results = backend.search_dense([0.1, 0.2, 0.3], top_k=5, metadata_filter={"document_id": "doc2"})
+    assert results
+    assert all(r["document_id"] == "doc2" for r in results)
+
+
+def test_document_id_with_hyphens_is_escaped(backend):
+    """Regression guard for the real TAG-escaping gotcha (live-verified):
+    an un-escaped UUID-style document_id inside a TAG query silently
+    returns zero matches, since RediSearch parses hyphens as query syntax
+    rather than literal characters."""
+    uuid_doc_id = "a1b2c3d4-1234-5678-9abc-def012345678"
+    backend.insert_document(uuid_doc_id, "hyphenated.txt", {})
+    backend.insert_chunk(uuid_doc_id, "hyphenated.txt", 0, "hyphen test", 2, [0.2, 0.2, 0.2], {})
+    results = backend.search_dense([0.2, 0.2, 0.2], top_k=5, metadata_filter={"document_id": uuid_doc_id})
+    assert len(results) == 1
+    assert results[0]["document_id"] == uuid_doc_id
+
+
+def test_search_dense_unsupported_filter_keys_are_ignored_not_errored(backend):
+    """Honest documented limitation: RediSearch requires predeclared
+    fields, so only document_id is a real filter here. Extra keys must
+    not raise - they're accepted but don't narrow results, same
+    'don't claim a capability that isn't there' spirit as supports_sparse()."""
+    _seed(backend)
+    results = backend.search_dense([0.1, 0.2, 0.3], top_k=5, metadata_filter={"nonexistent_field": "x"})
+    assert len(results) >= 1  # filter was ignored, not erroring, not over-narrowing to zero
+
+
+def test_search_dense_empty_embedding_returns_empty(backend):
+    assert backend.search_dense([], top_k=5) == []
+
+
+def test_search_sparse_not_supported(backend):
+    _seed(backend)
+    assert backend.search_sparse("cat", top_k=5) == []
+
+
+def test_search_hybrid_falls_back_to_dense(backend):
+    _seed(backend)
+    hybrid = backend.search_hybrid("cat", [0.1, 0.2, 0.3], top_k=5)
+    dense = backend.search_dense([0.1, 0.2, 0.3], top_k=5)
+    assert [(r["document_id"], r["chunk_index"]) for r in hybrid] == \
+           [(r["document_id"], r["chunk_index"]) for r in dense]
+
+
+def test_supports_sparse_is_false(backend):
+    assert backend.supports_sparse() is False
+
+
+def test_list_documents(backend):
+    _seed(backend)
+    docs = backend.list_documents(limit=10, offset=0)
+    assert len(docs) == 2
+    by_id = {d["document_id"]: d for d in docs}
+    assert by_id["doc1"]["chunk_count"] == 2
+    assert by_id["doc2"]["chunk_count"] == 1
+    assert by_id["doc1"]["filename"] == "report.pdf"
+    assert by_id["doc1"]["metadata"] == {"source": "upload"}
+
+
+def test_get_document_filename(backend):
+    _seed(backend)
+    assert backend.get_document_filename("doc1") == "report.pdf"
+    assert backend.get_document_filename("nonexistent") is None
+
+
+def test_delete_document_removes_registry_entry_and_vectors(backend):
+    _seed(backend)
+    assert backend.delete_document("doc1") is True
+    assert backend.delete_document("doc1") is False  # already gone
+
+    docs = backend.list_documents(limit=10, offset=0)
+    assert [d["document_id"] for d in docs] == ["doc2"]
+
+    remaining = backend.search_dense([0.1, 0.2, 0.3], top_k=5)
+    assert all(r["document_id"] != "doc1" for r in remaining)
+
+
+def test_insert_chunk_upserts_not_duplicates(backend):
+    """Regression guard: HSET on the same deterministic key
+    (key_prefix+document_id:chunk_index) overwrites the hash in place -
+    Redis's native upsert behavior, no extra logic needed, unlike
+    LanceDB's explicit merge_insert() path."""
+    _seed(backend)
+    backend.insert_chunk("doc2", "notes.txt", 0, "UPDATED TEXT", 2, [0.5, 0.5, 0.5], {})
+    results = backend.search_dense([0.5, 0.5, 0.5], top_k=5)
+    assert results[0]["text"] == "UPDATED TEXT"
+    docs = backend.list_documents(limit=10, offset=0)
+    by_id = {d["document_id"]: d for d in docs}
+    assert by_id["doc2"]["chunk_count"] == 1
+
+
+def test_init_schema_idempotent(backend):
+    """Calling init_schema again (e.g. on reconnect) should reuse the
+    existing index via ft().info(), not error or reset it."""
+    _seed(backend)
+    backend.init_schema(dimensions=3)
+    results = backend.search_dense([0.1, 0.2, 0.3], top_k=5)
+    assert len(results) == 3
