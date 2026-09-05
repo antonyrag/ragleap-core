@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ragleap-db-backup
+spec:
+  schedule: "0 3 * * *"   # daily at 03:00 — adjust to your real retention/RPO needs
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: pgvector/pgvector:pg16
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  pg_dump -h ragleap-db -U "$POSTGRES_USER" "$POSTGRES_DB" > /backups/db-${TIMESTAMP}.sql
+                  echo "Backup written: db-${TIMESTAMP}.sql"
+              envFrom:
+                - secretRef:
+                    name: ragleap-db-secret
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ragleap-db-secret
+                      key: POSTGRES_PASSWORD
+              volumeMounts:
+                - name: backup-data
+                  mountPath: /backups
+          volumes:
+            - name: backup-data
+              persistentVolumeClaim:
+                claimName: ragleap-backup-data

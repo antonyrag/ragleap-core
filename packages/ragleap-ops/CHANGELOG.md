@@ -5,6 +5,20 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Backup/DR: `backup-pvc.yaml`, `db-backup-cronjob.yaml` (daily `pg_dump`, no downtime), `neo4j-backup-cronjob.yaml` (scale-to-zero + `neo4j-admin dump`, since Community Edition has no online backup command).
+
+### Verified
+
+- `pg_dump` live-tested against a real running database, produced a valid dump.
+- neo4j scale-to-zero + dump pattern live-tested end-to-end via a real Job, produced a genuine 257.8MiB/36-file dump successfully.
+- CronJob wrapper (RBAC, scheduling) validated structurally, not exercised via an actual cron trigger this session.
+
+### Known limitations
+
+- Neo4j backup is fail-loud by design: a failed dump leaves neo4j scaled to 0 rather than auto-restoring, to avoid a silently-failing backup going unnoticed. Requires monitoring CronJob/Job status separately.
+
 ### Fixed
 
 - `k8s/neo4j-deployment.yaml`'s liveness probe still had the original, pre-fix timing (`initialDelaySeconds: 20`, no explicit `failureThreshold`) even though the equivalent bug was already found and fixed in the Helm chart's neo4j template earlier this session. The two deployment paths had silently diverged. Found while live-testing backup/DR tooling on a fresh cluster -- neo4j genuinely crash-looped (kubelet killing it ~7 seconds into JVM startup, well before the database could bind its HTTP listener). Fixed to match the Helm chart's already-proven values (`initialDelaySeconds: 60`, `failureThreshold: 6`), then re-verified stable (0 further restarts after the one within the expected startup window).

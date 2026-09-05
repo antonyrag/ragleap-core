@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ragleap-neo4j-backup
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ragleap-neo4j-backup-role
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    resourceNames: ["ragleap-neo4j"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ragleap-neo4j-backup-binding
+subjects:
+  - kind: ServiceAccount
+    name: ragleap-neo4j-backup
+roleRef:
+  kind: Role
+  name: ragleap-neo4j-backup-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ragleap-neo4j-backup
+spec:
+  schedule: "0 3 * * *"   # matches db backup schedule; adjust to your real RPO needs
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: ragleap-neo4j-backup
+          restartPolicy: OnFailure
+          initContainers:
+            - name: scale-down
+              image: bitnami/kubectl:1.31
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  kubectl scale deployment ragleap-neo4j --replicas=0
+                  kubectl wait --for=delete pod -l app=ragleap-neo4j --timeout=120s
+          containers:
+            - name: dump
+              image: neo4j:5-community
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+                  mkdir -p /backups/neo4j-${TIMESTAMP}
+                  neo4j-admin database dump neo4j --to-path=/backups/neo4j-${TIMESTAMP}
+                  echo "Backup written: neo4j-${TIMESTAMP}"
+              volumeMounts:
+                - name: neo4j-data
+                  mountPath: /data
+                - name: backup-data
+                  mountPath: /backups
+          volumes:
+            - name: neo4j-data
+              persistentVolumeClaim:
+                claimName: ragleap-neo4j-data
+            - name: backup-data
+              persistentVolumeClaim:
+                claimName: ragleap-backup-data
