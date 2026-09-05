@@ -178,3 +178,42 @@ and `ingress.enabled`/`ingress.hostname` confirmed to differ correctly
 across all three overlay files via `helm template -f values-<env>.yaml`
 -- dev (1/1, no ingress), staging (1/1, ingress enabled with its own
 hostname), prod (3/2, ingress enabled with its own hostname).
+
+## Backup / Disaster Recovery
+
+Scheduled backups for both `db` (Postgres) and `neo4j` live in
+`k8s/backup-pvc.yaml`, `k8s/db-backup-cronjob.yaml`, and
+`k8s/neo4j-backup-cronjob.yaml`.
+
+**Postgres**: `pg_dump` runs against the live database daily -- no
+downtime, Postgres handles concurrent dumps natively via MVCC.
+
+**Neo4j**: Community Edition has no online/hot backup command (`neo4j-admin
+database backup` is Enterprise-only, confirmed via `--help` against the
+real image -- only `dump` exists in Community). The CronJob scales
+`ragleap-neo4j` to 0 replicas, waits for the pod to fully terminate, then
+runs `neo4j-admin database dump` against the now-unlocked PVC via a Job
+with the same volume mounted.
+
+**Important design decision -- fail loud, no automatic restart:** if the
+dump step fails, neo4j is intentionally left scaled to 0 rather than
+automatically restored. Coupling application uptime to backup success
+was considered and rejected -- a silently-failing backup with automatic
+scale-up could leave a real backup gap unnoticed for a long time while
+the app appears healthy. Monitor CronJob/Job success explicitly
+(`kubectl get cronjobs`, `kubectl get jobs`, or your alerting stack) and
+manually restore service after confirming/investigating a failure:
+
+```bash
+kubectl scale deployment ragleap-neo4j --replicas=1
+```
+
+Verification performed: both `pg_dump` and the scale-to-zero +
+`neo4j-admin dump` pattern were live-tested against real running
+instances on a real kind cluster -- `pg_dump` produced a valid dump
+against the live database; the neo4j pattern produced a real, complete
+257.8MiB dump (36 files) via the Job mechanism. The scheduled CronJob
+wrapper itself (RBAC, scale-down init container, timing) was validated
+structurally (`python3 -c "import yaml..."` parse + document/kind
+checks) but not exercised end-to-end via an actual cron trigger this
+session.
