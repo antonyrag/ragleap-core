@@ -52,6 +52,111 @@ def _composite_key(*parts: str) -> str:
     joined = "\x00".join(parts)
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
+
+def _backfill_user_id_defaults_session(session, namespace=None):
+    """Session-level implementation shared by GraphIndex.backfill_user_id_defaults()
+    and the migrations framework (see docs/design/schema-migrations.md,
+    Migration0001_BackfillUserIdDefaults). Extracted so both the existing bound
+    method and a Migration.up(session) can run the identical logic against an
+    already-open session -- behavior is unchanged from before this extraction.
+    """
+    counts = {
+        "Entity": 0,
+        "Document": 0,
+        "PairWeight": 0,
+        "RelationWeight": 0,
+    }
+    ns_filter = "AND n.namespace = $namespace" if namespace is not None else ""
+    for label in list(counts.keys()):
+        result = session.run(
+            f"""
+            MATCH (n:{label})
+            WHERE n.user_id IS NULL {ns_filter}
+            SET n.user_id = ""
+            RETURN count(n) AS updated
+            """,
+            namespace=namespace or "",
+        )
+        record = result.single()
+        counts[label] = record["updated"] if record else 0
+    return counts
+
+
+def _backfill_composite_key_session(session, namespace=None, batch_size=500):
+    """Session-level implementation shared by GraphIndex.backfill_composite_key()
+    and the migrations framework (see docs/design/schema-migrations.md,
+    Migration0002_BackfillCompositeKey). Extracted so both the existing bound
+    method and a Migration.up(session) can run the identical logic against an
+    already-open session -- behavior is unchanged from before this extraction.
+    """
+    counts = {
+        "Document": 0,
+        "Entity": 0,
+        "PairWeight": 0,
+        "RelationWeight": 0,
+    }
+    ns_filter = "AND n.namespace = $namespace" if namespace is not None else ""
+
+    label_specs = {
+        "Document": (
+            f"MATCH (n:Document) WHERE n.composite_key IS NULL {ns_filter} "
+            f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+            f"n.user_id AS user_id, n.id AS id",
+            lambda r: _composite_key(
+                r["namespace"] or "", r["user_id"] or "", str(r["id"] or "")
+            ),
+        ),
+        "Entity": (
+            f"MATCH (n:Entity) WHERE n.composite_key IS NULL {ns_filter} "
+            f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+            f"n.user_id AS user_id, n.name AS name",
+            lambda r: _composite_key(
+                r["namespace"] or "", r["user_id"] or "", str(r["name"] or "")
+            ),
+        ),
+        "PairWeight": (
+            f"MATCH (n:PairWeight) WHERE n.composite_key IS NULL {ns_filter} "
+            f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+            f"n.user_id AS user_id, n.document_id AS document_id, "
+            f"n.entity_a AS entity_a, n.entity_b AS entity_b",
+            lambda r: _composite_key(
+                r["namespace"] or "", r["user_id"] or "",
+                str(r["document_id"] or ""), r["entity_a"] or "", r["entity_b"] or "",
+            ),
+        ),
+        "RelationWeight": (
+            f"MATCH (n:RelationWeight) WHERE n.composite_key IS NULL {ns_filter} "
+            f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
+            f"n.user_id AS user_id, n.document_id AS document_id, "
+            f"n.subject AS subject, n.relation_type AS relation_type, "
+            f"n.object AS object",
+            lambda r: _composite_key(
+                r["namespace"] or "", r["user_id"] or "",
+                str(r["document_id"] or ""), r["subject"] or "",
+                r["relation_type"] or "", r["object"] or "",
+            ),
+        ),
+    }
+
+    for label, (read_query, key_fn) in label_specs.items():
+        records = list(session.run(read_query, namespace=namespace or ""))
+        updates = [
+            {"eid": r["eid"], "composite_key": key_fn(r)} for r in records
+        ]
+        for i in range(0, len(updates), batch_size):
+            batch = updates[i:i + batch_size]
+            session.run(
+                """
+                UNWIND $batch AS row
+                MATCH (n) WHERE elementId(n) = row.eid
+                SET n.composite_key = row.composite_key
+                """,
+                batch=batch,
+            )
+        counts[label] = len(updates)
+
+    return counts
+
 try:
     from neo4j import GraphDatabase
     from neo4j.exceptions import TransientError
@@ -1315,21 +1420,8 @@ class GraphIndex:
         }
         if not self.driver:
             return counts
-        ns_filter = "AND n.namespace = $namespace" if namespace is not None else ""
         with self.driver.session() as session:
-            for label in list(counts.keys()):
-                result = session.run(
-                    f"""
-                    MATCH (n:{label})
-                    WHERE n.user_id IS NULL {ns_filter}
-                    SET n.user_id = ""
-                    RETURN count(n) AS updated
-                    """,
-                    namespace=namespace or "",
-                )
-                record = result.single()
-                counts[label] = record["updated"] if record else 0
-        return counts
+            return _backfill_user_id_defaults_session(session, namespace)
 
     def backfill_composite_key(
         self, namespace: Optional[str] = None, batch_size: int = 500
@@ -1368,71 +1460,8 @@ class GraphIndex:
         }
         if not self.driver:
             return counts
-
-        ns_filter = "AND n.namespace = $namespace" if namespace is not None else ""
-
-        label_specs = {
-            "Document": (
-                f"MATCH (n:Document) WHERE n.composite_key IS NULL {ns_filter} "
-                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
-                f"n.user_id AS user_id, n.id AS id",
-                lambda r: _composite_key(
-                    r["namespace"] or "", r["user_id"] or "", str(r["id"] or "")
-                ),
-            ),
-            "Entity": (
-                f"MATCH (n:Entity) WHERE n.composite_key IS NULL {ns_filter} "
-                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
-                f"n.user_id AS user_id, n.name AS name",
-                lambda r: _composite_key(
-                    r["namespace"] or "", r["user_id"] or "", str(r["name"] or "")
-                ),
-            ),
-            "PairWeight": (
-                f"MATCH (n:PairWeight) WHERE n.composite_key IS NULL {ns_filter} "
-                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
-                f"n.user_id AS user_id, n.document_id AS document_id, "
-                f"n.entity_a AS entity_a, n.entity_b AS entity_b",
-                lambda r: _composite_key(
-                    r["namespace"] or "", r["user_id"] or "",
-                    str(r["document_id"] or ""), r["entity_a"] or "", r["entity_b"] or "",
-                ),
-            ),
-            "RelationWeight": (
-                f"MATCH (n:RelationWeight) WHERE n.composite_key IS NULL {ns_filter} "
-                f"RETURN elementId(n) AS eid, n.namespace AS namespace, "
-                f"n.user_id AS user_id, n.document_id AS document_id, "
-                f"n.subject AS subject, n.relation_type AS relation_type, "
-                f"n.object AS object",
-                lambda r: _composite_key(
-                    r["namespace"] or "", r["user_id"] or "",
-                    str(r["document_id"] or ""), r["subject"] or "",
-                    r["relation_type"] or "", r["object"] or "",
-                ),
-            ),
-        }
-
         with self.driver.session() as session:
-            for label, (read_query, key_fn) in label_specs.items():
-                records = list(session.run(read_query, namespace=namespace or ""))
-                updates = [
-                    {"eid": r["eid"], "composite_key": key_fn(r)} for r in records
-                ]
-                for i in range(0, len(updates), batch_size):
-                    batch = updates[i:i + batch_size]
-                    session.run(
-                        """
-                        UNWIND $batch AS row
-                        MATCH (n) WHERE elementId(n) = row.eid
-                        SET n.composite_key = row.composite_key
-                        """,
-                        batch=batch,
-                    )
-                counts[label] = len(updates)
-
-        return counts
-
-
+            return _backfill_composite_key_session(session, namespace, batch_size)
     def backfill_co_occurs_with_composite_key(
         self, namespace: Optional[str] = None, batch_size: int = 500
     ) -> int:
