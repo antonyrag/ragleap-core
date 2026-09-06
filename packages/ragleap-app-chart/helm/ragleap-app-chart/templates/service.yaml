@@ -1,0 +1,16 @@
+{{- range $svc := .Values.services }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  labels:
+    {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 4 }}
+spec:
+  selector:
+    app: {{ $svc.name }}
+    release: {{ $.Release.Name }}
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+---
+{{- end }}

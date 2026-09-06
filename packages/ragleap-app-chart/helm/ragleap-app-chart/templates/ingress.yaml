@@ -1,0 +1,28 @@
+{{- range $svc := .Values.services }}
+{{- if $svc.expose }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ $.Values.ingress.clusterIssuer }}
+spec:
+  ingressClassName: {{ $.Values.ingress.ingressClassName }}
+  tls:
+    - hosts:
+        - {{ $svc.hostname }}
+      secretName: {{ $svc.name }}-tls
+  rules:
+    - host: {{ $svc.hostname }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+                port:
+                  number: {{ $svc.port }}
+---
+{{- end }}
+{{- end }}

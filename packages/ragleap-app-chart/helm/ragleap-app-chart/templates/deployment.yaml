@@ -1,0 +1,44 @@
+{{- range $svc := .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  labels:
+    {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+      release: {{ $.Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 8 }}
+    spec:
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ $svc.image }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          {{- if $svc.env }}
+          env:
+            {{- toYaml $svc.env | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- include "ragleap-app-chart.resources" (dict "Values" $.Values "service" $svc) | nindent 12 }}
+          securityContext:
+            {{- include "ragleap-app-chart.securityContext" (dict "Values" $.Values "service" $svc) | nindent 12 }}
+          {{- if $svc.persistent }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      {{- if $svc.persistent }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+      {{- end }}
+---
+{{- end }}

@@ -1,0 +1,17 @@
+{{- range $svc := .Values.services }}
+{{- if $svc.persistent }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  labels:
+    {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ $svc.storage | default "1Gi" }}
+---
+{{- end }}
+{{- end }}
