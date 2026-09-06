@@ -141,17 +141,29 @@ class RedisBackend(VectorBackend):
         self._dimensions = dimensions
         self._client = redis.from_url(self.redis_url, decode_responses=False)
 
-        # MODULE LIST returns a list of dicts with bytes keys, e.g.
-        # {b"name": b"search", b"ver": 21020, ...} - live-verified via the
-        # exact client construction used here (redis.from_url()). An
-        # earlier check using a bare redis.Redis() object returned a
-        # different (flat list) shape, which is why this is verified
-        # against the real call path this method actually uses, not
-        # assumed to generalize across client constructions.
+        # MODULE LIST's response shape is NOT stable - live-verified twice
+        # against this exact client construction (redis.from_url()) on the
+        # same server instance, with the same redis-py version, returning
+        # two different shapes on different occasions:
+        #   1) a list of dicts with bytes keys: {b"name": b"search", ...}
+        #   2) a list of flat key-value lists: [b"name", b"search", ...]
+        # This is almost certainly RESP2/RESP3 protocol negotiation
+        # happening beneath redis-py (map replies parse as dicts under
+        # RESP3, as flat arrays under RESP2) rather than anything this
+        # code controls - so both shapes are handled explicitly instead
+        # of assuming either one generalizes.
         modules = set()
         for m in self._client.execute_command("MODULE", "LIST"):
-            name = m[b"name"]
-            modules.add(name.decode() if isinstance(name, bytes) else name)
+            if isinstance(m, dict):
+                name = m.get(b"name", m.get("name"))
+            else:
+                name = None
+                for i, field in enumerate(m):
+                    if field in (b"name", "name"):
+                        name = m[i + 1]
+                        break
+            if name is not None:
+                modules.add(name.decode() if isinstance(name, bytes) else name)
         if "search" not in modules:
             raise RuntimeError(
                 f"RedisBackend: no 'search' module loaded on {self.redis_url}. "
