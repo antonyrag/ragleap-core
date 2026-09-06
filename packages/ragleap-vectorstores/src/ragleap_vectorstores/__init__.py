@@ -8,7 +8,7 @@ the package.
 """
 from ragleap.vectorstores.base import VectorBackend
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = ["VectorBackend", "__version__"]
 

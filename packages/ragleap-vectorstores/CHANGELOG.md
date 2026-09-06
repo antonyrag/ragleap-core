@@ -5,6 +5,18 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-05
+### Fixed
+- README's Usage section was missing a RedisBackend example (only
+  Chroma/LanceDB were shown) - same category of gap as the v0.2.1
+  missing-uv-add-lines fix, caught the same way: checking the real
+  rendered PyPI page after publish rather than assuming the README
+  was complete.
+- pyproject.toml's keywords only listed generic terms (rag,
+  vector-search, vector-database, ragleap) - added per-backend terms
+  (chroma, chromadb, lancedb, redis, redisearch) plus embeddings and
+  similarity-search for PyPI/search discoverability.
+
 ## [0.3.0] - 2026-09-05
 ### Added
 - `RedisBackend` - third vector backend, via RediSearch/Redis Stack's
