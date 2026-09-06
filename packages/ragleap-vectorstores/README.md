@@ -46,3 +46,11 @@ from ragleap_vectorstores import LanceDBBackend
 
 backend = LanceDBBackend(uri="./lancedb_data")
 ```
+
+```python
+from ragleap_vectorstores import RedisBackend
+
+# Requires a real Redis Stack instance (or plain Redis + the RediSearch
+# module) - plain Redis alone has no vector search.
+backend = RedisBackend(redis_url="redis://localhost:6379/0")
+```
