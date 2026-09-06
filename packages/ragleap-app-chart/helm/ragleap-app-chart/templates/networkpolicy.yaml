@@ -1,0 +1,41 @@
+{{/*
+Deny-by-default: every service gets its own NetworkPolicy. Ingress is
+only allowed from services that explicitly list this one in their
+dependsOn — matches ragleap-ops's proven deny-by-default design.
+An empty dependsOn (or no other service depending on you) means a real
+deny-all policy, not "no policy" — same as the proposal doc intended.
+*/}}
+{{- range $svc := .Values.services }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}-deny-by-default
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ $svc.name }}
+      release: {{ $.Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- $allowedFrom := list }}
+    {{- range $other := $.Values.services }}
+      {{- if $other.dependsOn }}
+        {{- range $dep := $other.dependsOn }}
+          {{- if eq $dep $svc.name }}
+            {{- $allowedFrom = append $allowedFrom $other.name }}
+          {{- end }}
+        {{- end }}
+      {{- end }}
+    {{- end }}
+    {{- if $allowedFrom }}
+    - from:
+        {{- range $allowedFrom }}
+        - podSelector:
+            matchLabels:
+              app: {{ . }}
+              release: {{ $.Release.Name }}
+        {{- end }}
+    {{- end }}
+---
+{{- end }}

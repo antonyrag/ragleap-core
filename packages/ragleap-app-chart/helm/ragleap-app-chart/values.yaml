@@ -1,0 +1,71 @@
+# ragleap-app-chart — generic services list
+#
+# Each entry under `services:` renders its own Deployment, Service, and
+# (conditionally) PVC, NetworkPolicy, and Ingress. Nothing here is
+# RagLeap-specific — point this at your own app.
+
+services:
+  - name: web
+    image: myorg/myapp:latest
+    port: 3000
+    replicaCount: 2
+    persistent: false
+
+    # No dependsOn means this service gets a deny-all NetworkPolicy by
+    # default — nothing can reach it unless you list it in another
+    # service's dependsOn. Matches ragleap-ops's deny-by-default design.
+    dependsOn:
+      - postgres
+
+    # Ingress is opt-in per service. Omit `expose` (or set false) for
+    # internal-only services.
+    expose: true
+    hostname: myapp.example.com
+
+    env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: app-secrets
+            key: db-url
+
+    # Optional — if omitted, chart-level defaults below apply.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  - name: postgres
+    image: postgres:16
+    port: 5432
+    replicaCount: 1          # stateful services should not be scaled via this field
+    persistent: true
+    storage: 10Gi
+    dependsOn: []             # no outbound deps — still gets its own deny-all ingress policy
+    expose: false
+
+# Applied to any service that omits its own `resources` block.
+defaultResources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+# SecurityContext defaults applied to every container unless a service
+# sets its own `securityContext` override. Secure-by-default per the
+# proposal doc's design principles.
+defaultSecurityContext:
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false   # many images need write access; override per-service to true where possible
+
+# cert-manager ClusterIssuer name used for any service with expose: true.
+# Same pattern as ragleap-ops's Ingress+TLS.
+ingress:
+  clusterIssuer: letsencrypt-prod
+  ingressClassName: nginx
