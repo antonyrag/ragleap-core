@@ -1,0 +1,19 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ragleap-prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: {{ .Values.prometheus.scrapeInterval }}
+    scrape_configs:
+      - job_name: 'ragleap-postgres'
+        static_configs:
+          - targets: ['ragleap-postgres-exporter:{{ .Values.postgresExporter.port }}']
+      {{- if .Values.neo4jExporter.enabled }}
+      - job_name: 'ragleap-neo4j'
+        static_configs:
+          - targets: ['ragleap-neo4j:{{ .Values.neo4jExporter.port }}']
+      {{- end }}
+{{- end }}

@@ -30,3 +30,18 @@ building anomaly detection before a metrics pipeline exists would be
   itself -- not a generic monitoring tool
 - Every claim live-verified against a real cluster or explicitly
   labeled unverified, same discipline as every other package here
+
+## Known open items
+
+- **Neo4j Prometheus support is unverified and conflicting in the wild.**
+  Neo4j's own KB and a working xk6-neo4j example show
+  `metrics.prometheus.enabled=true` configured successfully against
+  Neo4j Community 4.4.x. A separate monitoring vendor's own
+  compatibility notes claim Community Edition is unsupported for their
+  specific collector. `neo4jExporter.enabled` defaults to `false` in
+  `values.yaml` until this is live-verified against the real
+  `neo4j:5-community` image in this repo's own `kind` cluster.
+- `ragleap-db`'s schema does not yet have a read-only monitoring role
+  for `postgres_exporter` to connect as — needs adding in `ragleap-ops`
+  first; this package assumes it exists via
+  `ragleap-db-exporter-secret`.
