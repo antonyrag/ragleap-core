@@ -85,3 +85,41 @@ Maintainer answers the three open questions above. Only then does
 scaffolding/template work begin — same discipline as every other
 package in this repo: real bytes, live-tested on a real cluster,
 honest documentation of what was and wasn't verified.
+
+## Decisions — resolved 2026-09-06
+
+The three open questions above are now answered. This section is an
+addition, not a silent edit — the original open questions above are
+left intact as the historical record of what was asked.
+
+1. **Naming: `ragleap-app-chart`.** Every piece of existing package
+   infrastructure (wiki live-packages table, packages.ragleap.com,
+   ragleap.com/library's `PYPI_PROJECTS` stats puller, root README
+   badge/install/package-list) is built around cataloging `ragleap-*`
+   packages. Branding this under the RagLeap name doesn't compromise
+   its generic *functionality* — the real requirement this doc cares
+   about. `k8s-app-chart` remains a reasonable alternative if a
+   maintainer wants to revisit this later; not a closed door.
+
+2. **Location: same monorepo**, `packages/ragleap-app-chart/`. A
+   separate repo would mean rebuilding CI, PyPI OIDC Trusted
+   Publishing, and release automation from scratch for no concrete
+   benefit today. Splitting out later remains possible if a distinct
+   contributor community forms around this package specifically.
+
+3. **Distribution: PyPI first.** Reuses the fully proven `release.yml`
+   / OIDC workflow with zero new infrastructure risk, matching the
+   same rationale already established for `ragleap-ops` ("ships no
+   functional Python, just versions/publishes the chart"). A native
+   Helm/OCI registry (`ghcr.io` via `helm push`) is a real, deliberate
+   follow-up worth pursuing once the chart itself is proven — many
+   Helm-first developers won't want a `pip install` wrapper — but it
+   is not a v1 blocker. Same discipline as sequencing Observability
+   before AIOps: don't build new distribution infrastructure ahead of
+   proven need.
+
+**Status update:** package scaffold (`pyproject.toml`, `src/`,
+`tests/`) already created under `packages/ragleap-app-chart/`,
+mirroring `ragleap-ops`'s original scaffold commit. No Helm chart
+templates yet — that remains the next real piece of work, building
+out the `services:` schema sketched earlier in this document.
