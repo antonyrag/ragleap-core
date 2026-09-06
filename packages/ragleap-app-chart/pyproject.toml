@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ragleap-app-chart"
+version = "0.1.0"
+description = "Generic, reusable Helm chart for deploying arbitrary services to Kubernetes — not RagLeap-specific"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "RagLeap Contributors" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://packages.ragleap.com/docs/ragleap-app-chart.html"
+
+[tool.hatchling.build.targets.wheel]
+packages = ["src/ragleap_app_chart"]
