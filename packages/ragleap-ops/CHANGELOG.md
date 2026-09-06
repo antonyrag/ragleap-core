@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-06
+
 ### Added
 
 - Backup/DR: `backup-pvc.yaml`, `db-backup-cronjob.yaml` (daily `pg_dump`, no downtime), `neo4j-backup-cronjob.yaml` (scale-to-zero + `neo4j-admin dump`, since Community Edition has no online backup command).
