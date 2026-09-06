@@ -5,6 +5,27 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-06
+### Fixed
+- README's "Available backends" table was missing a Redis row entirely
+  (only Chroma and LanceDB were listed) - this table is separate from
+  the Usage section's code examples, which were already fixed in
+  v0.3.1. Caught by checking the live rendered PyPI page, same as the
+  v0.2.1 and v0.3.1 doc-lag issues. Added the Redis row with the same
+  level of detail as the other two (extra name, server requirement,
+  metadata filtering limitation, sparse-search status).
+- REAL REGRESSION, live-verified: init_schema()'s MODULE LIST parsing
+  assumed a single fixed response shape (dict with bytes keys), but
+  running the full test suite in a different environment reproduced
+  the older flat-list shape again - same exact client construction,
+  same server instance, same redis-py version, different shape on
+  different occasions. Almost certainly RESP2/RESP3 protocol
+  negotiation happening beneath redis-py rather than anything this
+  code controls. Parsing is now defensive against both observed
+  shapes rather than assuming either one generalizes; verified across
+  10 consecutive clean test runs plus two full-suite runs (40/40 both
+  times) before shipping this fix.
+
 ## [0.3.1] - 2026-09-05
 ### Fixed
 - README's Usage section was missing a RedisBackend example (only

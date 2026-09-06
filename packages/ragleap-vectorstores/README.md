@@ -13,6 +13,7 @@ over time. See the
 |---|---|---|
 | Chroma | `chroma` | Embedded/local via chromadb's PersistentClient - no server required. No native sparse/keyword search (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 | LanceDB | `lancedb` | Embedded/local via a directory path - no server required. Real upsert semantics via `merge_insert()`. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
+| Redis | `redis` | Requires a real running server - Redis Stack, or plain Redis with the RediSearch module loaded (no embedded/local mode). `init_schema()` checks for the module and raises a clear error if it's missing. Metadata filtering only supports `document_id` (RediSearch requires predeclared schema fields). No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 
 ## Design
 
