@@ -1,0 +1,14 @@
+{{- if .Values.postgresExporter.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragleap-postgres-exporter
+  labels:
+    app: ragleap-postgres-exporter
+spec:
+  selector:
+    app: ragleap-postgres-exporter
+  ports:
+    - port: {{ .Values.postgresExporter.port }}
+      targetPort: {{ .Values.postgresExporter.port }}
+{{- end }}

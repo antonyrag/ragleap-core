@@ -1,0 +1,32 @@
+{{- if .Values.postgresExporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-postgres-exporter
+  labels:
+    app: ragleap-postgres-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragleap-postgres-exporter
+  template:
+    metadata:
+      labels:
+        app: ragleap-postgres-exporter
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: {{ .Values.postgresExporter.image }}
+          ports:
+            - containerPort: {{ .Values.postgresExporter.port }}
+          env:
+            - name: DATA_SOURCE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.postgresExporter.datasourceSecretName }}
+                  key: connection-string
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+{{- end }}

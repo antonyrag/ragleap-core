@@ -1,0 +1,32 @@
+# ragleap-observability — Prometheus + exporters (step 1 of the planned build order)
+#
+# Grafana, Loki, and AlertManager are NOT yet configured here — per the
+# README's build order, alerting/dashboards come after real metrics
+# are proven flowing, not before.
+
+postgresExporter:
+  enabled: true
+  image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+  # Connects to ragleap-db using a read-only monitoring role — NOT the
+  # app's own credentials. This role does not exist yet in ragleap-ops's
+  # db schema and needs to be created there first (real dependency,
+  # not yet done — see README "Known open items").
+  datasourceSecretName: ragleap-db-exporter-secret
+  port: 9187
+
+neo4jExporter:
+  # UNVERIFIED — see README "Known open items". Neo4j's own docs and a
+  # working xk6-neo4j example show `metrics.prometheus.enabled=true`
+  # configured successfully against Neo4j Community 4.4.x. A separate
+  # third-party monitoring vendor's compatibility notes claim Community
+  # Edition is unsupported for their specific collector. These sources
+  # conflict. Do not enable this until live-verified against the real
+  # neo4j:5-community image running in this repo's own kind cluster.
+  enabled: false
+  port: 2004
+
+prometheus:
+  enabled: true
+  image: prom/prometheus:v2.55.1
+  retention: 15d
+  scrapeInterval: 30s

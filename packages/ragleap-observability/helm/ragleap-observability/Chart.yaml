@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ragleap-observability
+description: Prometheus/Grafana/Loki/AlertManager observability stack for RagLeap Core
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
