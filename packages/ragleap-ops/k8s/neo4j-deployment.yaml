@@ -16,9 +16,18 @@ spec:
       labels:
         app: ragleap-neo4j
     spec:
+      serviceAccountName: ragleap-neo4j
+      automountServiceAccountToken: false
       containers:
         - name: neo4j
           image: neo4j:5-community
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem intentionally NOT enabled yet --
+            # this container may write outside its declared volume
+            # mounts (e.g. /tmp, /var/run) and this has not been
+            # live-tested. Enabling it blind risks breaking startup.
           envFrom:
             - secretRef:
                 name: ragleap-neo4j-secret

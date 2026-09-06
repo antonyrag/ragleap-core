@@ -14,15 +14,27 @@ spec:
       labels:
         app: ragleap-app
     spec:
+      serviceAccountName: ragleap-app
+      automountServiceAccountToken: false
       imagePullSecrets:
         - name: ghcr-pull-secret
       initContainers:
         - name: wait-for-db
           image: postgres:16-alpine
           command: ["sh", "-c", "until pg_isready -h ragleap-db -p 5432 -U ragleap; do sleep 2; done"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
       containers:
         - name: app
           image: ghcr.io/antonyrag/ragleap-app:latest
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem intentionally NOT enabled yet --
+            # this container may write outside its declared volume
+            # mounts (e.g. /tmp, /var/run) and this has not been
+            # live-tested. Enabling it blind risks breaking startup.
           ports:
             - containerPort: 8000
           envFrom:
