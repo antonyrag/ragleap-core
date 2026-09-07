@@ -1,0 +1,22 @@
+# Dedicated namespace for RagLeap Core, isolating it from default and
+# enabling PodSecurityStandards enforcement without affecting anything
+# else that might share a cluster.
+#
+# Using 'baseline', not 'restricted', deliberately. 'restricted'
+# requires seccompProfile: {type: RuntimeDefault} on every container,
+# which was not added in the prior SecurityContext hardening pass.
+# Enabling 'restricted' without that -- and without live-testing --
+# risks outright admission-controller rejection of every pod, not a
+# cosmetic warning. 'baseline' still meaningfully blocks privileged
+# containers, host namespace access, and dangerous capabilities.
+# Escalating to 'restricted' is a real tracked follow-up once seccomp
+# profiles are added AND live-verified against a real cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ragleap-core
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/warn-version: latest

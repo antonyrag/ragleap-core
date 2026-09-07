@@ -233,3 +233,4 @@ data:
 kind: ConfigMap
 metadata:
   name: ragleap-db-schema
+  namespace: ragleap-core

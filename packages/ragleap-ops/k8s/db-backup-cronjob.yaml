@@ -2,6 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: ragleap-db-backup
+  namespace: ragleap-core
 spec:
   schedule: "0 3 * * *"   # daily at 03:00 — adjust to your real retention/RPO needs
   jobTemplate:

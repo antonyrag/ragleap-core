@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: ragleap-neo4j
+  namespace: ragleap-core
   labels:
     app: ragleap-neo4j
 spec:
