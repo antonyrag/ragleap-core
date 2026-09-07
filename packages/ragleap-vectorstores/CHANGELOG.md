@@ -5,6 +5,32 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-06
+### Fixed
+- REAL BUG, live-verified: RedisBackend's key_prefix used to default to
+  the same literal string ("ragleap:chunk:") regardless of index_name.
+  Two RedisBackend instances with different index_name but both left
+  at the default key_prefix silently shared the same Redis keyspace -
+  creating the second index caused RediSearch to auto-index the first
+  instance's leftover chunks too, and a fresh KNN query could return
+  stale data from a completely unrelated instance. Reproduced live:
+  three separate verification runs with different index_names, all
+  writing into the same "ragleap:chunk:*" keyspace, and a top_k=1
+  query on the newest instance returned a chunk from an unrelated
+  earlier run. Fixed by deriving the default key_prefix from
+  index_name, so two different indexes never collide unless the
+  caller explicitly passes the same key_prefix on purpose. Added a
+  dedicated regression test (two instances, different index_name, no
+  explicit key_prefix, each must only ever see its own chunks) - this
+  test fails against the old code and passes against the fix.
+
+This is a data-isolation fix, not just a docs fix: anyone running two
+RedisBackend-backed RagLeap deployments against the same Redis server
+without an explicit key_prefix was at risk of their data silently
+mixing. Given the package is still alpha and RedisBackend shipped only
+days ago, fixing the default now (before wider adoption) was judged
+better than leaving the footgun in place.
+
 ## [0.3.2] - 2026-09-06
 ### Fixed
 - README's "Available backends" table was missing a Redis row entirely

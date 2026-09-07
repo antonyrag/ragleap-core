@@ -87,7 +87,7 @@ class RedisBackend(VectorBackend):
         self,
         redis_url: str,
         index_name: str = "ragleap_idx",
-        key_prefix: str = "ragleap:chunk:",
+        key_prefix: Optional[str] = None,
         registry_path: Optional[str] = None,
     ):
         try:
@@ -111,7 +111,20 @@ class RedisBackend(VectorBackend):
 
         self.redis_url = redis_url
         self.index_name = index_name
-        self.key_prefix = key_prefix
+        # REAL BUG FIX, live-verified: key_prefix used to default to the
+        # same literal string ("ragleap:chunk:") regardless of index_name.
+        # Two RedisBackend instances with different index_name but both
+        # left at the default key_prefix would silently share the same
+        # Redis keyspace - creating a second index over that prefix makes
+        # RediSearch auto-index every existing key there, including chunks
+        # inserted by a completely unrelated earlier instance. Reproduced
+        # live: three separate verification runs with different
+        # index_names all wrote into "ragleap:chunk:*", and a fresh
+        # top_k=1 KNN query on the newest instance returned a stale chunk
+        # from an unrelated earlier run. Default now derives from
+        # index_name so two different indices never collide unless the
+        # caller explicitly passes the same key_prefix on purpose.
+        self.key_prefix = key_prefix or f"ragleap:{index_name}:chunk:"
         self._client = None
         self._dimensions = None
         self._lock = threading.Lock()
