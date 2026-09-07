@@ -181,3 +181,54 @@ def test_init_schema_idempotent(backend):
     backend.init_schema(dimensions=3)
     results = backend.search_dense([0.1, 0.2, 0.3], top_k=5)
     assert len(results) == 3
+
+
+def test_default_key_prefix_isolates_different_indexes(tmp_path):
+    """Regression guard for a real bug, live-verified: key_prefix used to
+    default to the same literal string regardless of index_name, so two
+    RedisBackend instances with different index_name but both left at the
+    default key_prefix silently shared the same Redis keyspace - creating
+    the second index caused RediSearch to auto-index the first instance's
+    leftover chunks too, and a fresh KNN query could return stale data
+    from a completely unrelated instance. Reproduced live: three separate
+    verification runs with different index_names, default key_prefix,
+    all landed in "ragleap:chunk:*", and a top_k=1 query on the newest
+    one returned an old chunk from an earlier one. This test creates two
+    instances with different index_name and NO explicit key_prefix, and
+    verifies each only ever sees its own chunks."""
+    suffix_a = uuid.uuid4().hex[:8]
+    suffix_b = uuid.uuid4().hex[:8]
+    a = RedisBackend(
+        redis_url=REDIS_TEST_URL,
+        index_name=f"isolation_a_{suffix_a}",
+        registry_path=str(tmp_path / "registry_a.sqlite3"),
+    )
+    b = RedisBackend(
+        redis_url=REDIS_TEST_URL,
+        index_name=f"isolation_b_{suffix_b}",
+        registry_path=str(tmp_path / "registry_b.sqlite3"),
+    )
+    try:
+        a.init_schema(dimensions=3)
+        b.init_schema(dimensions=3)
+
+        assert a.key_prefix != b.key_prefix, "default key_prefix must differ when index_name differs"
+
+        a.insert_document("doc_a", "a.txt", {})
+        a.insert_chunk("doc_a", "a.txt", 0, "chunk from instance A", 3, [0.1, 0.1, 0.1], {})
+        b.insert_document("doc_b", "b.txt", {})
+        b.insert_chunk("doc_b", "b.txt", 0, "chunk from instance B", 3, [0.1, 0.1, 0.1], {})
+
+        results_a = a.search_dense([0.1, 0.1, 0.1], top_k=5)
+        results_b = b.search_dense([0.1, 0.1, 0.1], top_k=5)
+
+        assert len(results_a) == 1, "instance A must only see its own chunk, not instance B's"
+        assert results_a[0]["document_id"] == "doc_a"
+        assert len(results_b) == 1, "instance B must only see its own chunk, not instance A's"
+        assert results_b[0]["document_id"] == "doc_b"
+    finally:
+        for inst in (a, b):
+            try:
+                inst._client.ft(inst.index_name).dropindex(delete_documents=True)
+            except Exception:
+                pass
