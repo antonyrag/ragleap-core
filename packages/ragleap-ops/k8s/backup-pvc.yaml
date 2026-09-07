@@ -2,6 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: ragleap-backup-data
+  namespace: ragleap-core
 spec:
   accessModes: ["ReadWriteOnce"]
   resources:
