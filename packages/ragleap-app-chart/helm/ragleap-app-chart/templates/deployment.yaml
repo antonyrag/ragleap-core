@@ -16,6 +16,18 @@ spec:
       labels:
         {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 8 }}
     spec:
+      {{- if $svc.initChown }}
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36
+          command: ["sh", "-c", "chown -R {{ $svc.securityContext.runAsUser }}:{{ $svc.securityContext.runAsUser }} /data"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      {{- end }}
       containers:
         - name: {{ $svc.name }}
           image: {{ $svc.image }}

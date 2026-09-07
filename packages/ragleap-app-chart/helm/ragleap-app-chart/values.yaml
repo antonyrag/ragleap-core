@@ -47,6 +47,27 @@ services:
     dependsOn: []             # no outbound deps — still gets its own deny-all ingress policy
     expose: false
 
+    # postgres:16 defaults to a root user before dropping privileges
+    # internally (confirmed via 'docker run --rm postgres:16 id postgres'
+    # — UID 999) — runAsNonRoot alone rejects it outright, same real
+    # bug found and fixed in ragleap-ops. initChown renders a one-time
+    # root init container to chown the PVC before the main container
+    # starts restricted.
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      allowPrivilegeEscalation: false
+    initChown: true
+
+    # postgres's official image defaults to /var/lib/postgresql/data,
+    # not this chart's hardcoded /data mount — PGDATA must point inside
+    # the actual mounted volume or data silently won't persist.
+    env:
+      - name: PGDATA
+        value: /data/pgdata
+      - name: POSTGRES_PASSWORD
+        value: test-password-not-for-production
+
 # Applied to any service that omits its own `resources` block.
 defaultResources:
   requests:
