@@ -5,6 +5,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Verified
+
+- Full neo4j backup/DR restore drill performed end-to-end on a real local kind cluster -- the previously-flagged gap ("dump side verified, restore side never tested") is now closed. Real marker node created via cypher-shell, neo4j scaled to zero, `neo4j-admin database dump` taken against the unlocked PVC (36 files, 257.9MiB, matching the original session's dump size almost exactly), then `neo4j-admin database load --overwrite-destination=true` performed against the same volume, neo4j scaled back up, and the exact same marker node (same properties, same millisecond-precision timestamp) confirmed recovered via cypher-shell. Restore command completed with zero errors, notably cleaner than the noisy-but-successful Postgres restore (which produced expected `already exists` errors when restoring into a non-empty schema).
+
+
 ### Fixed
 
 - Helm chart templates (`helm/ragleap-ops/templates/db-deployment.yaml`, `neo4j-deployment.yaml`) had NOT received the SecurityContext fixes from the prior raw-manifest fix (runAsUser, fix-permissions init container) -- confirmed real drift between the two deployment paths, same class of bug as the earlier neo4j probe-drift finding. Ported the identical fix to both Helm templates.
