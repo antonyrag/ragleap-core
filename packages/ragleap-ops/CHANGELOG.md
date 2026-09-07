@@ -7,6 +7,21 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Helm chart templates (`helm/ragleap-ops/templates/db-deployment.yaml`, `neo4j-deployment.yaml`) had NOT received the SecurityContext fixes from the prior raw-manifest fix (runAsUser, fix-permissions init container) -- confirmed real drift between the two deployment paths, same class of bug as the earlier neo4j probe-drift finding. Ported the identical fix to both Helm templates.
+
+### Verified
+
+- `helm lint` clean; `helm template` output confirmed both `fix-permissions` init containers and both `runAsUser` values (999, 7474) render correctly, not left as unresolved template syntax.
+- Full `helm install` performed on a real local kind cluster (Docker Desktop on Windows). `neo4j` reached `1/1 Running` with 0 restarts. `db`'s `fix-permissions` init container completed successfully (exit code 0) and the main container reached `Ready: True`, confirming the ported fix works identically to the raw-manifest version already verified.
+
+### Known limitations
+
+- During this full-stack `helm install` (all 4 services deploying simultaneously, unlike the earlier minimal single-service raw-manifest test), `db` restarted twice due to `pg_isready` probe timeouts (`command timed out after 1s`/`5s`) -- root cause was real resource contention on the test laptop under the heavier simultaneous 4-service load (image pulls that normally take seconds took 50+ seconds), not a defect in the SecurityContext/init-container fix itself. The pod self-healed and reached a stable `1/1 Running` state. Worth revisiting probe timeout tuning if this recurs under realistic production load, but not treated as a blocking bug here since it reflects test-environment contention, not the fix being verified.
+- `app`/`voice` could not be tested in this pass -- `ImagePullBackOff` due to missing `ghcr-pull-secret` and private image access in this fresh test cluster, expected and unrelated to this fix.
+
+
+### Fixed
+
 - SecurityContext hardening (added in a prior commit) broke real startup for `db` and `neo4j` on live cluster testing -- caught only now via an actual kind deploy, not template validation. Three real, layered issues found and fixed:
   1. `runAsNonRoot: true` alone rejected both images outright (`pgvector/pgvector:pg16` and `neo4j:5-community` both default to a root user before their entrypoints drop privileges internally) -- fixed by adding explicit `runAsUser` set to each image's real non-root UID (999 for postgres, 7474 for neo4j, confirmed via `docker run --rm <image> id <user>`, not assumed).
   2. Even with the correct UID, `initdb`/neo4j startup failed with `chmod: Operation not permitted` against the PVC-backed data directory, which K8s creates owned by root by default.
