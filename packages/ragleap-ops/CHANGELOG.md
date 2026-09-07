@@ -5,6 +5,25 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- SecurityContext hardening (added in a prior commit) broke real startup for `db` and `neo4j` on live cluster testing -- caught only now via an actual kind deploy, not template validation. Three real, layered issues found and fixed:
+  1. `runAsNonRoot: true` alone rejected both images outright (`pgvector/pgvector:pg16` and `neo4j:5-community` both default to a root user before their entrypoints drop privileges internally) -- fixed by adding explicit `runAsUser` set to each image's real non-root UID (999 for postgres, 7474 for neo4j, confirmed via `docker run --rm <image> id <user>`, not assumed).
+  2. Even with the correct UID, `initdb`/neo4j startup failed with `chmod: Operation not permitted` against the PVC-backed data directory, which K8s creates owned by root by default.
+  3. Pod-level `fsGroup` alone did not resolve this -- it sets group ownership, not directory owner, and `chmod` on the directory itself requires ownership. Fixed with a dedicated `fix-permissions` init container (root, `chown -R <uid>:<uid> <mount>`, busybox:1.36) that runs once before the main container starts as its restricted UID.
+
+### Verified
+
+- Full backup/DR restore drill performed end-to-end on a real local kind cluster (Docker Desktop on Windows, not the constrained VPS used earlier -- VPS steal time made even minimal cluster boot fail outright, confirmed via a separate failed kubeadm init attempt). Real marker row inserted, `pg_dump` taken and byte-verified to contain it, table dropped with CASCADE, `SELECT` confirmed genuine data loss, restore performed from the dump file, `SELECT` confirmed the exact same row (same UUID, same microsecond timestamp) recovered. RTO for this single-table drill: under 2 minutes.
+- `db` and `neo4j` deployments confirmed to actually reach `1/1 Running` with the fixed SecurityContext + fix-permissions init container pattern, `RESTARTS: 0` sustained.
+
+### Known limitations
+
+- Restoring a full-schema `pg_dump` into an already-initialized (non-empty schema) database produces expected `already exists`/`multiple primary keys` errors for every CREATE statement -- harmless (the actual data COPY statements still succeed), but noisy. A genuinely clean restore drill should target a freshly-provisioned empty database, not layer onto an existing schema the way this test did. Real operational finding, not previously documented.
+- This restore drill covered Postgres only. The neo4j scale-to-zero + `neo4j-admin dump`/`load` restore path (built earlier this session) has NOT yet been live-restore-tested -- only the dump side was previously verified. Real remaining gap.
+- Both fixes (runAsUser, fix-permissions init container) were verified in this session but not yet reflected in the Helm chart's equivalent templates (`helm/ragleap-ops/templates/`) -- only the raw `k8s/` manifests were fixed and tested here. The Helm chart needs the same fix, tracked as a follow-up (same class of bug as the earlier neo4j probe-drift finding between raw manifests and Helm templates).
+
+
 ## [0.3.0] - 2026-09-06
 
 ### Added

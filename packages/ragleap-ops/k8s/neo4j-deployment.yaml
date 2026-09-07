@@ -17,13 +17,26 @@ spec:
       labels:
         app: ragleap-neo4j
     spec:
+      securityContext:
+        fsGroup: 7474
       serviceAccountName: ragleap-neo4j
       automountServiceAccountToken: false
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36
+          command: ["sh", "-c", "chown -R 7474:7474 /data"]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+          volumeMounts:
+            - name: neo4j-data
+              mountPath: /data
       containers:
         - name: neo4j
           image: neo4j:5-community
           securityContext:
             runAsNonRoot: true
+            runAsUser: 7474
             allowPrivilegeEscalation: false
             # readOnlyRootFilesystem intentionally NOT enabled yet --
             # this container may write outside its declared volume
