@@ -27,6 +27,17 @@ MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "1024"))
 # override via GEMINI_THINKING_BUDGET if extended reasoning is wanted.
 GEMINI_THINKING_BUDGET = int(os.environ.get("GEMINI_THINKING_BUDGET", "0"))
 
+# Provider-agnostic truncation safeguard. Any provider/model — cloud or
+# local, Gemini thinking-token starvation, a small Ollama model, anything —
+# can hit its max_tokens cap mid-answer. Detected via each provider's own
+# finish_reason field; on a match, generate_answer() retries once with a
+# larger budget before falling through to the next provider in the chain.
+# (Streaming cannot retry after tokens are already being sent to the user —
+# not covered here; see generate_answer_stream docstring.)
+TRUNCATED_FINISH_REASONS = {"MAX_TOKENS", "max_tokens", "length"}
+TRUNCATION_RETRY_MULTIPLIER = float(os.environ.get("TRUNCATION_RETRY_MULTIPLIER", "2.0"))
+TRUNCATION_MAX_RETRY_TOKENS = int(os.environ.get("TRUNCATION_MAX_RETRY_TOKENS", "4096"))
+
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
 ]
@@ -252,6 +263,22 @@ Answer:"""
         for i, config in enumerate(chain):
             try:
                 answer_text, usage = self._call_provider(config, prompt, temp, max_tok)
+                if usage and usage.get("finish_reason") in TRUNCATED_FINISH_REASONS and max_tok < TRUNCATION_MAX_RETRY_TOKENS:
+                    retry_max_tok = min(int(max_tok * TRUNCATION_RETRY_MULTIPLIER), TRUNCATION_MAX_RETRY_TOKENS)
+                    if retry_max_tok > max_tok:
+                        logger.warning(
+                            f"Provider '{config['provider']}' truncated the answer "
+                            f"(finish_reason={usage.get('finish_reason')!r}), retrying once with "
+                            f"max_tokens={retry_max_tok} (was {max_tok})"
+                        )
+                        try:
+                            retry_text, retry_usage = self._call_provider(config, prompt, temp, retry_max_tok)
+                            answer_text, usage = retry_text, retry_usage
+                        except Exception as retry_e:
+                            logger.warning(
+                                f"Truncation retry failed for '{config['provider']}': {retry_e}; "
+                                f"keeping original (possibly truncated) answer"
+                            )
                 if i > 0:
                     logger.info(f"Answer generated via fallback provider '{config['provider']}' (primary failed)")
                 return {
@@ -333,6 +360,10 @@ Answer:"""
             ),
         )
         text = response.text.strip() if response.text else "No answer generated."
+        finish_reason = None
+        if response.candidates:
+            fr = response.candidates[0].finish_reason
+            finish_reason = getattr(fr, "name", str(fr))
         usage = None
         if getattr(response, "usage_metadata", None):
             um = response.usage_metadata
@@ -340,6 +371,7 @@ Answer:"""
                 "prompt_tokens": um.prompt_token_count,
                 "completion_tokens": um.candidates_token_count,
                 "total_tokens": um.total_token_count,
+                "finish_reason": finish_reason,
             }
         return text, usage
 
@@ -376,6 +408,7 @@ Answer:"""
                 "prompt_tokens": response.usage.input_tokens,
                 "completion_tokens": response.usage.output_tokens,
                 "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                "finish_reason": getattr(response, "stop_reason", None),
             }
         return text, usage
 
@@ -407,6 +440,7 @@ Answer:"""
                 "prompt_tokens": response.usage.prompt_tokens,
                 "completion_tokens": response.usage.completion_tokens,
                 "total_tokens": response.usage.total_tokens,
+                "finish_reason": response.choices[0].finish_reason if response.choices else None,
             }
         return text, usage
 
