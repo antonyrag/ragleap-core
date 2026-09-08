@@ -112,7 +112,15 @@ def _resolve_provider_config(provider: str, required: bool = True) -> Optional[D
         key_env = f"{provider.upper()}_API_KEY"
         api_key = os.environ.get(key_env)
         model = os.environ.get(f"{provider.upper()}_MODEL", "")
-        base_url = os.environ.get("CUSTOM_BASE_URL") if provider == "custom" else PROVIDER_BASE_URLS[provider]
+        # Any provider's base URL can be overridden via {PROVIDER}_BASE_URL,
+        # e.g. OLLAMA_BASE_URL=http://host.docker.internal:11434/v1 when
+        # running in Docker (the "localhost" default only works when the
+        # app runs on bare metal alongside Ollama, not inside a container).
+        # 'custom' keeps its own CUSTOM_BASE_URL name for backward compat.
+        if provider == "custom":
+            base_url = os.environ.get("CUSTOM_BASE_URL")
+        else:
+            base_url = os.environ.get(f"{provider.upper()}_BASE_URL", PROVIDER_BASE_URLS[provider])
 
         if not api_key and provider != "ollama":
             return _fail(f"{key_env} is not set. Add your {provider} API key to .env.")
