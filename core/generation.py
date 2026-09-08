@@ -20,6 +20,13 @@ GEMINI_CHAT_MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
 DEFAULT_TEMPERATURE = float(os.environ.get("DEFAULT_TEMPERATURE", "0.3"))
 MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "1024"))
 
+# Gemini "thinking" models (e.g. gemini-3.5-flash) spend part of
+# max_output_tokens on internal reasoning before the visible answer,
+# which can silently truncate the answer on hard queries. Default to
+# 0 (thinking disabled) so the full token budget goes to the answer;
+# override via GEMINI_THINKING_BUDGET if extended reasoning is wanted.
+GEMINI_THINKING_BUDGET = int(os.environ.get("GEMINI_THINKING_BUDGET", "0"))
+
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
 ]
@@ -322,6 +329,7 @@ Answer:"""
             config=types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=GEMINI_THINKING_BUDGET),
             ),
         )
         text = response.text.strip() if response.text else "No answer generated."
@@ -345,6 +353,7 @@ Answer:"""
             config=types.GenerateContentConfig(
                 temperature=temperature,
                 max_output_tokens=max_tokens,
+                thinking_config=types.ThinkingConfig(thinking_budget=GEMINI_THINKING_BUDGET),
             ),
         )
         for chunk in stream:
