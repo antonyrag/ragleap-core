@@ -27,6 +27,12 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+    extra_hosts:
+      # Lets the container reach services on the host (e.g. a local Ollama
+      # instance) via host.docker.internal, matching Docker Desktop's
+      # built-in behavior which plain Linux Docker Engine doesn't have
+      # by default. Requires Docker Engine >=20.10.
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
 
