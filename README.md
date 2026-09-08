@@ -59,6 +59,14 @@ pip install ragleap-ops
 uv add ragleap-ops
 ```
 
+Need a generic, reusable chart for your own app (not RagLeap-specific)? `ragleap-app-chart` takes an arbitrary `services:` list, not hardcoded names:
+
+```bash
+pip install ragleap-app-chart
+# or, with uv
+uv add ragleap-app-chart
+```
+
 Or run the full self-hosted app (channels, web chat UI, Docker Compose) — see [Quickstart](#quickstart) below. Browse every package at [packages.ragleap.com](https://packages.ragleap.com). Try it hands-on with the runnable scripts in [examples/](examples/) — `01_ingest_and_query.py` (upload a document, ask a question via the API) and `02_test_channel_directly.py` (test channel answering logic without real bot credentials).
 
 ## If a RAG chatbot answers questions, RagLeap runs your business
@@ -503,8 +511,9 @@ pip install --index-url https://packages.ragleap.com/simple/ ragleap-rag
 - **`ragleap-graph`** — Neo4j-backed knowledge graph retrieval, usable standalone or alongside `ragleap-rag`.
 - **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. First backend: Chroma, embedded/local via chromadb's `PersistentClient` — no server required. Install with `pip install ragleap-vectorstores[chroma]` or `uv add ragleap-vectorstores[chroma]`.
 - **`ragleap-ops`** — Kubernetes deployment manifests for RagLeap Core, live-tested end-to-end on a real cluster. Install with `pip install ragleap-ops` or `uv add ragleap-ops`.
+- **`ragleap-app-chart`** — generic, reusable Helm chart for deploying arbitrary services to Kubernetes, not RagLeap-specific. Point it at your own app via a `services:` list. Install with `pip install ragleap-app-chart` or `uv add ragleap-app-chart`.
 
-All four are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
+All five are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
 
 ## Supported LLM Providers (BYOK)
 
