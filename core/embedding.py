@@ -7,6 +7,7 @@ Bring-your-own-key only: this service NEVER falls back to a shared or
 system-provided key. You must supply your own GEMINI_API_KEY.
 """
 import os
+import time
 import logging
 from typing import List, Optional
 
@@ -14,6 +15,22 @@ logger = logging.getLogger(__name__)
 
 GEMINI_EMBEDDING_MODEL = os.environ.get("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
 EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS", "3072"))
+
+# Deliberately NOT a cross-provider fallback: every stored chunk is embedded
+# with this exact model at EMBEDDING_DIMENSIONS, so a different provider's
+# embedding would land in a different, incompatible vector space and
+# corrupt similarity search silently rather than failing loudly. This is a
+# same-provider retry for genuinely transient errors only (429 rate limit,
+# 503 server overload) - anything else (bad key, malformed request) fails
+# fast on the first try, as before.
+EMBEDDING_RETRY_CODES = {429, 503}
+EMBEDDING_MAX_RETRIES = int(os.environ.get("EMBEDDING_MAX_RETRIES", "3"))
+EMBEDDING_RETRY_BASE_DELAY = float(os.environ.get("EMBEDDING_RETRY_BASE_DELAY", "1.0"))
+
+
+def _is_transient(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    return code in EMBEDDING_RETRY_CODES
 
 
 class EmbeddingService:
@@ -43,11 +60,24 @@ class EmbeddingService:
         try:
             import google.genai as genai
             client = genai.Client(api_key=self.api_key)
-            response = client.models.embed_content(
-                model=self.model,
-                contents=text,
-            )
-            return response.embeddings[0].values
+            for attempt in range(EMBEDDING_MAX_RETRIES + 1):
+                try:
+                    response = client.models.embed_content(
+                        model=self.model,
+                        contents=text,
+                    )
+                    return response.embeddings[0].values
+                except Exception as e:
+                    if _is_transient(e) and attempt < EMBEDDING_MAX_RETRIES:
+                        delay = EMBEDDING_RETRY_BASE_DELAY * (2 ** attempt)
+                        logger.warning(
+                            f"Embedding request hit a transient error "
+                            f"(code={getattr(e, 'code', '?')}), retrying in "
+                            f"{delay:.1f}s (attempt {attempt + 1}/{EMBEDDING_MAX_RETRIES})"
+                        )
+                        time.sleep(delay)
+                        continue
+                    raise
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
             return None
@@ -60,11 +90,24 @@ class EmbeddingService:
         try:
             import google.genai as genai
             client = genai.Client(api_key=self.api_key)
-            response = client.models.embed_content(
-                model=self.model,
-                contents=texts,
-            )
-            return [e.values for e in response.embeddings]
+            for attempt in range(EMBEDDING_MAX_RETRIES + 1):
+                try:
+                    response = client.models.embed_content(
+                        model=self.model,
+                        contents=texts,
+                    )
+                    return [e.values for e in response.embeddings]
+                except Exception as e:
+                    if _is_transient(e) and attempt < EMBEDDING_MAX_RETRIES:
+                        delay = EMBEDDING_RETRY_BASE_DELAY * (2 ** attempt)
+                        logger.warning(
+                            f"Batch embedding request hit a transient error "
+                            f"(code={getattr(e, 'code', '?')}), retrying in "
+                            f"{delay:.1f}s (attempt {attempt + 1}/{EMBEDDING_MAX_RETRIES})"
+                        )
+                        time.sleep(delay)
+                        continue
+                    raise
         except Exception as e:
             logger.error(f"Batch embedding generation failed: {e}")
             return [None] * len(texts)
