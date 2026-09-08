@@ -24,6 +24,7 @@ from core.employees import roles as employee_roles
 from core.employees import skills as employee_skills
 from core.employees import learning as employee_learning
 from core.employees import channel_roles as employee_channel_roles
+from core.employees import memory as employee_memory
 from core import workflows
 from core import autonomy
 
@@ -486,6 +487,7 @@ def trigger_auto_learn():
 @app.get("/employees")
 def list_employee_roles(active_only: bool = False):
     employee_roles.seed_default_roles()
+    employee_memory.seed_default_memory_seeds()
     return {"roles": employee_roles.list_roles(active_only=active_only)}
 
 

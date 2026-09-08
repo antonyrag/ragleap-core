@@ -11,8 +11,45 @@ from typing import List, Dict, Optional
 
 from core.embedding import EmbeddingService
 from core.employees._db import get_connection
+from core.employees.defaults import DEFAULT_MEMORY_SEEDS
 
 logger = logging.getLogger(__name__)
+
+SEED_SOURCE = "default_seed"
+
+
+def seed_default_memory_seeds() -> int:
+    """
+    Seed DEFAULT_MEMORY_SEEDS (generic core seeds + the per-vertical
+    compliance seeds for SENSITIVE_DOMAIN_ROLES) into employee_memory,
+    once. Idempotent like employee_roles.seed_default_roles() - checks
+    for any existing rows with source=SEED_SOURCE first, so it's safe
+    to call on every /employees request rather than only at startup.
+    Returns the number of seeds actually inserted (0 if already seeded
+    or if a given seed row already exists via the content_hash+source
+    unique constraint in write_learned_skill).
+    """
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM employee_memory WHERE source = %s", (SEED_SOURCE,))
+        already_seeded = cur.fetchone()[0] > 0
+        cur.close()
+    finally:
+        conn.close()
+
+    if already_seeded:
+        return 0
+
+    count = 0
+    for seed in DEFAULT_MEMORY_SEEDS:
+        result = write_learned_skill(
+            text=seed["text"], tags=seed["tags"], importance=seed["importance"],
+            source=SEED_SOURCE, permanent=True,
+        )
+        if result:
+            count += 1
+    return count
 
 
 def write_learned_skill(text, tags, importance=0.7, source="interaction",
