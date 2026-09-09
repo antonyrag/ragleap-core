@@ -14,6 +14,7 @@ over time. See the
 | Chroma | `chroma` | Embedded/local via chromadb's PersistentClient - no server required. No native sparse/keyword search (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 | LanceDB | `lancedb` | Embedded/local via a directory path - no server required. Real upsert semantics via `merge_insert()`. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 | Redis | `redis` | Requires a real running server - Redis Stack, or plain Redis with the RediSearch module loaded (no embedded/local mode). `init_schema()` checks for the module and raises a clear error if it's missing. Metadata filtering only supports `document_id` (RediSearch requires predeclared schema fields). No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
+| Upstash Vector | `upstash` | Managed serverless REST API - no embedded/local mode at all, and the index (fixed dimension, dense-vs-hybrid type) must already exist, created via the Upstash console; `init_schema()` verifies compatibility via `info()` rather than creating anything. Metadata filtering supports arbitrary multi-key filters natively (real SQL-like `filter=` string over a genuine JSON dict) - more flexible than Redis here. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 
 ## Design
 
@@ -54,4 +55,12 @@ from ragleap_vectorstores import RedisBackend
 # Requires a real Redis Stack instance (or plain Redis + the RediSearch
 # module) - plain Redis alone has no vector search.
 backend = RedisBackend(redis_url="redis://localhost:6379/0")
+```
+
+```python
+from ragleap_vectorstores import UpstashBackend
+
+# Requires a real Upstash Vector index, created via the Upstash console
+# (console.upstash.com) as a pure DENSE index - no embedded/local mode.
+backend = UpstashBackend(url="https://...upstash.io", token="...")
 ```

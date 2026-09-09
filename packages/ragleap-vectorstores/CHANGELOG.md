@@ -5,6 +5,42 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-09
+### Added
+- `UpstashBackend` - fourth vector backend, via Upstash Vector's managed
+  serverless REST API. Available via the `upstash` optional extra
+  (`pip install ragleap-vectorstores[upstash]`).
+- Unlike Chroma/LanceDB (embedded) and Redis (self-hostable), Upstash
+  Vector has no local mode at all - the index (including its fixed
+  dimension and dense-vs-hybrid type) must already exist, created via
+  the Upstash console. `init_schema()` cannot create anything; it
+  verifies the real index's dimension and type via `info()` and raises
+  a clear error on mismatch, live-verified against a real index rather
+  than assumed.
+- LIVE-VERIFIED GOTCHA: an Upstash index can be created as "dense" or
+  "hybrid" (requiring sparse vectors on every upsert) - a hybrid index
+  rejects dense-only upserts with a confusing error. `init_schema()`
+  checks this via `info()` and fails clearly up front instead.
+- Metadata filtering is a genuine strength here versus the other
+  backends: Upstash's `filter=` is a real SQL-like string over an
+  actual JSON metadata dict, so arbitrary multi-key filters work
+  natively - closer to Chroma's flexibility than Redis's
+  document_id-only limitation, without Chroma's `$and` wrapping either.
+- `similarity_score` is used directly from Upstash's `query()` - its
+  score is already a normalized similarity in [0, 1] (live-verified: an
+  exact match returns 1.0), unlike Chroma/Redis which return a distance
+  requiring `1 - distance` conversion.
+- `delete_document()` and chunk-counting use Upstash's native `prefix=`
+  parameter on `delete()`/`range()` - a genuine prefix-scan, simpler
+  than Redis's manual scan-then-delete-by-key-list pattern.
+- `supports_sparse()` reports `False` - Upstash Vector does support
+  real hybrid dense+sparse search, but that requires a hybrid-type
+  index and sparse embeddings this package doesn't generate, so it's
+  honestly reported as unsupported.
+- 14 new tests, all against a real Upstash Vector index (no mocks).
+  Tests skip cleanly (not fail) if `UPSTASH_VECTOR_REST_URL`/`TOKEN`
+  aren't set in the environment.
+
 ## [0.3.3] - 2026-09-06
 ### Fixed
 - REAL BUG, live-verified: RedisBackend's key_prefix used to default to
