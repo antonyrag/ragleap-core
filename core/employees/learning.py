@@ -47,10 +47,24 @@ def learn_from_conversation(channel, user_message, ai_reply, resolved=True, scor
                                 importance=min(score, 0.85), source="conversation")
 
 
-def learn_from_owner_approval(action_type, action_detail, outcome):
-    text = f"OWNER APPROVED ACTION [{action_type}]: {action_detail[:300]}\nOutcome: {outcome[:200]}"
-    memory.write_learned_skill(text=text, tags=["learned_pattern", "approval", "owner_approved", action_type],
-                                importance=0.95, source="owner_approval", permanent=True)
+def learn_from_owner_approval(action_type, action_detail, outcome, approved: bool = True):
+    """
+    Records the owner's real approve/reject decision on a proposed
+    autonomous action as a learned skill. Rejections are recorded
+    distinctly (not mislabeled as approvals) - this is the raw
+    material a future auto-improvement loop over autonomy_log
+    rejections would read from (Issue #258 / pending item #6),
+    and on its own already lets retrieval surface "the owner
+    rejected this kind of action before" as context for a role
+    considering a similar action again.
+    """
+    if approved:
+        text = f"OWNER APPROVED ACTION [{action_type}]: {action_detail[:300]}\nOutcome: {outcome[:200]}"
+        tags = ["learned_pattern", "approval", "owner_approved", action_type]
+    else:
+        text = f"OWNER REJECTED ACTION [{action_type}]: {action_detail[:300]}\nReason/outcome: {outcome[:200]}"
+        tags = ["learned_pattern", "approval", "owner_rejected", action_type]
+    memory.write_learned_skill(text=text, tags=tags, importance=0.95, source="owner_approval", permanent=True)
 
 
 def learn_from_lead_capture(lead_info, channel):

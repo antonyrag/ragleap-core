@@ -38,6 +38,7 @@ from datetime import datetime, timezone
 from typing import Callable, Dict, List, Optional
 
 from core.employees._db import get_connection
+from core.employees import learning as employee_learning
 
 logger = logging.getLogger(__name__)
 
@@ -302,10 +303,16 @@ def process_approval_response(message: str) -> Optional[str]:
 
     if not approved:
         log_autonomous_action(action_type, channel, target, content, "REJECTED by owner", approved=False, role=role)
+        employee_learning.learn_from_owner_approval(
+            action_type, content, "REJECTED by owner", approved=False
+        )
         return f"Action {action_id} rejected and cancelled."
 
     result = _send_via_channel(channel, target, content)
     log_autonomous_action(action_type, channel, target, content, result, approved=True, role=role)
+    employee_learning.learn_from_owner_approval(
+        action_type, content, result, approved=True
+    )
     return f"Action {action_id} approved and executed.\n{result}"
 
 
