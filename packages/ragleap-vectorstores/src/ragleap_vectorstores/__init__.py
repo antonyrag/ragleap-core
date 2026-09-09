@@ -8,7 +8,7 @@ the package.
 """
 from ragleap.vectorstores.base import VectorBackend
 
-__version__ = "0.3.3"
+__version__ = "0.4.0"
 
 __all__ = ["VectorBackend", "__version__"]
 
@@ -29,3 +29,9 @@ try:
     __all__.append("RedisBackend")
 except ImportError:
     pass  # redis extra not installed - RedisBackend simply unavailable, not an error
+
+try:
+    from ragleap_vectorstores.upstash_backend import UpstashBackend
+    __all__.append("UpstashBackend")
+except ImportError:
+    pass  # upstash extra not installed - UpstashBackend simply unavailable, not an error
