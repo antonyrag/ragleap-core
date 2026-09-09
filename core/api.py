@@ -158,6 +158,14 @@ class ChannelRoleRequest(BaseModel):
 class MemoryFeedbackRequest(BaseModel):
     role_memory_ids: list[str]
     success: bool
+    # Optional: when supplied alongside a successful outcome, the
+    # exchange is also recorded as a new learned skill via
+    # learn_from_conversation (not just reinforcing existing
+    # memories via role_memory_ids). Omit these to keep the original
+    # reinforce-only behavior - fully backward compatible.
+    channel: str | None = None
+    user_message: str | None = None
+    ai_reply: str | None = None
 
 
 class DataSourceCreateRequest(BaseModel):
@@ -316,6 +324,11 @@ def chat_feedback(req: MemoryFeedbackRequest):
     updated = employee_learning.record_role_memory_outcome(
         req.role_memory_ids, success=req.success
     )
+    if req.channel and req.user_message and req.ai_reply:
+        employee_learning.learn_from_conversation(
+            req.channel, req.user_message, req.ai_reply,
+            resolved=req.success, score=0.85 if req.success else 0.3,
+        )
     return {"updated": updated}
 
 
