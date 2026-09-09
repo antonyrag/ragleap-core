@@ -4,6 +4,21 @@ data:
     -- RagLeap Core database schema
     -- Requires the pgvector extension (bundled in the pgvector/pgvector Docker image)
 
+    -- Read-only monitoring role for ragleap-observability's postgres_exporter.
+    -- pg_monitor is a built-in Postgres role granting read access to stats
+    -- views only -- no access to actual table data. Least-privilege by design.
+    -- Plaintext test credential, matching this file's existing convention
+    -- (see db-secret.yaml) -- reseal via Sealed Secrets for production, per
+    -- the ragleap-ops README's documented workflow.
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'ragleap_monitor') THEN
+        CREATE ROLE ragleap_monitor WITH LOGIN PASSWORD 'ragleap_monitor_password';
+      END IF;
+    END
+    $$;
+    GRANT pg_monitor TO ragleap_monitor;
+
     CREATE EXTENSION IF NOT EXISTS vector;
 
     CREATE TABLE IF NOT EXISTS documents (
