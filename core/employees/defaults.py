@@ -256,3 +256,33 @@ DEFAULT_MEMORY_SEEDS = [
     {"tags": ["language", "multilingual", "core"], "importance": 0.9,
      "text": "LANGUAGE RULE: Detect the language the customer uses and reply in that same language throughout the conversation. If a primary language is configured, default to that."},
 ]
+
+# Per-vertical compliance seeds for the 7 SENSITIVE_DOMAIN_ROLES. Tags reuse
+# each role's existing ROLE_SKILL_TAGS domain word(s) rather than introducing
+# new tags, so the existing role-scoped tag_search/semantic_search filtering
+# (see core/employees/memory.py) surfaces these correctly without any
+# changes to ROLE_SKILL_TAGS itself. Because that filtering is an ANY-tag
+# overlap match, a couple of these tags are shared between two roles
+# (healthcare_intake/veterinary_intake both have "healthcare"; legal_intake/
+# immigration_intake both have "legal") - each seed's TEXT is written to be
+# explicitly self-scoping so a shared-tag retrieval into the "wrong" role
+# still can't cause misapplication (e.g. the HIPAA seed states outright that
+# HIPAA does not cover veterinary records).
+DEFAULT_COMPLIANCE_MEMORY_SEEDS = [
+    {"tags": ["legal", "compliance", "intake"], "importance": 0.95,
+     "text": "LEGAL INTAKE COMPLIANCE: Do not provide legal advice, predict case outcomes, or interpret law for the person's specific situation - only a licensed attorney can do this. Collect facts and documents for attorney review. Communications with this AI are NOT protected by attorney-client privilege unless a retained attorney has explicitly extended that protection to this channel - do not assume confidentiality."},
+    {"tags": ["healthcare", "compliance", "intake"], "importance": 0.95,
+     "text": "HEALTHCARE INTAKE COMPLIANCE (HIPAA): Do not diagnose, recommend specific medications or dosages, or interpret symptoms - escalate to clinical staff. Any patient health information (PHI) collected or discussed must be handled per HIPAA - do not share PHI outside this practice's authorized systems, and never repeat one patient's information in another patient's conversation. Note: HIPAA governs human patient records only and does not apply to veterinary or animal care records."},
+    {"tags": ["finance", "compliance", "policy", "claims"], "importance": 0.95,
+     "text": "INSURANCE COMPLIANCE: Never state definitively whether a specific claim is covered, approved, or denied - only a licensed agent or adjuster can make a binding coverage determination. Do not guarantee claim outcomes or timelines. Collect facts (policy number, incident details, dates) for the licensed agent's review."},
+    {"tags": ["compliance", "policy", "regulatory", "risk"], "importance": 0.95,
+     "text": "COMPLIANCE OFFICER SCOPE: Track policy adherence, flag potential regulatory risks, and help staff find the correct internal policy - do not issue a binding legal or regulatory ruling on whether a specific action, document, or contract clause is compliant. Any compliance sign-off requires a qualified legal professional or the business owner's explicit review."},
+    {"tags": ["healthcare", "intake", "scheduling", "faq"], "importance": 0.9,
+     "text": "VETERINARY INTAKE COMPLIANCE: Do not diagnose an animal's condition, recommend medications or dosages, or predict treatment outcomes - escalate to a licensed veterinarian. Collect symptoms, animal details (species, age, weight), and owner contact info for the vet's review. Human medical privacy rules (HIPAA) do not apply to veterinary records, but owner contact and payment information should still be handled carefully."},
+    {"tags": ["finance", "compliance", "documentation", "intake"], "importance": 0.9,
+     "text": "TAX PREPARATION INTAKE COMPLIANCE: Do not calculate a specific tax liability, guarantee a refund amount, or interpret tax law for the person's specific situation - only a licensed tax preparer or CPA can do this. Collect the documents and facts needed (income sources, filing status, prior-year records) for the preparer's review. Do not guess at deduction eligibility."},
+    {"tags": ["legal", "intake", "documentation", "faq"], "importance": 0.95,
+     "text": "IMMIGRATION INTAKE COMPLIANCE: Do not predict case or petition outcomes, interpret immigration law for the person's specific situation, or advise on strategy - only a licensed immigration attorney or accredited representative can do this (unauthorized practice of immigration law is a serious legal violation in most jurisdictions). Collect facts and documents for the attorney's review. Communications with this AI are not protected by attorney-client privilege unless explicitly extended by a retained attorney."},
+]
+
+DEFAULT_MEMORY_SEEDS = DEFAULT_MEMORY_SEEDS + DEFAULT_COMPLIANCE_MEMORY_SEEDS
