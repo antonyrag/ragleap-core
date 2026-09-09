@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0]
+### Added
+- Real schema migration framework (`ragleap_graph.migrations`), implementing the proposal in `docs/design/schema-migrations.md`: a `Migration` base class (`id`, `description`, `up(session)`, optional `down(session)`, `is_applied(session)`), a `MigrationRunner` (discovers pending migrations, applies them in lexicographic id order, records each as a `:_Migration` node, fails loud and stops on the first error, supports `dry_run=True` and `.status()`), and both existing bespoke migrations (`backfill_user_id_defaults()`, `backfill_composite_key()`) registered as `Migration0001_BackfillUserIdDefaults` / `Migration0002_BackfillCompositeKey` in `ALL_MIGRATIONS`. Resolves the maintainer open questions in the design doc: migrations live in a new `ragleap_graph/migrations/` subpackage; the runner logs a `WARNING` before applying (pointing at the backup docs) rather than silently proceeding; the existing `backfill_*()` bound methods are kept as-is (not deprecated) and now delegate to shared session-level helpers rather than duplicating logic; no concurrency guard/lock was added, matching the design doc's own "not proposed for v1" recommendation.
+- Accepted `docs/adr/0001-backup-restore-ownership.md` (native `neo4j-admin` tooling, not a custom Python backup wrapper - consistent with `ragleap-rag`'s existing approach to Postgres) and added a `## Operations` section to `README.md` stating this plainly.
+### Changed
+- Refactored `backfill_user_id_defaults()` and `backfill_composite_key()`: their core logic is now in new module-level `_backfill_user_id_defaults_session()` / `_backfill_composite_key_session()` functions that operate on an already-open session, so the migration framework can call the identical logic without duplicating it. Zero behavior change - both bound methods keep their existing signatures and return values; verified via the full existing test suite plus a live re-run of both methods against real Neo4j.
+### Verified
+- 9 new offline tests covering `MigrationRunner`'s logic (sort order, dry-run reports without executing, skips already-applied migrations, applies and records pending ones, stops on first failure without recording it, `.status()` reporting, `down()`'s default `NotImplementedError`, registry has unique sortable ids) using fake driver/session doubles - no live Neo4j required.
+- 1 new live end-to-end test: real dry-run against live Neo4j correctly reports pending migrations, applying them creates real `:_Migration` tracking nodes, a second run is a correct no-op (idempotent), `.status()` reflects applied state - confirmed against real Neo4j, not mocked.
+- Full suite: 98 passed, 4 skipped - zero regressions.
+
 ## [0.6.9]
 ### Fixed
 - RELATES_AS relationship-MERGE race - a real, previously-undocumented bug found while reviewing this code (distinct from the deferred "RelationWeight stress test" item from the v0.6.7 handoff - the RelationWeight NODE already had its composite_key fix; this relationship was never touched until now). `MERGE (es)-[r:RELATES_AS {relation_type: $relation_type}]->(eo)` matched only on the two Entity endpoints plus relation_type - not atomic against concurrent writers, same class of bug as the v0.6.7/v0.6.8 node- and relationship-level races.
