@@ -143,6 +143,16 @@ CREATE INDEX IF NOT EXISTS employee_memory_tags_idx
     ON employee_memory USING GIN (tags);
 CREATE INDEX IF NOT EXISTS employee_memory_hash_idx
     ON employee_memory (content_hash, source);
+-- UNIQUE index required by write_learned_skill()'s
+-- INSERT ... ON CONFLICT (content_hash, source) DO NOTHING clause.
+-- This existed live on the VPS but was missing here (schema drift,
+-- same failure mode PR #267's SENSITIVE_DOMAIN_ROLES had) - discovered
+-- when seed_default_memory_seeds() failed on a fresh CI database with
+-- "no unique or exclusion constraint matching the ON CONFLICT
+-- specification" despite working fine against the live (already-
+-- patched) VPS database.
+CREATE UNIQUE INDEX IF NOT EXISTS employee_memory_hash_source_uidx
+    ON employee_memory (content_hash, source);
 
 -- n8n workflow automation. Single-tenant — no workspace scoping.
 -- Fires a webhook after the AI replies on a matching channel; caller
