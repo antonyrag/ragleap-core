@@ -474,6 +474,14 @@ def sync_integration(data_source_id: str):
     result = integrations_service.sync_data_source(data_source_id)
     if not result.get("success") and result.get("error") == "Data source not found":
         raise HTTPException(status_code=404, detail="Data source not found")
+    data_source = integrations_service.get_data_source(data_source_id)
+    if data_source:
+        result_summary = (
+            f"success: {result.get('records_synced', 0)} records synced"
+            if result.get("success")
+            else f"failed: {result.get('error', 'unknown error')}"
+        )
+        employee_learning.learn_from_integration_action(data_source.name, "sync", result_summary)
     return result
 
 
