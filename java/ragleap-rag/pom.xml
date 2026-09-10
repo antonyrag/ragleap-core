@@ -4,18 +4,43 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.ragleap</groupId>
+    <groupId>io.github.antonyrag</groupId>
     <artifactId>ragleap-rag</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>ragleap-rag (Java port)</name>
     <description>
-        Java port of packages/ragleap-rag (Python). Ported module by
-        module, starting with chunker.py -&gt; TextChunker. Lives outside
-        packages/ entirely - that directory is other employees' territory
-        and is never touched, per the repo's standing rule.
+        Java port of ragleap-rag, RagLeap's self-hosted RAG engine
+        library (see https://pypi.org/project/ragleap-rag/ for the
+        original Python package). Ported module by module, starting
+        with chunker.py -&gt; TextChunker. Lives entirely under java/ in
+        the ragleap-core repo, outside packages/ - that directory is
+        other employees' territory and is never touched, per the
+        repo's standing rule.
     </description>
+    <url>https://github.com/antonyrag/ragleap-core</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>https://opensource.org/licenses/MIT</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Antony</name>
+            <email>antony@ragleap.com</email>
+            <url>https://github.com/antonyrag</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/antonyrag/ragleap-core.git</connection>
+        <developerConnection>scm:git:https://github.com/antonyrag/ragleap-core.git</developerConnection>
+        <url>https://github.com/antonyrag/ragleap-core</url>
+    </scm>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
