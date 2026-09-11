@@ -33,6 +33,7 @@ spec:
             runAsNonRoot: true
             runAsUser: 999
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
           envFrom:
             - secretRef:
                 name: ragleap-db-secret
@@ -44,6 +45,10 @@ spec:
             - name: db-schema
               mountPath: /docker-entrypoint-initdb.d/01-schema.sql
               subPath: schema.sql
+            - name: db-run
+              mountPath: /var/run/postgresql
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", {{ .Values.db.credentials.user | quote }}]
@@ -64,3 +69,7 @@ spec:
         - name: db-schema
           configMap:
             name: ragleap-db-schema
+        - name: db-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

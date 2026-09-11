@@ -32,10 +32,7 @@ spec:
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
-            # readOnlyRootFilesystem intentionally NOT enabled yet --
-            # this container may write outside its declared volume
-            # mounts (e.g. /tmp, /var/run) and this has not been
-            # live-tested. Enabling it blind risks breaking startup.
+            readOnlyRootFilesystem: true
           command: ["python3", "-m", "channels.voice.server"]
           ports:
             - containerPort: 8765
@@ -45,3 +42,9 @@ spec:
           env:
             - name: DATABASE_URL
               value: "postgresql://ragleap:ragleap@ragleap-db:5432/ragleap_core"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

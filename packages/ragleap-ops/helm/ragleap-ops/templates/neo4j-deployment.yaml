@@ -33,6 +33,11 @@ spec:
             runAsNonRoot: true
             runAsUser: 7474
             allowPrivilegeEscalation: false
+            # readOnlyRootFilesystem intentionally NOT enabled --
+            # /logs, /var/lib/neo4j/run, /tmp are now writable emptyDirs,
+            # but the Neo4j Docker entrypoint rewrites /var/lib/neo4j/conf
+            # on every startup, which has NOT been verified to tolerate
+            # a read-only root. Needs investigation before enabling.
           envFrom:
             - secretRef:
                 name: ragleap-neo4j-secret
@@ -51,6 +56,12 @@ spec:
           volumeMounts:
             - name: neo4j-data
               mountPath: /data
+            - name: neo4j-logs
+              mountPath: /logs
+            - name: neo4j-run
+              mountPath: /var/lib/neo4j/run
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             httpGet:
               path: /
@@ -69,3 +80,9 @@ spec:
         - name: neo4j-data
           persistentVolumeClaim:
             claimName: ragleap-neo4j-data
+        - name: neo4j-logs
+          emptyDir: {}
+        - name: neo4j-run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
