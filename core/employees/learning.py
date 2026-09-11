@@ -67,29 +67,10 @@ def learn_from_owner_approval(action_type, action_detail, outcome, approved: boo
     memory.write_learned_skill(text=text, tags=tags, importance=0.95, source="owner_approval", permanent=True)
 
 
-def learn_from_lead_capture(lead_info, channel):
-    text = f"LEAD CAPTURED via {channel}: Customer profile: {str(lead_info)[:300]}"
-    memory.write_learned_skill(text=text, tags=["lead", "sales", "learned_pattern", channel],
-                                importance=0.75, source="lead_capture")
-
-
-def learn_from_email_handled(subject, summary, action_taken):
-    text = (f"EMAIL HANDLED: Subject: {subject[:100]}\nSummary: {summary[:200]}\n"
-            f"Action taken: {action_taken[:200]}")
-    memory.write_learned_skill(text=text, tags=["mail", "secretary", "comms", "learned_pattern"],
-                                importance=0.7, source="email")
-
-
 def learn_from_integration_action(integration_name, action, result):
     text = f"INTEGRATION ACTION: {integration_name} — {action[:150]}\nResult: {result[:200]}"
     memory.write_learned_skill(text=text, tags=["integration", "operations", "process", "capability"],
                                 importance=0.75, source="integration")
-
-
-def learn_from_voice_call(transcript_summary, outcome, language):
-    text = f"VOICE CALL [{language}]: {transcript_summary[:300]}\nOutcome: {outcome}"
-    memory.write_learned_skill(text=text, tags=["voice", "support", "learned_pattern", "comms"],
-                                importance=0.72, source="voice_call")
 
 
 def auto_learn_from_all():
