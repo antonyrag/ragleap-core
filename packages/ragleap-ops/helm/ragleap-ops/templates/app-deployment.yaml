@@ -20,9 +20,16 @@ spec:
         - name: wait-for-db
           image: postgres:16-alpine
           command: ["sh", "-c", "until pg_isready -h ragleap-db -p 5432 -U {{ .Values.db.credentials.user }}; do sleep 2; done"]
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
       containers:
         - name: app
           image: {{ .Values.app.image }}
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
           ports:
             - containerPort: {{ .Values.app.port }}
           envFrom:
@@ -31,6 +38,9 @@ spec:
           env:
             - name: DATABASE_URL
               value: "postgresql://{{ .Values.db.credentials.user }}:{{ .Values.db.credentials.password }}@ragleap-db:5432/{{ .Values.db.credentials.database }}"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           readinessProbe:
             tcpSocket:
               port: {{ .Values.app.port }}
@@ -39,3 +49,6 @@ spec:
             tcpSocket:
               port: {{ .Values.app.port }}
             initialDelaySeconds: {{ .Values.app.probes.liveness.initialDelaySeconds }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
