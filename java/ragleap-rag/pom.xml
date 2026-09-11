@@ -47,6 +47,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.10.2</junit.version>
         <jtokkit.version>1.1.0</jtokkit.version>
+        <json-schema-validator.version>1.5.5</json-schema-validator.version>
     </properties>
 
     <dependencies>
@@ -58,6 +59,17 @@
             <groupId>com.knuddels</groupId>
             <artifactId>jtokkit</artifactId>
             <version>${jtokkit.version}</version>
+        </dependency>
+
+        <!-- Real JSON Schema validation (drafts v4 through 2020-12) -
+             the Java equivalent of Python's jsonschema library, used
+             for the same purpose: validating structured LLM output
+             against a user-supplied schema. Pulls in jackson-databind
+             transitively, which we also use directly for JSON parsing. -->
+        <dependency>
+            <groupId>com.networknt</groupId>
+            <artifactId>json-schema-validator</artifactId>
+            <version>${json-schema-validator.version}</version>
         </dependency>
 
         <dependency>
