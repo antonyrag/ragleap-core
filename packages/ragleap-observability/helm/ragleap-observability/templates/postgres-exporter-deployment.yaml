@@ -28,5 +28,6 @@ spec:
                   key: connection-string
           securityContext:
             runAsNonRoot: true
+            runAsUser: 65534
             allowPrivilegeEscalation: false
 {{- end }}
