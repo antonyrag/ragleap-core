@@ -25,6 +25,7 @@ spec:
           command: ["sh", "-c", "until pg_isready -h ragleap-db -p 5432 -U ragleap; do sleep 2; done"]
           securityContext:
             runAsNonRoot: true
+            runAsUser: 70
             allowPrivilegeEscalation: false
       containers:
         - name: app

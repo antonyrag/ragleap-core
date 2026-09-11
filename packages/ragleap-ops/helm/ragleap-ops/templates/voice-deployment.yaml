@@ -22,6 +22,7 @@ spec:
           command: ["sh", "-c", "until pg_isready -h ragleap-db -p 5432 -U {{ .Values.db.credentials.user }}; do sleep 2; done"]
           securityContext:
             runAsNonRoot: true
+            runAsUser: 70
             allowPrivilegeEscalation: false
       containers:
         - name: voice

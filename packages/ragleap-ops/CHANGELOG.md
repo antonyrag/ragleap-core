@@ -5,6 +5,24 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `readOnlyRootFilesystem` enabled across `db`, `app`, `voice` (both raw `k8s/` manifests and Helm chart templates) -- the previously-flagged gap ("intentionally NOT enabled yet -- not live-tested") is now closed for these three services. `neo4j` received the same writable-path mounts but the flag itself was deliberately left disabled -- the Neo4j Docker entrypoint rewrites `/var/lib/neo4j/conf` on every startup, and this has not been verified to tolerate a read-only root; documented inline in both manifest paths pending further investigation.
+- Helm `app-deployment.yaml` and `voice-deployment.yaml` templates were found to have NO `securityContext` at all on either the `wait-for-db` init container or the main container -- a real, previously-undocumented gap distinct from the raw manifests (which did have SecurityContext). Closed as part of this change; both Helm templates now match the raw manifests' security posture.
+- Real bug found via live testing, same class as the earlier SecurityContext finding: `app`/`voice`'s `wait-for-db` init container (`postgres:16-alpine`) had `runAsNonRoot: true` with no `runAsUser` set, in both the raw manifests (pre-existing, just never live-tested before) and the newly-added Helm securityContext blocks. Failed on real cluster with `container has runAsNonRoot and image will run as root`. Fixed with `runAsUser: 70`, confirmed via `docker run --rm postgres:16-alpine id postgres` (uid=70(postgres)), not assumed.
+
+### Verified
+
+- `db`: full `readOnlyRootFilesystem` live-tested on a real local kind cluster (Docker Desktop on Windows). Pod reached `1/1 Running`, 0 restarts. Unix socket created successfully at `/var/run/postgresql/.s.PGSQL.5432` (confirmed via `ls -la`, correct `postgres:postgres` ownership). `pg_isready -U ragleap` returned `accepting connections`. Schema DDL from `ragleap-db-schema` configmap applied successfully on startup.
+- `neo4j`: writable-mount fix (partial, flag left off) live-tested on the same cluster. Pod reached `1/1 Running`, 0 restarts. Neo4j 5.26.30 started cleanly, Bolt (7687) and HTTP (7474) both enabled. `/logs` mount confirmed genuinely in use (`debug.log`, `neo4j.log` actively written, correct `neo4j:neo4j` ownership). `/var/lib/neo4j/run` confirmed in use (`neo4j.pid` present). Real Cypher query executed successfully via `cypher-shell` (`RETURN 1 AS test` -> `1`), confirming the database engine is genuinely functional, not just container-running.
+- `app`/`voice` init containers: after the `runAsUser: 70` fix, both pods progressed cleanly past `wait-for-db` (previously `Init:CreateContainerConfigError`) with no further init-container errors.
+
+### Known limitations
+
+- `app`/`voice` main containers' `readOnlyRootFilesystem`/`/tmp` mount behavior could NOT be verified in this pass -- both pods reached `ImagePullBackOff` on `ghcr.io/antonyrag/ragleap-app:latest`, a private image requiring a real `ghcr-pull-secret` not available in this test session. This remains a genuinely open item, not assumed to work. Revisit once GHCR credentials are available.
+- Neo4j's `/var/lib/neo4j/conf` read-only-root compatibility remains unverified -- flag intentionally left disabled, needs either entrypoint script investigation or a live attempt-and-observe test.
+
+
 ### Verified
 
 - Full neo4j backup/DR restore drill performed end-to-end on a real local kind cluster -- the previously-flagged gap ("dump side verified, restore side never tested") is now closed. Real marker node created via cypher-shell, neo4j scaled to zero, `neo4j-admin database dump` taken against the unlocked PVC (36 files, 257.9MiB, matching the original session's dump size almost exactly), then `neo4j-admin database load --overwrite-destination=true` performed against the same volume, neo4j scaled back up, and the exact same marker node (same properties, same millisecond-precision timestamp) confirmed recovered via cypher-shell. Restore command completed with zero errors, notably cleaner than the noisy-but-successful Postgres restore (which produced expected `already exists` errors when restoring into a non-empty schema).
