@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0]
+
 ### Added
 
 - `command`/`args` support per service in `deployment.yaml` -- a real, structural gap found while building the worked example below (not previously supported at all, for any reason, on any service). Discovered live: a worked example using `hashicorp/http-echo` set its message via `env:`, deployed successfully, but returned the image's baked-in default text instead -- because `http-echo` is configured via a command-line flag (`-text=...`), not an environment variable, and the chart had no way to override the container's command/args at all. Fixed by mirroring the exact pattern already used in `ragleap-ops` (`command: {{ .Values.voice.command | toJson }}`). Re-deployed live against the same real kind cluster after the fix and confirmed the correct response (`hello from ragleap-app-chart`) via a live port-forward and curl -- not just `helm template` output.
