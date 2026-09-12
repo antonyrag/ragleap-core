@@ -31,6 +31,12 @@ spec:
       containers:
         - name: {{ $svc.name }}
           image: {{ $svc.image }}
+          {{- if $svc.command }}
+          command: {{ $svc.command | toJson }}
+          {{- end }}
+          {{- if $svc.args }}
+          args: {{ $svc.args | toJson }}
+          {{- end }}
           ports:
             - containerPort: {{ $svc.port }}
           {{- if $svc.env }}

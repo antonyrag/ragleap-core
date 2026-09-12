@@ -28,6 +28,14 @@ rationale.
   — genericity is only real once demonstrated against something that
   isn't RagLeap itself
 
+## Worked example (non-RagLeap app)
+
+See `EXAMPLE.md` for a full walkthrough deploying a genuinely
+different stack (Redis + a small HTTP service) end-to-end on a real
+cluster -- including a real structural bug this chart had (no
+command/args override support at all) that was found and fixed while
+building it.
+
 ## Multi-environment values
 
 `values-dev.yaml`, `values-staging.yaml`, and `values-prod.yaml` are
