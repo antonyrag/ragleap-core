@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Multi-environment values pattern (`values-dev.yaml`, `values-staging.yaml`, `values-prod.yaml`), porting the proven approach from `ragleap-ops` into this generic chart. Because this chart's `services:` field is a list (not a scalar), and Helm does not merge list entries by key, each environment file is a full override, not a partial one -- a genuine structural difference from `ragleap-ops`'s scalar-field overrides, documented inline in each file. Verified via `helm lint` (clean) and `helm template -f values-{env}.yaml` for all three environments: dev renders 1 replica + ingress disabled, staging renders 1 replica + ingress enabled with a staging hostname, prod renders 3 replicas for the stateless example service and correctly keeps the stateful example service at 1 replica, matching the same stateful-service-does-not-scale-via-replicaCount principle already established in `ragleap-ops`.
+
 ### Fixed
 
 - First live cluster deploy (helm install against a real kind cluster) found 2 real bugs in the default example config, neither previously caught by helm lint/helm template alone:

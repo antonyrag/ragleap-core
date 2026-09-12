@@ -27,3 +27,23 @@ rationale.
 - Proven against a non-RagLeap toy app before calling any feature done
   — genericity is only real once demonstrated against something that
   isn't RagLeap itself
+
+## Multi-environment values
+
+`values-dev.yaml`, `values-staging.yaml`, and `values-prod.yaml` are
+available, ported from the same pattern proven in `ragleap-ops`:
+
+```bash
+helm install my-release ./ragleap-app-chart -f values-dev.yaml
+```
+
+**This works differently from `ragleap-ops`'s version.** `ragleap-ops`
+overrides simple scalar fields (`app.replicaCount: 3`), which Helm
+deep-merges cleanly. This chart's `services:` field is a *list*, and
+Helm does not merge list entries by key — an environment file that
+redefines `services:` **replaces the entire list**, not just the
+fields that differ. Each `values-{env}.yaml` here is therefore a full
+override of the example `services:` list, not a partial one. If you
+add or change services in your own `values.yaml`, you'll need to keep
+your own `values-{env}.yaml` files' `services:` lists in sync manually
+— this chart does not (yet) merge list entries automatically.
