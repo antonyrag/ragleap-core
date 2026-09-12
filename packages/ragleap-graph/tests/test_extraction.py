@@ -462,6 +462,107 @@ def test_relation_extractor_drops_self_relations():
     assert relations == []
 
 
+def test_ontology_requires_entity_types():
+    from ragleap_graph.extraction import ExtractionConfig
+    import pytest
+    with pytest.raises(ValueError, match="requires entity_types"):
+        ExtractionConfig(
+            method="llm",
+            provider=FakeProviderConfig(provider="gemini"),
+            extract_relations=True,
+            relation_ontology={"FOUNDED_BY": (["ORGANIZATION"], ["PERSON"])},
+        )
+
+
+def test_ontology_keeps_relation_matching_allowed_types():
+    from ragleap_graph.extraction import ExtractionConfig, LLMRelationExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"relations": [
+            {"subject": "Acme Corp", "relation_type": "FOUNDED_BY", "object": "Sarah Chen"},
+        ]}),
+        "provider_used": "gemini",
+        "structured": {"relations": [
+            {"subject": "Acme Corp", "relation_type": "FOUNDED_BY", "object": "Sarah Chen"},
+        ]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        extract_relations=True,
+        entity_types=["ORGANIZATION", "PERSON"],
+        relation_ontology={"FOUNDED_BY": (["ORGANIZATION"], ["PERSON"])},
+    )
+    extractor = LLMRelationExtractor(config)
+    relations = extractor.extract(
+        "Acme Corp was founded by Sarah Chen.",
+        known_entities=["Acme Corp", "Sarah Chen"],
+        entity_types={"acme corp": "ORGANIZATION", "sarah chen": "PERSON"},
+    )
+    assert len(relations) == 1
+    assert relations[0].subject == "Acme Corp"
+
+
+def test_ontology_drops_relation_violating_allowed_types():
+    from ragleap_graph.extraction import ExtractionConfig, LLMRelationExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"relations": [
+            {"subject": "Sarah Chen", "relation_type": "FOUNDED_BY", "object": "Austin"},
+        ]}),
+        "provider_used": "gemini",
+        "structured": {"relations": [
+            {"subject": "Sarah Chen", "relation_type": "FOUNDED_BY", "object": "Austin"},
+        ]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        extract_relations=True,
+        entity_types=["ORGANIZATION", "PERSON", "LOCATION"],
+        relation_ontology={"FOUNDED_BY": (["ORGANIZATION"], ["PERSON"])},
+    )
+    extractor = LLMRelationExtractor(config)
+    relations = extractor.extract(
+        "text",
+        known_entities=["Sarah Chen", "Austin"],
+        entity_types={"sarah chen": "PERSON", "austin": "LOCATION"},
+    )
+    assert relations == []
+
+
+def test_ontology_leaves_unlisted_relation_types_unconstrained():
+    from ragleap_graph.extraction import ExtractionConfig, LLMRelationExtractor
+    FakeGenerationService.next_response = {
+        "answer": json.dumps({"relations": [
+            {"subject": "Sarah Chen", "relation_type": "VISITED", "object": "Austin"},
+        ]}),
+        "provider_used": "gemini",
+        "structured": {"relations": [
+            {"subject": "Sarah Chen", "relation_type": "VISITED", "object": "Austin"},
+        ]},
+        "structured_valid": True,
+        "structured_enforcement": "native",
+    }
+    config = ExtractionConfig(
+        method="llm",
+        provider=FakeProviderConfig(provider="gemini"),
+        extract_relations=True,
+        entity_types=["PERSON", "LOCATION"],
+        relation_ontology={"FOUNDED_BY": (["ORGANIZATION"], ["PERSON"])},
+    )
+    extractor = LLMRelationExtractor(config)
+    relations = extractor.extract(
+        "text",
+        known_entities=["Sarah Chen", "Austin"],
+        entity_types={"sarah chen": "PERSON", "austin": "LOCATION"},
+    )
+    assert len(relations) == 1
+    assert relations[0].relation_type == "VISITED"
+
+
 def test_relation_extractor_raises_when_all_providers_failed():
     from ragleap_graph.extraction import ExtractionConfig, LLMRelationExtractor
     FakeGenerationService.next_response = {

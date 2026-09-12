@@ -16,10 +16,13 @@ Design constraints (locked, see CHANGELOG for rationale):
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     # Reuse ragleap-rag's existing provider abstraction rather than
@@ -78,6 +81,7 @@ class ExtractionConfig:
     extract_relations: bool = False
     cross_chunk_relations: bool = False
     entity_types: Optional[list[str]] = None
+    relation_ontology: Optional[dict[str, tuple[list[str], list[str]]]] = None
 
     def __post_init__(self) -> None:
         if self.extract_relations and self.method != "llm":
@@ -89,6 +93,13 @@ class ExtractionConfig:
             raise ValueError(
                 "cross_chunk_relations=True requires extract_relations=True - "
                 "the cross-chunk pass reuses the same LLM relation extractor."
+            )
+        if self.relation_ontology and not self.entity_types:
+            raise ValueError(
+                "relation_ontology=... requires entity_types=... - an ontology "
+                "constrains relation_type against entity types, so without a "
+                "known set of entity types every entity would be 'UNKNOWN' and "
+                "nothing could ever be validated against anything real."
             )
         if self.method == "llm" and self.provider is None:
             raise ValueError(
@@ -418,6 +429,7 @@ class LLMRelationExtractor:
         known_entities: list[str],
         domain_terms: Optional[list[str]] = None,
         resolve_references: bool = False,
+        entity_types: Optional[dict[str, str]] = None,
     ) -> list[ExtractedRelation]:
         """
         Identify relations between known_entities as they appear in text.
@@ -431,6 +443,14 @@ class LLMRelationExtractor:
         per-chunk extraction behavior is unchanged - added for the #154
         cross-chunk pass, where the full document is more likely to
         contain references to entities introduced earlier in the text.
+
+        entity_types: optional {lowercased_entity_name: entity_type} map,
+        used only when self._config.relation_ontology is set (#152). A
+        returned relation is dropped (with a WARNING logged) if its
+        relation_type is a key in relation_ontology and the subject/object
+        entity types are not in that relation_type's allowed
+        (subject_types, object_types). relation_type values NOT present
+        in relation_ontology are unconstrained.
         """
         if not text or not text.strip() or len(known_entities) < 2:
             return []
@@ -450,7 +470,35 @@ class LLMRelationExtractor:
                 f"LLM relation extraction failed on all configured providers: {result.get('answer')}"
             )
 
-        return self._parse_result(result, known_entities)
+        relations = self._parse_result(result, known_entities)
+
+        if self._config.relation_ontology and entity_types:
+            relations = self._filter_by_ontology(relations, entity_types)
+
+        return relations
+
+    def _filter_by_ontology(
+        self, relations: list[ExtractedRelation], entity_types: dict[str, str]
+    ) -> list[ExtractedRelation]:
+        ontology = self._config.relation_ontology
+        kept: list[ExtractedRelation] = []
+        for rel in relations:
+            if rel.relation_type not in ontology:
+                kept.append(rel)
+                continue
+            allowed_subject_types, allowed_object_types = ontology[rel.relation_type]
+            subj_type = entity_types.get(rel.subject.lower(), "UNKNOWN")
+            obj_type = entity_types.get(rel.object.lower(), "UNKNOWN")
+            if subj_type in allowed_subject_types and obj_type in allowed_object_types:
+                kept.append(rel)
+            else:
+                logger.warning(
+                    "Dropping relation violating ontology: (%s: %s) -[%s]-> (%s: %s). "
+                    "Allowed subject types: %s, allowed object types: %s.",
+                    rel.subject, subj_type, rel.relation_type, rel.object, obj_type,
+                    allowed_subject_types, allowed_object_types,
+                )
+        return kept
 
     def _build_instruction(
         self,
