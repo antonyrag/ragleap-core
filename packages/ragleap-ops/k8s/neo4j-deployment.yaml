@@ -38,11 +38,22 @@ spec:
             runAsNonRoot: true
             runAsUser: 7474
             allowPrivilegeEscalation: false
-            # readOnlyRootFilesystem intentionally NOT enabled --
-            # /logs, /var/lib/neo4j/run, /tmp are now writable emptyDirs,
-            # but the Neo4j Docker entrypoint rewrites /var/lib/neo4j/conf
-            # on every startup, which has NOT been verified to tolerate
-            # a read-only root. Needs investigation before enabling.
+            # readOnlyRootFilesystem CONFIRMED UNSAFE for this service,
+            # live-tested on a real kind cluster (not just speculated):
+            # mounting /var/lib/neo4j/conf as a writable emptyDir (required
+            # since the entrypoint rewrites this dir on every container
+            # restart, confirmed via file mtime vs container finishedAt)
+            # SHADOWS the image's real baked-in default config, silently
+            # dropping it from 350 real lines to ~5. Real losses included
+            # server.directories.import=import (a security boundary
+            # restricting LOAD CSV to Neo4j's own import/ dir) and ~17 JVM
+            # tuning/TLS-hardening flags. The pod still reached Running and
+            # answered basic Cypher queries -- this would NOT have been
+            # caught without deliberately diffing the real conf file
+            # against the image's shipped default. Do not enable this flag
+            # for neo4j without first solving the conf-shadowing problem
+            # (e.g. a ConfigMap seeded from the image's real defaults, not
+            # an empty emptyDir).
           envFrom:
             - secretRef:
                 name: ragleap-neo4j-secret
