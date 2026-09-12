@@ -182,7 +182,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -555,7 +555,10 @@ class GraphIndex:
 
             if self._relation_extractor is not None:
                 relations = self._relation_extractor.extract(
-                    text, known_entities=unique_entities, domain_terms=domain_terms
+                    text,
+                    known_entities=unique_entities,
+                    domain_terms=domain_terms,
+                    entity_types=entity_type_map,
                 )
                 for rel in relations:
                     key = (rel.subject, rel.relation_type, rel.object)
@@ -585,6 +588,7 @@ class GraphIndex:
                     known_entities=all_entities,
                     domain_terms=domain_terms,
                     resolve_references=True,
+                    entity_types=entity_type_map,
                 )
                 for rel in cross_chunk_relations:
                     key = (rel.subject, rel.relation_type, rel.object)

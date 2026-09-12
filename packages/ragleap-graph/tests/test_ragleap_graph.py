@@ -498,6 +498,80 @@ def test_cross_chunk_relation_recovers_relation_per_chunk_extraction_misses():
         graph.close()
 
 
+@pytest.mark.skipif(
+    not (HAS_LIVE_NEO4J and gemini_available),
+    reason="Needs both live Neo4j credentials and a GEMINI_API_KEY in environment",
+)
+def test_ontology_drops_relation_violating_configured_types():
+    """
+    Real proof-of-value test for #152 (ontology cross-validation). Uses
+    Gemini, same precedent as the #154 cross-chunk test: ontology
+    validation depends on the underlying relation_type/entity_type
+    extraction being accurate, so a weak local model would confound
+    "did the ontology filter work" with "did the model extract sensibly
+    in the first place".
+
+    Document deliberately invites a nonsensical relation: asking the
+    model to relate a PERSON to a DATE using a relation_type ("FOUNDED")
+    that our configured ontology only allows between ORGANIZATION and
+    PERSON. If the model (as expected) proposes something like
+    (Sarah Chen)-[FOUNDED]->(2010), the ontology should drop it - proving
+    real end-to-end filtering, not just the offline mock-based tests.
+    """
+    from ragleap import ProviderConfig
+    from ragleap_graph import ExtractionConfig
+
+    provider = ProviderConfig(provider="gemini")
+    extraction = ExtractionConfig(
+        method="llm",
+        provider=provider,
+        extract_relations=True,
+        entity_types=["ORGANIZATION", "PERSON", "DATE"],
+        relation_ontology={"FOUNDED": (["PERSON"], ["ORGANIZATION"])},
+    )
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config, extraction=extraction)
+    try:
+        graph.upsert_document(
+            "ontology-doc-1", "Test",
+            [{"text": "Sarah Chen founded Acme Corp in 2010."}],
+            namespace=TEST_NAMESPACE,
+        )
+        with graph.driver.session() as session:
+            rows = session.run(
+                "MATCH (a:Entity {namespace: $ns})-[r:RELATES_AS]->(b:Entity {namespace: $ns}) "
+                "WHERE toLower(a.name) CONTAINS 'sarah' AND toLower(b.name) CONTAINS '2010' "
+                "RETURN r.relation_type AS rt",
+                ns=TEST_NAMESPACE,
+            ).data()
+            assert len(rows) == 0, (
+                f"expected the ontology to drop any (PERSON)-[FOUNDED]->(DATE) relation, "
+                f"but found: {rows}"
+            )
+            # Sanity check the ontology-VALID relation still comes through -
+            # otherwise a trivial "the model extracted nothing at all" bug
+            # would also make the assertion above pass for the wrong reason.
+            valid_rows = session.run(
+                "MATCH (a:Entity {namespace: $ns})-[r:RELATES_AS]->(b:Entity {namespace: $ns}) "
+                "WHERE toLower(a.name) CONTAINS 'sarah' AND toLower(b.name) CONTAINS 'acme' "
+                "RETURN r.relation_type AS rt",
+                ns=TEST_NAMESPACE,
+            ).data()
+            assert len(valid_rows) >= 1, (
+                "expected the ontology-valid (PERSON)-[FOUNDED]->(ORGANIZATION) relation "
+                "to still be present - if this fails, the model may not have extracted "
+                "any FOUNDED relation at all, which would make the drop assertion above "
+                "pass for the wrong reason"
+            )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
+                ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
 @pytest.mark.skipif(not HAS_LIVE_NEO4J, reason="No live Neo4j credentials in environment")
 def test_co_occurs_with_per_document_contribution_tracking():
     """

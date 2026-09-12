@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.0]
+### Added
+- Ontology cross-validation (#152). `ExtractionConfig.relation_ontology` (default `None`) lets callers define which `relation_type` values are semantically valid between which `entity_type` pairs, e.g. `{"FOUNDED_BY": (["ORGANIZATION"], ["PERSON"])}`. Requires `entity_types=` to also be set (raises `ValueError` at config time otherwise, matching the fail-fast style already used elsewhere in `ExtractionConfig.__post_init__`) - an ontology is meaningless without typed entities to check it against.
+- `LLMRelationExtractor.extract()` gained an optional `entity_types` parameter (a `{lowercased_name: type}` map) threaded through from the `entity_type_map` already built during `upsert_document()`'s per-chunk loop - the type information existed in scope already, it just never reached relation extraction or validation before this.
+- A relation whose `relation_type` is a key in `relation_ontology`, but whose subject/object entity types are not in that relation_type's allowed lists, is dropped (with a `WARNING` logged, not silently) rather than written to Neo4j. `relation_type` values NOT present in `relation_ontology` remain fully unconstrained - an ontology only needs to cover the relation_types worth constraining, not every possible one, mirroring `entity_types=`'s own "unset means anything goes" precedent one level up.
+- Applies uniformly to both the existing per-chunk extraction pass and the v0.8.0 cross-chunk pass, since both call the same `LLMRelationExtractor.extract()`.
+### Verified
+- 4 new offline tests: config-time `ValueError` when `relation_ontology` is set without `entity_types`, a relation matching allowed types is kept, a relation violating allowed types is dropped, an unlisted relation_type passes through unconstrained.
+- 1 new live end-to-end test, gated on live Neo4j + `GEMINI_API_KEY` (same precedent as the #154 cross-chunk test: ontology validation depends on the underlying relation_type/entity_type extraction being accurate, which is unreliable on small local models). Confirms real Gemini-extracted output: an ontology-valid relation is kept, and a real ontology-violating relation the model actually proposed is genuinely dropped - not just asserted against mocked output.
+- Full offline suite: 91 passed, 16 skipped without credentials (previous baseline 87/16 - 4 new tests added, zero regressions).
+
 ## [0.8.0]
 ### Added
 - Cross-chunk relation extraction (#154). `ExtractionConfig.cross_chunk_relations` (default `False`) enables an opt-in second pass in `upsert_document()`: after all chunks are processed, one additional `LLMRelationExtractor.extract()` call runs over the full accumulated document text using every entity found across all chunks (not just the current chunk's local entities), recovering relations whose subject and object were established in different chunks - e.g. an entity introduced in chunk 1 referenced only by pronoun ("It", "the company") in a later chunk. Requires `extract_relations=True`.
