@@ -232,6 +232,14 @@ try:
 except Exception:
     ollama_available = False
 
+# Cross-chunk pronoun/reference resolution (#154) needs a real
+# reasoning-capable LLM - qwen2.5:0.5b was found (2026-09-12 diagnostic
+# session) to produce incorrect relations rather than none at all on this
+# task, so that test uses Gemini instead of Ollama. Unlike ollama_available
+# above, there's no local endpoint to cheaply ping for a hosted provider -
+# presence of the API key is the check.
+gemini_available = bool(os.environ.get("GEMINI_API_KEY"))
+
 psycopg2_available = True
 try:
     import psycopg2  # noqa: F401
@@ -392,6 +400,100 @@ def test_relates_as_per_document_contribution_tracking():
             session.run(
                 "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n",
                 ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+
+@pytest.mark.skipif(
+    not (HAS_LIVE_NEO4J and gemini_available),
+    reason="Needs both live Neo4j credentials and a GEMINI_API_KEY in environment",
+)
+def test_cross_chunk_relation_recovers_relation_per_chunk_extraction_misses():
+    """
+    Real regression/proof-of-value test for #154 (cross-chunk relation
+    extraction, v0.8.0). Uses Gemini, not Ollama - a 2026-09-12 diagnostic
+    session found qwen2.5:0.5b produces an incorrect relation (not just
+    none) on this exact pronoun-reference case, which would make this
+    test flaky/wrong against that model. Gemini was live-verified to
+    resolve the reference correctly (Acme Corp -[RELOCATED_TO]-> Austin)
+    in that same session.
+
+    Document is deliberately constructed so the relation CANNOT be found
+    by per-chunk extraction alone: chunk 2 uses the pronoun "It" rather
+    than a repeated/generic noun phrase like "the company" (an earlier
+    version of this test used that phrasing and was found, via a live
+    diagnostic, to cause "the company" to be extracted as ITS OWN entity
+    distinct from "Acme Corp" - giving chunk 2 two entities and letting
+    the per-chunk pass run normally, defeating the test's isolation).
+    With "It" instead, chunk 2 should have only one named entity
+    ("Austin"), so unique_entities for that chunk never reaches 2 and
+    LLMRelationExtractor.extract() short-circuits before calling the LLM
+    at all (len(known_entities) < 2). Only the cross-chunk pass, using
+    entities accumulated across BOTH chunks plus resolve_references=True,
+    has enough context to resolve "It" back to "Acme Corp" and find the
+    relation.
+
+    Two real things this proves, not one:
+    1. With cross_chunk_relations=True, the cross-chunk edge IS recovered.
+    2. With cross_chunk_relations=False (default), it is NOT - proving the
+       flag actually changes behavior rather than the test document being
+       trivially easy for per-chunk extraction anyway.
+    """
+    from ragleap import ProviderConfig
+    from ragleap_graph import ExtractionConfig
+
+    provider = ProviderConfig(provider="gemini")
+    chunks = [
+        {"text": "Acme Corp was founded in 2010 by Sarah Chen."},
+        {"text": "It relocated its headquarters to Austin in 2023."},
+    ]
+
+    def _has_acme_austin_edge(graph) -> bool:
+        with graph.driver.session() as session:
+            rows = session.run(
+                "MATCH (a:Entity {namespace: $ns})-[r:RELATES_AS]-(b:Entity {namespace: $ns}) "
+                "WHERE toLower(a.name) CONTAINS 'acme' AND toLower(b.name) CONTAINS 'austin' "
+                "RETURN r.relation_type AS rt",
+                ns=TEST_NAMESPACE,
+            ).data()
+            return len(rows) >= 1
+
+    # --- Part 1: cross_chunk_relations=True recovers the edge ---
+    extraction_on = ExtractionConfig(
+        method="llm", provider=provider, extract_relations=True, cross_chunk_relations=True,
+    )
+    config = GraphConfig(uri=NEO4J_URI, user=NEO4J_USER, password=NEO4J_PASSWORD)
+    graph = GraphIndex(config=config, extraction=extraction_on)
+    try:
+        graph.upsert_document("cross-chunk-doc-1", "Test", chunks, namespace=TEST_NAMESPACE)
+        assert _has_acme_austin_edge(graph), (
+            "expected a RELATES_AS edge between the chunk-1 entity (Acme Corp) and "
+            "the chunk-2 entity (Austin) with cross_chunk_relations=True"
+        )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n", ns=TEST_NAMESPACE,
+            )
+        graph.close()
+
+    # --- Part 2: cross_chunk_relations=False (default) does NOT recover it ---
+    extraction_off = ExtractionConfig(
+        method="llm", provider=provider, extract_relations=True, cross_chunk_relations=False,
+    )
+    graph = GraphIndex(config=config, extraction=extraction_off)
+    try:
+        graph.upsert_document("cross-chunk-doc-1", "Test", chunks, namespace=TEST_NAMESPACE)
+        assert not _has_acme_austin_edge(graph), (
+            "did NOT expect a RELATES_AS edge between Acme Corp and Austin with "
+            "cross_chunk_relations=False - if this fails, either per-chunk extraction "
+            "unexpectedly found both entities in one chunk, or the flag isn't gating "
+            "the new code path correctly"
+        )
+    finally:
+        with graph.driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.namespace = $ns DETACH DELETE n", ns=TEST_NAMESPACE,
             )
         graph.close()
 
