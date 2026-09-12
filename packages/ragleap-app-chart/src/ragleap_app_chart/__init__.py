@@ -12,4 +12,4 @@ chart alongside this src/ tree, matching the release discipline of
 ragleap-ops, ragleap-rag, ragleap-graph, and ragleap-vectorstores.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

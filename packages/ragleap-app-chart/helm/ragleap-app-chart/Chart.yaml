@@ -2,5 +2,5 @@ apiVersion: v2
 name: ragleap-app-chart
 description: Generic, reusable Helm chart for deploying arbitrary services to Kubernetes — not RagLeap-specific
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.2.0
+appVersion: "0.2.0"
