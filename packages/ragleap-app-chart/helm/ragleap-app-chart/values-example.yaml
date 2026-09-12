@@ -1,0 +1,25 @@
+﻿services:
+  - name: api
+    image: hashicorp/http-echo
+    port: 5678
+    replicaCount: 2
+    persistent: false
+    dependsOn:
+      - cache
+    expose: false
+    args:
+      - "-text=hello from ragleap-app-chart"
+
+  - name: cache
+    image: redis:7-alpine
+    port: 6379
+    replicaCount: 1
+    persistent: true
+    storage: 1Gi
+    dependsOn: []
+    expose: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      allowPrivilegeEscalation: false
+    initChown: true
