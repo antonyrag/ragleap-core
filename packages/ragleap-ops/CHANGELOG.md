@@ -5,6 +5,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `RUNBOOK.md` -- incident playbooks for the 4 minimum scenarios (db-down, neo4j-crash-loop, backup-failure-detected, ingress-cert-expired). Written from real resource names/config verified against the actual manifests, and grounded in real symptoms observed during this session's live testing (e.g. the pg_isready probe-timeout pattern, the readOnlyRootFilesystem chmod noise). A real, previously-undocumented gap was found while writing it: the neo4j backup CronJob scales ragleap-neo4j to 0 replicas before dumping but has no automatic scale-back-up or rollback on failure -- flagged in the runbook as a follow-up item, not fixed here. Honestly labeled: written correctly against real config, but not yet independently live-tested against a deliberately broken cluster -- that drill is the natural next step before trusting this fully.
+
 ### Fixed
 
 - `readOnlyRootFilesystem` enabled across `db`, `app`, `voice` (both raw `k8s/` manifests and Helm chart templates) -- the previously-flagged gap ("intentionally NOT enabled yet -- not live-tested") is now closed for these three services. `neo4j` received the same writable-path mounts but the flag itself was deliberately left disabled -- the Neo4j Docker entrypoint rewrites `/var/lib/neo4j/conf` on every startup, and this has not been verified to tolerate a read-only root; documented inline in both manifest paths pending further investigation.
