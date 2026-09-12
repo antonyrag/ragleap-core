@@ -81,16 +81,9 @@ Or run the full self-hosted app (channels, web chat UI, Docker Compose) — see 
 
 ## If a RAG chatbot answers questions, RagLeap runs your business
 
-Most open-source RAG projects give you a toolkit — you still have to build the app, wire up a UI, add memory, and connect every channel yourself. RagLeap Core gives you a working chat engine out of the box, and the full RagLeap platform turns it into an AI that actually operates a business.
+Most open-source RAG projects give you a toolkit — you still have to build the app, wire up a UI, add memory, and connect every channel yourself. RagLeap Core gives you one AI across WhatsApp, Telegram, Discord, and voice calls, instead of a different disconnected bot per channel. Memory persists across sessions and channels, so it isn't relearning who a customer is every time. Voice is a real, working inbound-call handler (Twilio Media Streams, Whisper STT, OpenAI TTS) — not just document Q&A with a phone number bolted on — and n8n workflow automation can be triggered directly from any conversation.
 
-| Without RagLeap | With RagLeap |
-|---|---|
-| ❌ A different bot for your website, WhatsApp, and Telegram — none of them share memory | ✅ One AI across every channel, with memory that persists between them |
-| ❌ Your RAG chatbot forgets everything the moment a session ends | ✅ Persistent memory — facts and preferences carry across sessions and channels |
-| ❌ You're a developer, so you can wire up LangChain — but your team can't manage it | ✅ Single-tenant, self-hosted, .env config — the full multi-tenant dashboard (settings, analytics, team, billing) is in the hosted platform |
-| ❌ Answering customer questions and running the business are two separate systems | ✅ The hosted platform adds an executive-assistant layer (Manager AI) on top of this same engine |
-| ❌ Adding a phone line means integrating Twilio, STT, and TTS yourself | ✅ Voice AI is built in — real inbound calls, answered and routed automatically |
-| ❌ Automating a workflow means writing custom code per integration | ✅ n8n workflow automation triggered directly from any conversation |
+What this repo doesn't include: a multi-tenant admin dashboard (settings, analytics, team, billing) and the executive-assistant layer (Manager AI) that sits on top of this same engine — those are part of the hosted platform. RagLeap Core itself is single-tenant, self-hosted, and configured via `.env`.
 
 ## What makes RagLeap Core specifically different
 
