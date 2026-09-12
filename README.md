@@ -87,8 +87,8 @@ Most open-source RAG projects give you a toolkit — you still have to build the
 |---|---|
 | ❌ A different bot for your website, WhatsApp, and Telegram — none of them share memory | ✅ One AI across every channel, with memory that persists between them |
 | ❌ Your RAG chatbot forgets everything the moment a session ends | ✅ Persistent memory — facts and preferences carry across sessions and channels |
-| ❌ You're a developer, so you can wire up LangChain — but your team can't manage it | ✅ A real dashboard for non-technical owners: settings, analytics, team, billing |
-| ❌ Answering customer questions and running the business are two separate systems | ✅ Manager AI — an executive assistant that can see analytics, send emails, and manage settings by conversation |
+| ❌ You're a developer, so you can wire up LangChain — but your team can't manage it | ✅ Single-tenant, self-hosted, .env config — the full multi-tenant dashboard (settings, analytics, team, billing) is in the hosted platform |
+| ❌ Answering customer questions and running the business are two separate systems | ✅ The hosted platform adds an executive-assistant layer (Manager AI) on top of this same engine |
 | ❌ Adding a phone line means integrating Twilio, STT, and TTS yourself | ✅ Voice AI is built in — real inbound calls, answered and routed automatically |
 | ❌ Automating a workflow means writing custom code per integration | ✅ n8n workflow automation triggered directly from any conversation |
 
