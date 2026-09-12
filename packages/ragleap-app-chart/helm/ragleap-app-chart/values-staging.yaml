@@ -1,0 +1,56 @@
+# Staging environment overrides — apply with:
+#   helm install ragleap-app-chart ./ragleap-app-chart -f values-staging.yaml
+#
+# Full override, not a partial merge — see values-dev.yaml's comment
+# for why (Helm does not merge list entries by key).
+#
+# Mirrors production shape (Ingress enabled, real hostname/issuer) but
+# at lower replica counts, to catch integration issues before they
+# reach production without paying full production resource cost.
+
+services:
+  - name: web
+    image: myorg/myapp:latest
+    port: 3000
+    replicaCount: 1
+    persistent: false
+    dependsOn:
+      - postgres
+    expose: true
+    hostname: staging.myapp.example.com   # REPLACE with your real staging domain
+    env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: app-secrets
+            key: db-url
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  - name: postgres
+    image: postgres:16
+    port: 5432
+    replicaCount: 1
+    persistent: true
+    storage: 10Gi
+    dependsOn: []
+    expose: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      allowPrivilegeEscalation: false
+    initChown: true
+    env:
+      - name: PGDATA
+        value: /data/pgdata
+      - name: POSTGRES_PASSWORD
+        value: test-password-not-for-production   # REPLACE via --set or Sealed Secrets before real use
+
+ingress:
+  clusterIssuer: letsencrypt-prod   # REPLACE with your own ClusterIssuer name
+  ingressClassName: nginx

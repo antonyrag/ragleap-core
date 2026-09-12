@@ -1,0 +1,56 @@
+# Dev environment overrides — apply with:
+#   helm install ragleap-app-chart ./ragleap-app-chart -f values-dev.yaml
+#
+# Full override, not a partial merge — Helm does not merge list entries
+# by key, so services: here must be complete, not just the fields that
+# differ. See ragleap-app-chart's README for why this differs from
+# ragleap-ops's scalar-field override pattern.
+#
+# Single replicas, ingress disabled (use port-forward for local access
+# instead). Not suitable for anything but local testing.
+
+services:
+  - name: web
+    image: myorg/myapp:latest
+    port: 3000
+    replicaCount: 1
+    persistent: false
+    dependsOn:
+      - postgres
+    expose: false
+    env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: app-secrets
+            key: db-url
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  - name: postgres
+    image: postgres:16
+    port: 5432
+    replicaCount: 1
+    persistent: true
+    storage: 10Gi
+    dependsOn: []
+    expose: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      allowPrivilegeEscalation: false
+    initChown: true
+    env:
+      - name: PGDATA
+        value: /data/pgdata
+      - name: POSTGRES_PASSWORD
+        value: test-password-not-for-production
+
+ingress:
+  clusterIssuer: letsencrypt-prod
+  ingressClassName: nginx

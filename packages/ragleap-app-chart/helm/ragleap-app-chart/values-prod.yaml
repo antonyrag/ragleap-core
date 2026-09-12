@@ -1,0 +1,62 @@
+# Production environment overrides — apply with:
+#   helm install ragleap-app-chart ./ragleap-app-chart -f values-prod.yaml
+#
+# Full override, not a partial merge — see values-dev.yaml's comment
+# for why (Helm does not merge list entries by key).
+#
+# Higher replica counts for real traffic. Stateful services (like the
+# example postgres entry) stay at a single replica regardless of
+# environment — they're single-writer with a ReadWriteOnce PVC;
+# horizontal scaling needs a different storage/clustering architecture,
+# not a values.yaml change. Same principle as ragleap-ops's db/neo4j.
+#
+# IMPORTANT: never commit real production credentials here. Override
+# env values via --set or a proper secrets workflow (Sealed Secrets,
+# external-secrets, etc.) instead of values.yaml for anything secret.
+
+services:
+  - name: web
+    image: myorg/myapp:latest
+    port: 3000
+    replicaCount: 3
+    persistent: false
+    dependsOn:
+      - postgres
+    expose: true
+    hostname: myapp.example.com   # REPLACE with your real production domain
+    env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: app-secrets
+            key: db-url
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  - name: postgres
+    image: postgres:16
+    port: 5432
+    replicaCount: 1   # stateful — do not scale via this field, see note above
+    persistent: true
+    storage: 10Gi
+    dependsOn: []
+    expose: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 999
+      allowPrivilegeEscalation: false
+    initChown: true
+    env:
+      - name: PGDATA
+        value: /data/pgdata
+      - name: POSTGRES_PASSWORD
+        value: REPLACE-VIA-SECRET-NOT-HERE
+
+ingress:
+  clusterIssuer: letsencrypt-prod   # REPLACE with your own ClusterIssuer name
+  ingressClassName: nginx
