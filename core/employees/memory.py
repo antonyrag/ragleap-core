@@ -64,6 +64,12 @@ def write_learned_skill(text, tags, importance=0.7, source="interaction",
             cur.execute("DELETE FROM employee_memory WHERE source = %s", (source,))
         embed_service = EmbeddingService()
         embedding = embed_service.embed_text(text)
+        if embedding is None:
+            logger.warning(
+                f"Embedding failed for learned skill (source={source!r}) — "
+                "storing with embedding=NULL; this skill will not surface via "
+                "semantic_search() until re-embedded. Check GEMINI_API_KEY."
+            )
         embedding_literal = (
             "[" + ",".join(str(float(x)) for x in embedding) + "]" if embedding else None
         )
@@ -158,9 +164,10 @@ def semantic_search(query: str, top_k: int = 8, tags: Optional[List[str]] = None
         embed_service = EmbeddingService()
         query_embedding = embed_service.embed_text(query)
     except Exception as e:
-        logger.debug(f"Embedding unavailable for semantic search: {e}")
+        logger.warning(f"Embedding unavailable for semantic search, returning no results: {e}")
         return []
     if not query_embedding:
+        logger.warning("Embedding returned empty for semantic search query, returning no results")
         return []
     literal = "[" + ",".join(str(float(x)) for x in query_embedding) + "]"
     conn = get_connection()
