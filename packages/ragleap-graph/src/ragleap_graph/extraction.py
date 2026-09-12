@@ -76,6 +76,7 @@ class ExtractionConfig:
     dedup_threshold: float = 0.92
     max_entities_per_chunk: int = 25
     extract_relations: bool = False
+    cross_chunk_relations: bool = False
     entity_types: Optional[list[str]] = None
 
     def __post_init__(self) -> None:
@@ -83,6 +84,11 @@ class ExtractionConfig:
             raise ValueError(
                 "extract_relations=True requires method='llm' - relation "
                 "extraction has no regex equivalent, unlike entity extraction."
+            )
+        if self.cross_chunk_relations and not self.extract_relations:
+            raise ValueError(
+                "cross_chunk_relations=True requires extract_relations=True - "
+                "the cross-chunk pass reuses the same LLM relation extractor."
             )
         if self.method == "llm" and self.provider is None:
             raise ValueError(
@@ -411,17 +417,27 @@ class LLMRelationExtractor:
         text: str,
         known_entities: list[str],
         domain_terms: Optional[list[str]] = None,
+        resolve_references: bool = False,
     ) -> list[ExtractedRelation]:
         """
         Identify relations between known_entities as they appear in text.
         Returns [] without any LLM call if fewer than 2 entities are
         known - a relation needs at least two entities to connect, so
         there is nothing to ask for and no reason to spend a call.
+
+        resolve_references: when True, adds an explicit instruction asking
+        the model to resolve pronouns/vague references (e.g. "it", "the
+        company") to a known entity name. Off by default so existing
+        per-chunk extraction behavior is unchanged - added for the #154
+        cross-chunk pass, where the full document is more likely to
+        contain references to entities introduced earlier in the text.
         """
         if not text or not text.strip() or len(known_entities) < 2:
             return []
 
-        instruction = self._build_instruction(known_entities, domain_terms)
+        instruction = self._build_instruction(
+            known_entities, domain_terms, resolve_references=resolve_references
+        )
         result = self._service.generate_answer(
             query=instruction,
             chunks=[{"text": text, "document_name": "relation_extraction_input", "chunk_index": 0}],
@@ -436,12 +452,24 @@ class LLMRelationExtractor:
 
         return self._parse_result(result, known_entities)
 
-    def _build_instruction(self, known_entities: list[str], domain_terms: Optional[list[str]]) -> str:
+    def _build_instruction(
+        self,
+        known_entities: list[str],
+        domain_terms: Optional[list[str]],
+        resolve_references: bool = False,
+    ) -> str:
         entity_list = ", ".join(known_entities)
         base = f"Identify relationships between these known entities: {entity_list}."
         if domain_terms:
             joined = ", ".join(domain_terms)
             base += f" Pay particular attention to these known domain terms if present: {joined}."
+        if resolve_references:
+            base += (
+                " The text may refer to a known entity using a pronoun or vague "
+                "phrase instead of its name (e.g. 'it', 'the company', 'he', 'she', "
+                "'they'). When this happens, resolve the reference to the correct "
+                "known entity name and use that name as the subject or object."
+            )
         return base
 
     def _parse_result(self, result: dict[str, Any], known_entities: list[str]) -> list[ExtractedRelation]:

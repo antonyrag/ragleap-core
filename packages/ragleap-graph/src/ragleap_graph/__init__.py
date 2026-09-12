@@ -182,7 +182,7 @@ from ragleap_graph.retrieval import GraphRetriever, GraphRetrievalConfig
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 # Hard ceiling on traversal depth — prevents both runaway queries and,
 # since max_depth is string-interpolated into Cypher (see note above),
@@ -558,6 +558,35 @@ class GraphIndex:
                     text, known_entities=unique_entities, domain_terms=domain_terms
                 )
                 for rel in relations:
+                    key = (rel.subject, rel.relation_type, rel.object)
+                    relation_counter[key] += 1
+
+        if (
+            self._relation_extractor is not None
+            and getattr(self.extraction, "cross_chunk_relations", False)
+        ):
+            # Cross-chunk pass (#154): entity_counter already accumulates
+            # entity names across every chunk, but each chunk's relation
+            # extraction call above only sees that chunk's local entities.
+            # One additional call, using the full document text and the
+            # full accumulated entity list, recovers relations whose
+            # subject/object were established in different chunks. Feeds
+            # the same relation_counter so downstream weighting, dedup,
+            # and the RelationWeight/RELATES_AS write path need no changes.
+            all_entities = list(entity_counter.keys())
+            full_text = "\n\n".join(
+                (chunk.get("text") or "").strip()
+                for chunk in (chunks or [])
+                if (chunk.get("text") or "").strip()
+            )
+            if full_text and len(all_entities) >= 2:
+                cross_chunk_relations = self._relation_extractor.extract(
+                    full_text,
+                    known_entities=all_entities,
+                    domain_terms=domain_terms,
+                    resolve_references=True,
+                )
+                for rel in cross_chunk_relations:
                     key = (rel.subject, rel.relation_type, rel.object)
                     relation_counter[key] += 1
 
