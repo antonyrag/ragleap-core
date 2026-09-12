@@ -118,3 +118,90 @@ def test_ollama_style_finish_reason_triggers_retry():
 
     assert calls == [50, 100]
     assert result["answer"] == "full answer"
+
+
+# --- Streaming truncation notice (generate_answer_stream) ---
+# No true mid-stream retry is possible (tokens already sent to the caller),
+# so instead of retrying, a truncated stream gets one honest closing note
+# appended. _stream_provider is mocked directly, matching how _call_provider
+# is mocked above for the blocking-path tests.
+
+def test_stream_no_notice_when_complete():
+    service = _make_service()
+
+    def fake_stream(config, prompt, temperature, max_tokens, result_holder=None):
+        yield "hello "
+        yield "world"
+        if result_holder is not None:
+            result_holder["finish_reason"] = "stop"
+
+    with patch.object(service, "_stream_provider", side_effect=fake_stream):
+        pieces = list(service.generate_answer_stream("question", []))
+
+    full = "".join(pieces)
+    assert full == "hello world"
+    assert "cut short" not in full
+
+
+def test_stream_appends_notice_when_truncated_gemini_style():
+    service = _make_service()
+
+    def fake_stream(config, prompt, temperature, max_tokens, result_holder=None):
+        yield "partial answ"
+        if result_holder is not None:
+            result_holder["finish_reason"] = "MAX_TOKENS"
+
+    with patch.object(service, "_stream_provider", side_effect=fake_stream):
+        pieces = list(service.generate_answer_stream("question", []))
+
+    full = "".join(pieces)
+    assert full.startswith("partial answ")
+    assert "cut short" in full
+
+
+def test_stream_appends_notice_when_truncated_openai_style():
+    service = _make_service()
+
+    def fake_stream(config, prompt, temperature, max_tokens, result_holder=None):
+        yield "cut off resu"
+        if result_holder is not None:
+            result_holder["finish_reason"] = "length"
+
+    with patch.object(service, "_stream_provider", side_effect=fake_stream):
+        pieces = list(service.generate_answer_stream("question", []))
+
+    full = "".join(pieces)
+    assert "cut short" in full
+
+
+def test_stream_appends_notice_when_truncated_anthropic_style():
+    service = _make_service()
+
+    def fake_stream(config, prompt, temperature, max_tokens, result_holder=None):
+        yield "half a thou"
+        if result_holder is not None:
+            result_holder["finish_reason"] = "max_tokens"
+
+    with patch.object(service, "_stream_provider", side_effect=fake_stream):
+        pieces = list(service.generate_answer_stream("question", []))
+
+    full = "".join(pieces)
+    assert "cut short" in full
+
+
+def test_stream_no_notice_when_provider_fails_before_yielding():
+    """If a provider errors before yielding anything and before ever
+    setting finish_reason, the existing error-handling path takes over -
+    no truncation notice should be appended on top of that."""
+    service = _make_service()
+
+    def fake_stream(config, prompt, temperature, max_tokens, result_holder=None):
+        raise RuntimeError("boom")
+        yield  # pragma: no cover - keeps this a generator function
+
+    with patch.object(service, "_stream_provider", side_effect=fake_stream):
+        pieces = list(service.generate_answer_stream("question", []))
+
+    full = "".join(pieces)
+    assert "cut short" not in full
+    assert "all configured providers failed" in full
