@@ -227,15 +227,15 @@ Answer:"""
                 prompt, temperature, max_tokens, config["api_key"], config["model"], config["base_url"]
             )
 
-    def _stream_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> Iterator[str]:
+    def _stream_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int, result_holder: Optional[Dict] = None) -> Iterator[str]:
         provider = config["provider"]
         if provider == "gemini":
-            yield from self._stream_gemini(prompt, temperature, max_tokens, config["api_key"], config["model"])
+            yield from self._stream_gemini(prompt, temperature, max_tokens, config["api_key"], config["model"], result_holder)
         elif provider == "anthropic":
-            yield from self._stream_anthropic(prompt, temperature, max_tokens, config["api_key"], config["model"])
+            yield from self._stream_anthropic(prompt, temperature, max_tokens, config["api_key"], config["model"], result_holder)
         else:
             yield from self._stream_openai_compatible(
-                prompt, temperature, max_tokens, config["api_key"], config["model"], config["base_url"]
+                prompt, temperature, max_tokens, config["api_key"], config["model"], config["base_url"], result_holder
             )
 
     def generate_answer(
@@ -336,10 +336,17 @@ Answer:"""
 
         for i, config in enumerate(chain):
             yielded_anything = False
+            result_holder: Dict = {}
             try:
-                for piece in self._stream_provider(config, prompt, temp, max_tok):
+                for piece in self._stream_provider(config, prompt, temp, max_tok, result_holder):
                     yielded_anything = True
                     yield piece
+                if result_holder.get("finish_reason") in TRUNCATED_FINISH_REASONS:
+                    logger.warning(
+                        f"Streamed answer truncated (finish_reason={result_holder.get('finish_reason')!r}); "
+                        f"no mid-stream retry possible, notifying user instead"
+                    )
+                    yield "\n\n_[Note: this answer was cut short by the model's output limit.]_"
                 if i > 0:
                     logger.info(f"Streamed via fallback provider '{config['provider']}' (primary failed)")
                 return
@@ -383,7 +390,7 @@ Answer:"""
             }
         return text, usage
 
-    def _stream_gemini(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Iterator[str]:
+    def _stream_gemini(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, result_holder: Optional[Dict] = None) -> Iterator[str]:
         import google.genai as genai
         from google.genai import types
         client = genai.Client(api_key=api_key)
@@ -399,6 +406,10 @@ Answer:"""
         for chunk in stream:
             if chunk.text:
                 yield chunk.text
+            if result_holder is not None and chunk.candidates:
+                fr = chunk.candidates[0].finish_reason
+                if fr:
+                    result_holder["finish_reason"] = getattr(fr, "name", str(fr))
 
     def _call_anthropic(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Tuple[str, Optional[Dict]]:
         import anthropic
@@ -420,7 +431,7 @@ Answer:"""
             }
         return text, usage
 
-    def _stream_anthropic(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Iterator[str]:
+    def _stream_anthropic(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, result_holder: Optional[Dict] = None) -> Iterator[str]:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         with client.messages.stream(
@@ -431,6 +442,11 @@ Answer:"""
         ) as stream:
             for text in stream.text_stream:
                 yield text
+            if result_holder is not None:
+                try:
+                    result_holder["finish_reason"] = stream.get_final_message().stop_reason
+                except Exception:
+                    pass
 
     def _call_openai_compatible(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, base_url: str) -> Tuple[str, Optional[Dict]]:
         import openai
@@ -452,7 +468,7 @@ Answer:"""
             }
         return text, usage
 
-    def _stream_openai_compatible(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, base_url: str) -> Iterator[str]:
+    def _stream_openai_compatible(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str, base_url: str, result_holder: Optional[Dict] = None) -> Iterator[str]:
         import openai
         client = openai.OpenAI(api_key=api_key or "not-needed", base_url=base_url)
         stream = client.chat.completions.create(
@@ -463,6 +479,11 @@ Answer:"""
             stream=True,
         )
         for chunk in stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else None
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta.content
             if delta:
                 yield delta
+            fr = chunk.choices[0].finish_reason
+            if fr and result_holder is not None:
+                result_holder["finish_reason"] = fr
