@@ -209,6 +209,20 @@ jobs:
 
   ragleap-rag-java-tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ragleap_java_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v4
@@ -218,4 +232,6 @@ jobs:
           cache: 'maven'
       - name: Run ragleap-rag Java test suite
         working-directory: java/ragleap-rag
+        env:
+          RAGLEAP_JAVA_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ragleap_java_test
         run: mvn -B test

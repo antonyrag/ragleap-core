@@ -48,28 +48,33 @@
         <junit.version>5.10.2</junit.version>
         <jtokkit.version>1.1.0</jtokkit.version>
         <json-schema-validator.version>1.5.5</json-schema-validator.version>
+        <hikaricp.version>7.1.0</hikaricp.version>
+        <postgresql.version>42.7.13</postgresql.version>
     </properties>
 
     <dependencies>
-        <!-- Real Java implementation of OpenAI's tiktoken encodings
-             (including cl100k_base) - the genuine equivalent of Python's
-             tiktoken, used here for the same purpose: real LLM token
-             counts, not an estimate. -->
         <dependency>
             <groupId>com.knuddels</groupId>
             <artifactId>jtokkit</artifactId>
             <version>${jtokkit.version}</version>
         </dependency>
 
-        <!-- Real JSON Schema validation (drafts v4 through 2020-12) -
-             the Java equivalent of Python's jsonschema library, used
-             for the same purpose: validating structured LLM output
-             against a user-supplied schema. Pulls in jackson-databind
-             transitively, which we also use directly for JSON parsing. -->
         <dependency>
             <groupId>com.networknt</groupId>
             <artifactId>json-schema-validator</artifactId>
             <version>${json-schema-validator.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikaricp.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
         </dependency>
 
         <dependency>
