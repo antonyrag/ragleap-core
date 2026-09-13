@@ -153,8 +153,9 @@ More involved -- this job **scales `ragleap-neo4j` to 0 replicas
 first** (via a dedicated `ragleap-neo4j-backup` ServiceAccount/Role),
 takes the dump, and does not automatically scale it back up (the job
 only scales down; nothing in this CronJob restores replicas). **If a
-neo4j backup job fails partway through, always check whether
-`ragleap-neo4j` got left at 0 replicas:**
+neo4j backup job fails partway through, this is now handled
+automatically -- see below -- but it's still worth knowing how to
+check manually:**
 
 ```bash
 kubectl get deployment -n ragleap-core ragleap-neo4j
@@ -162,13 +163,18 @@ kubectl get deployment -n ragleap-core ragleap-neo4j
 kubectl scale deployment -n ragleap-core ragleap-neo4j --replicas=1
 ```
 
-This is a real, currently-undocumented-elsewhere gap worth flagging:
-the backup CronJob has no automatic scale-back-up step or rollback on
-failure. A failed backup mid-run could leave neo4j down until someone
-notices and manually scales it back up. Worth a follow-up fix
-(add a scale-up step in a `defer`-equivalent, or at minimum a
-monitoring alert on `ragleap-neo4j`'s replica count once Track 3's
-alerting exists).
+**Fixed, live-tested on a real kind cluster (both success and failure
+paths):** the CronJob now includes a `scale-up-watcher` native sidecar
+container (`restartPolicy: Always`) that is only terminated after the
+`dump` container finishes, success or failure. `dump` uses
+`trap 'touch /signal/backup-done' EXIT` to always signal completion;
+the sidecar waits for that signal, then scales `ragleap-neo4j` back to
+1. Verified live: a deliberately-broken dump (nonexistent database
+name) correctly reported the Job as `Failed`, while `ragleap-neo4j`
+was still confirmed `1/1 Running` afterward -- the manual recovery
+command above should now only be needed if the sidecar itself is
+somehow prevented from running (e.g. the whole pod being forcibly
+deleted), not for an ordinary dump failure.
 
 ### General backup verification
 
