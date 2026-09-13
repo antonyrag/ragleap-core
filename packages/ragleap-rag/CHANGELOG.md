@@ -5,6 +5,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.5] - 2026-09-13
+
+### Fixed
+
+- README's `<!-- AUTO-STATS -->` badge was stuck at "v0.12.2 · 244 tests" - three releases stale (real state: v0.12.4, 252 tests at time of writing). Found via a documentation-claims audit; the `AUTO-STATS` markers imply automation that doesn't actually exist (confirmed - no script in this repo regenerates them), so this drifted silently across multiple releases. No code changes in this release; it exists specifically so the corrected README reaches PyPI, which only refreshes its displayed README on a new upload, not from a live GitHub pull.
+- Re-verified (not just carried over) the three headline capability claims in the README - 6 vector backends, 8 embedding providers, 12+ generation providers - against real source counts. All still exactly accurate.
+
 ## [0.12.4] - 2026-08-27
 
 ### Fixed
