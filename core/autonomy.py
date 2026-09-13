@@ -32,6 +32,7 @@ keep working exactly as before).
 """
 import json
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -349,3 +350,88 @@ def generate_autonomy_daily_report() -> str:
         lines.append(f"\n{failed} failed actions - check logs")
 
     return "\n".join(lines)
+
+
+def generate_rejection_pattern_report(min_days: int = 0) -> str:
+    """
+    Real, honest aggregation of owner rejections from autonomy_log -
+    grouped by (action_type, channel, role), all-time (not just today,
+    since generate_autonomy_daily_report() already covers today and
+    rejections are rare enough that a daily window would almost always
+    be empty). This is a report for a human to read, NOT a decision
+    engine - it does not suggest or apply any config change itself.
+
+    See suggest_autonomy_changes() below for why automated suggestions
+    aren't built yet, and what real signal is needed before they can be.
+    """
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT action_type, channel, role FROM autonomy_log WHERE approved = false"
+        )
+        rows = cur.fetchall()
+        cur.close()
+    except Exception as e:
+        return f"Rejection pattern report error: {e}"
+    finally:
+        conn.close()
+
+    if not rows:
+        return "Rejection Pattern Report - No rejections recorded yet."
+
+    by_group: Dict[tuple, int] = {}
+    for action_type, channel, role in rows:
+        key = (action_type, channel, role or "(no role)")
+        by_group[key] = by_group.get(key, 0) + 1
+
+    lines = ["Rejection Pattern Report", "", f"Total rejections: {len(rows)}", ""]
+    for (action_type, channel, role), count in sorted(by_group.items(), key=lambda kv: -kv[1]):
+        lines.append(f"  - {action_type} via {channel} (role: {role}): {count} rejection(s)")
+
+    return "\n".join(lines)
+
+
+MIN_REJECTIONS_FOR_PATTERN_SUGGESTIONS = int(
+    os.environ.get("MIN_REJECTIONS_FOR_PATTERN_SUGGESTIONS", "25")
+)
+
+
+def suggest_autonomy_changes() -> None:
+    """
+    Deliberately NOT implemented yet - this is the real, honest reason
+    why, not a placeholder to quietly fill in later:
+
+    Turning generate_rejection_pattern_report()'s raw counts into an
+    actual suggestion ("action X via channel Y gets rejected often,
+    consider removing it from your actions allowlist") requires a
+    threshold for what counts as a real pattern versus noise. That
+    threshold can only be chosen responsibly against real rejection
+    volume - picking one now, with 1 total row in autonomy_log and 0
+    real rejections at the time this was written, would mean guessing
+    at a number with nothing to calibrate it against. A wrong threshold
+    here is actively harmful: too low and it suggests locking down
+    actions based on one or two unlucky misfires; too high and it never
+    fires at all, giving false confidence that "no patterns" means
+    "no problem."
+
+    Before implementing this for real:
+    1. Check actual volume: SELECT COUNT(*) FROM autonomy_log WHERE
+       approved = false;
+    2. Once MIN_REJECTIONS_FOR_PATTERN_SUGGESTIONS (default 25, override
+       via env) real rejections exist, look at generate_rejection_pattern_
+       report()'s actual output and choose a real per-group threshold
+       informed by what real rejection clustering looks like - not a
+       number invented in the abstract.
+    3. This function should keep returning suggestions only (never apply
+       a config change automatically) - the owner reviews and acts, same
+       as every other autonomy decision in this codebase.
+    """
+    raise NotImplementedError(
+        "Pattern-based suggestions need real rejection volume to "
+        "calibrate against (see this function's docstring for why, and "
+        "the exact query to check current volume). "
+        "generate_rejection_pattern_report() is available now and shows "
+        "the real, unfiltered counts - use that directly until this is "
+        "implemented for real."
+    )
