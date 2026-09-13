@@ -266,6 +266,19 @@ the primary pods aren't available.
 
 ## 4. ingress-cert-expired
 
+**Live-tested this session (using cert-manager installed directly on
+the kind cluster with a self-signed test ClusterIssuer, since testing
+the real Certificate lifecycle does not require a working ingress
+controller or real DNS).** Deliberately pointed a real Certificate at
+a nonexistent ClusterIssuer to simulate a real, common failure (issuer
+typo'd or accidentally deleted). All commands below worked and,
+together, correctly diagnosed the real cause -- no command errors
+found this time, unlike the db-down and backup-failure sections. One
+real clarity gap found and fixed: the original version did not
+explain where to find the issuer name for the final command -- it
+comes from the certificaterequest step's ISSUER column, not from
+guessing.
+
 **Symptom:** TLS errors on the real hostname, or
 `kubectl get certificate -n ragleap-core ragleap-app-tls` shows
 `Ready: False`.
@@ -276,8 +289,22 @@ the primary pods aren't available.
 kubectl get certificate -n ragleap-core ragleap-app-tls
 kubectl describe certificate -n ragleap-core ragleap-app-tls
 kubectl get certificaterequest -n ragleap-core
-kubectl describe clusterissuer <your-configured-clusterIssuer-name>
 ```
+
+The `describe certificate` step tells you *that* something is wrong
+(e.g. `Reason: IncorrectIssuer`) but usually not enough detail to act
+on. **The `certificaterequest` step is where the real diagnosis
+lives** -- its `ISSUER` column shows the actual issuer name the
+Certificate is currently trying to use, which is the name to pass into
+the next command:
+
+```bash
+kubectl describe clusterissuer <issuer-name-from-the-certificaterequest-output-above>
+```
+
+A real `Error from server (NotFound): clusterissuers.cert-manager.io
+"<name>" not found` confirms the issuer itself is missing or
+misconfigured -- not the Certificate resource.
 
 The Certificate resource name (`ragleap-app-tls`) and Secret name
 (`ragleap-app-tls-secret`) are fixed in
