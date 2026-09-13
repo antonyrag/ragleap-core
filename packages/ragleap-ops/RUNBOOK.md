@@ -33,6 +33,36 @@ kubectl logs -n ragleap-core -l app=ragleap-db --tail=100
 Check `Events` in the describe output first -- most failures show up
 there before you need full logs.
 
+**These three commands are NOT sufficient on their own -- live-tested
+and confirmed to miss a real incident.** A deliberately broken
+`POSTGRES_PASSWORD` (simulating credential drift/rotation gone wrong)
+produced a pod that stayed `1/1 Running`, `Ready: True`, `Events:
+<none>` in describe output, and logs fully drowned in the same
+harmless `pg_isready` noise already documented below -- the real
+incident was completely invisible to these three commands. This is
+because `pg_isready` only checks the server accepts TCP connections,
+not that real credentials actually work, and `pg_hba.conf`'s default
+`trust` rule for `127.0.0.1` connections meant testing from inside the
+pod itself gave a false all-clear too.
+
+**Always also run a real, external connectivity test using the actual
+configured credentials -- not just pod status.** Read the real
+credential locally first, then pass it into the debug pod directly --
+an earlier version of this runbook tried fetching the secret from
+*inside* the debug pod via a nested `kubectl` call, which failed
+outright (`kubectl: not found` -- the postgres:16-alpine image has no
+kubectl binary). Fixed and re-verified live:
+
+```bash
+DB_PASSWORD=$(kubectl get secret ragleap-db-secret -n ragleap-core -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d)
+kubectl run debug-psql --rm -it --image=postgres:16-alpine --restart=Never -n ragleap-core \
+  --env="PGPASSWORD=$DB_PASSWORD" -- psql -h ragleap-db -U ragleap -d ragleap_core -c "SELECT 1;"
+```
+
+A real, useful error (`FATAL: password authentication failed`) means
+the credentials are genuinely wrong -- something `kubectl get pods`
+alone will never show you.
+
 ### Common causes (from real testing this session)
 
 - **`CrashLoopBackOff` with `Liveness probe failed: command "pg_isready -U ragleap" timed out`**
