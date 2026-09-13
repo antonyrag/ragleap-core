@@ -553,6 +553,35 @@ GROQ_API_KEY=your-groq-key
 GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
+### Ollama in Docker: known gotchas
+
+Running Ollama as a fallback/local provider from inside this app's Docker
+container (rather than bare metal) has real, verified setup steps beyond
+just setting `OLLAMA_MODEL`:
+
+1. **`host.docker.internal` isn't reliable on plain Linux Docker Engine**
+   (unlike Docker Desktop) — it can resolve to the wrong bridge network's
+   gateway. If Ollama connections fail with this alias, override
+   `OLLAMA_BASE_URL` with the container's actual compose-network gateway
+   IP directly, e.g. `OLLAMA_BASE_URL=http://172.18.0.1:11434/v1` (find
+   your real gateway with `docker network inspect <network> | grep Gateway`).
+2. **Ollama binds to `127.0.0.1` by default**, which a container can't
+   reach even with the correct gateway IP. Override it to listen on all
+   interfaces:
+```bash
+   mkdir -p /etc/systemd/system/ollama.service.d
+   cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
+   [Service]
+   Environment="OLLAMA_HOST=0.0.0.0:11434"
+   EOF
+   systemctl daemon-reload && systemctl restart ollama
+```
+3. **The host firewall may silently drop container→host traffic** even
+   after the above — container-to-bridge-gateway traffic hits ufw's
+   `INPUT` chain, not `FORWARD`/`DOCKER-USER`. Allow it explicitly:
+   `ufw allow from 172.18.0.0/16 to any port 11434 proto tcp` (adjust the
+   subnet to match your actual Docker network).
+
 ## Voice Channel (Twilio)
 
 RagLeap Core includes a real-time voice channel: Twilio Media Streams connects
