@@ -171,11 +171,44 @@ Both backup CronJobs run daily at `0 3 * * *` UTC
   (`/backups/db-<timestamp>.sql`). Failure usually means either the
   `ragleap-db-secret` credentials are wrong/rotated, or the
   `ragleap-backup-data` PVC is full or unbound.
-- Check disk space first:
+- **Check disk space -- live-tested and corrected.** The original
+  version of this step tried `kubectl exec ... deploy/ragleap-db -- df
+  -h /backups`, which is simply wrong: `/backups` is never mounted
+  into `ragleap-db` at all, only into the backup CronJob's own pod.
+  Confirmed live (`df: /backups: No such file or directory`). The
+  documented fallback (an inline `--overrides` JSON one-liner) is
+  also fragile across shells -- confirmed failing under PowerShell
+  quoting. Replaced with a small, portable YAML file instead, matching
+  this project's own established pattern of writing anything
+  non-trivial to a real file rather than fighting inline quoting:
 ```bash
-  kubectl exec -n ragleap-core -it deploy/ragleap-db -- df -h /backups 2>/dev/null || \
-  kubectl run -n ragleap-core debug-pvc --rm -it --image=busybox --overrides='{"spec":{"containers":[{"name":"debug-pvc","image":"busybox","command":["df","-h","/backups"],"volumeMounts":[{"name":"b","mountPath":"/backups"}]}],"volumes":[{"name":"b","persistentVolumeClaim":{"claimName":"ragleap-backup-data"}}]}}'
+cat > /tmp/debug-pvc.yaml << 'EOF'
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-pvc
+  namespace: ragleap-core
+spec:
+  restartPolicy: Never
+  containers:
+    - name: debug-pvc
+      image: busybox
+      command: ["df", "-h", "/backups"]
+      volumeMounts:
+        - name: b
+          mountPath: /backups
+  volumes:
+    - name: b
+      persistentVolumeClaim:
+        claimName: ragleap-backup-data
+EOF
+kubectl apply -f /tmp/debug-pvc.yaml
+kubectl logs -n ragleap-core debug-pvc
+kubectl delete pod -n ragleap-core debug-pvc
 ```
+
+Live-verified this session: real output showed `944.4G` available on
+a `1006.9G` volume -- confirming the pattern genuinely works.
 
 ### Neo4j backup (`ragleap-neo4j-backup`)
 
