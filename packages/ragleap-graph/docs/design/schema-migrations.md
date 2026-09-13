@@ -1,10 +1,11 @@
 # Schema Migrations — Design Proposal for ragleap-graph
 
-> **Status: Proposal.**
-> This document proposes a lightweight migration framework for
-> `ragleap-graph`'s Neo4j schema. It is a design artifact for maintainer
-> review, not an implemented feature. No code changes are required to
-> ship this document.
+> **Status: Implemented (v0.7.0).**
+> This document originally proposed a lightweight migration framework
+> for `ragleap-graph`'s Neo4j schema. It shipped as `ragleap_graph.migrations`
+> in v0.7.0 - see CHANGELOG.md for the full implementation summary. Left
+> here as historical design record; the reasoning below is why it was
+> built the way it was, not a pending proposal.
 
 ---
 
