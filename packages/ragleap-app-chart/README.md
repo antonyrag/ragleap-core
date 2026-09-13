@@ -12,7 +12,7 @@ Point it at your own app; it doesn't know or care what RagLeap is.
 
 ## Status
 
-v0.1.0 published on PyPI. Generic `services:` schema and range-loop
+v0.2.0 published on PyPI. Generic `services:` schema and range-loop
 Helm templates are live-tested end-to-end on a real kind cluster (not
 just `helm lint`/`helm template`) -- see CHANGELOG.md for the real
 bugs found and fixed via live testing. See
