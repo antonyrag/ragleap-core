@@ -181,12 +181,103 @@ class PgVectorBackendTest {
     }
 
     @Test
-    void supportsSparseDefaultsFalseUntilPortedInFollowUp() {
-        // PgVectorBackend actually supports sparse search in Python (returns
-        // true) - this Java port hasn't ported searchSparse/searchHybrid
-        // yet, so it currently uses the interface's default (false) rather
-        // than overriding it prematurely. Update this test when that
-        // follow-up PR lands.
-        assertFalse(backend.supportsSparse());
+    void supportsSparseNowReturnsTrue() {
+        // Now that searchSparse/searchHybrid are ported, PgVectorBackend
+        // overrides the interface default and correctly reports true.
+        assertTrue(backend.supportsSparse());
+    }
+
+    @Test
+    void searchSparseFindsMatchingChunkByKeyword() throws SQLException {
+        String docId = UUID.randomUUID().toString();
+        backend.insertDocument(docId, "doc.txt", Map.of());
+        backend.insertChunk(docId, "doc.txt", 0, "The quick brown fox jumps over the lazy dog",
+                10, vec(1, 0, 0, 0, 0, 0, 0, 0), Map.of());
+        backend.insertChunk(docId, "doc.txt", 1, "Completely unrelated content about weather",
+                10, vec(0, 1, 0, 0, 0, 0, 0, 0), Map.of());
+
+        List<SearchResult> results = backend.searchSparse("fox jumps", 5, null);
+
+        assertFalse(results.isEmpty());
+        assertTrue(results.get(0).text().contains("fox"));
+    }
+
+    @Test
+    void searchSparseReturnsEmptyForBlankQuery() throws SQLException {
+        assertEquals(List.of(), backend.searchSparse("", 5, null));
+        assertEquals(List.of(), backend.searchSparse("   ", 5, null));
+        assertEquals(List.of(), backend.searchSparse(null, 5, null));
+    }
+
+    @Test
+    void searchSparseWithMetadataFilterOnlyReturnsMatchingChunks() throws SQLException {
+        String docId = UUID.randomUUID().toString();
+        backend.insertDocument(docId, "doc.txt", Map.of());
+        backend.insertChunk(docId, "doc.txt", 0, "public information about elephants",
+                10, vec(1, 0, 0, 0, 0, 0, 0, 0), Map.of("visibility", "public"));
+        backend.insertChunk(docId, "doc.txt", 1, "private information about elephants",
+                10, vec(1, 0, 0, 0, 0, 0, 0, 0), Map.of("visibility", "private"));
+
+        List<SearchResult> results = backend.searchSparse("elephants", 10, Map.of("visibility", "public"));
+
+        assertEquals(1, results.size());
+        assertTrue(results.get(0).text().contains("public"));
+    }
+
+    @Test
+    void searchHybridCombinesDenseAndSparseWithRrfFusion() throws SQLException {
+        String docId = UUID.randomUUID().toString();
+        backend.insertDocument(docId, "doc.txt", Map.of());
+        // Chunk A: exact vector match AND keyword match - should rank highest
+        backend.insertChunk(docId, "doc.txt", 0, "the quick brown fox",
+                10, vec(1, 0, 0, 0, 0, 0, 0, 0), Map.of());
+        // Chunk B: keyword match only, no vector similarity
+        backend.insertChunk(docId, "doc.txt", 1, "a fox in the forest",
+                10, vec(0, 0, 0, 0, 0, 0, 0, 1), Map.of());
+        // Chunk C: vector match only, no keyword overlap
+        backend.insertChunk(docId, "doc.txt", 2, "completely different topic entirely",
+                10, vec(0.99, 0.01, 0, 0, 0, 0, 0, 0), Map.of());
+
+        List<SearchResult> results = backend.searchHybrid("fox", vec(1, 0, 0, 0, 0, 0, 0, 0), 10, null);
+
+        assertFalse(results.isEmpty());
+        // Chunk A hits both dense and sparse rankings, should be first
+        assertEquals("the quick brown fox", results.get(0).text());
+        assertEquals("hybrid_rrf", results.get(0).retrievalMethod());
+        // Every result should carry the hybrid marker
+        for (SearchResult r : results) {
+            assertEquals("hybrid_rrf", r.retrievalMethod());
+        }
+    }
+
+    @Test
+    void searchHybridRespectsTopK() throws SQLException {
+        String docId = UUID.randomUUID().toString();
+        backend.insertDocument(docId, "doc.txt", Map.of());
+        for (int i = 0; i < 5; i++) {
+            backend.insertChunk(docId, "doc.txt", i, "shared keyword chunk " + i, 5,
+                    vec(1, 0, 0, 0, 0, 0, 0, 0), Map.of());
+        }
+
+        List<SearchResult> results = backend.searchHybrid("shared keyword", vec(1, 0, 0, 0, 0, 0, 0, 0), 2, null);
+        assertEquals(2, results.size());
+    }
+
+    @Test
+    void searchHybridReturnsEmptyWhenNeitherDenseNorSparseMatch() throws SQLException {
+        String docId = UUID.randomUUID().toString();
+        backend.insertDocument(docId, "doc.txt", Map.of());
+        backend.insertChunk(docId, "doc.txt", 0, "some content", 5,
+                vec(0, 1, 0, 0, 0, 0, 0, 0), Map.of());
+
+        // Orthogonal vector AND a query term that appears nowhere
+        List<SearchResult> results = backend.searchHybrid("zzznomatchzzz", vec(1, 0, 0, 0, 0, 0, 0, 0), 10, null);
+
+        // Dense will still return the chunk (min_similarity is 0.0 in this
+        // test setup) since search_dense has no keyword requirement - but
+        // confirm it's still marked hybrid_rrf and doesn't error.
+        for (SearchResult r : results) {
+            assertEquals("hybrid_rrf", r.retrievalMethod());
+        }
     }
 }

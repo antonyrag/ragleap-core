@@ -10,21 +10,20 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.UUID;
 
 /**
  * Postgres + pgvector backend - the default, battle-tested storage for
  * ragleap-rag. Java port of ragleap-rag's vectorstores/pgvector.py -
- * PgVectorBackend.
- *
- * This PR ports the CRUD + dense-search half only (initSchema,
- * insertDocument, insertChunk, searchDense, listDocuments,
- * deleteDocument, getDocumentFilename). searchSparse and searchHybrid
- * (RRF fusion) are a deliberate follow-up PR.
+ * PgVectorBackend. Now complete: CRUD, dense search, sparse (full-text)
+ * search, and hybrid RRF fusion.
  *
  * Key technical note: pgvector's halfvec(N) type-modifier position
  * must be a literal at SQL-parse time, not a JDBC bind parameter -
@@ -47,6 +46,7 @@ import java.util.UUID;
 public class PgVectorBackend implements VectorBackend {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final int RRF_K = 60;
 
     private final ConnectionPool pool;
     private final double minSimilarity;
@@ -152,6 +152,108 @@ public class PgVectorBackend implements VectorBackend {
             }
         }
         return results;
+    }
+
+    @Override
+    public List<SearchResult> searchSparse(String queryText, int topK, Map<String, Object> metadataFilter) throws SQLException {
+        if (queryText == null || queryText.isBlank()) {
+            return List.of();
+        }
+
+        StringBuilder sql = new StringBuilder(
+                "SELECT id, text, document_id, document_name, chunk_index, " +
+                "ts_rank(text_search_vector, websearch_to_tsquery('english', ?)) AS rank_score " +
+                "FROM chunks " +
+                "WHERE text_search_vector @@ websearch_to_tsquery('english', ?)");
+
+        boolean hasFilter = metadataFilter != null && !metadataFilter.isEmpty();
+        if (hasFilter) {
+            sql.append(" AND metadata @> ?::jsonb");
+        }
+        sql.append(" ORDER BY rank_score DESC LIMIT ?");
+
+        List<SearchResult> results = new ArrayList<>();
+        try (Connection conn = pool.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+            int i = 1;
+            stmt.setString(i++, queryText);
+            stmt.setString(i++, queryText);
+            if (hasFilter) {
+                stmt.setString(i++, toJson(metadataFilter));
+            }
+            stmt.setInt(i, topK);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    results.add(new SearchResult(
+                            rs.getObject("id", UUID.class).toString(),
+                            rs.getString("text"),
+                            Math.round(rs.getDouble("rank_score") * 10000.0) / 10000.0,
+                            rs.getObject("document_id", UUID.class).toString(),
+                            rs.getString("document_name"),
+                            rs.getInt("chunk_index")
+                    ));
+                }
+            }
+        }
+        return results;
+    }
+
+    @Override
+    public List<SearchResult> searchHybrid(String queryText, List<Double> embedding, int topK, Map<String, Object> metadataFilter) throws SQLException {
+        List<SearchResult> dense = searchDense(embedding, topK * 3, metadataFilter);
+        List<SearchResult> sparse = searchSparse(queryText, topK * 3, metadataFilter);
+
+        Map<String, Integer> denseRanks = new LinkedHashMap<>();
+        for (int i = 0; i < dense.size(); i++) {
+            denseRanks.put(dense.get(i).chunkId(), i);
+        }
+        Map<String, Integer> sparseRanks = new LinkedHashMap<>();
+        for (int i = 0; i < sparse.size(); i++) {
+            sparseRanks.put(sparse.get(i).chunkId(), i);
+        }
+
+        Map<String, SearchResult> lookup = new LinkedHashMap<>();
+        for (SearchResult c : dense) {
+            lookup.put(c.chunkId(), c);
+        }
+        for (SearchResult c : sparse) {
+            lookup.putIfAbsent(c.chunkId(), c);
+        }
+
+        Set<String> allIds = new LinkedHashSet<>();
+        allIds.addAll(denseRanks.keySet());
+        allIds.addAll(sparseRanks.keySet());
+        if (allIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Double> scores = new LinkedHashMap<>();
+        for (String cid : allIds) {
+            double s = 0.0;
+            if (denseRanks.containsKey(cid)) {
+                s += 1.0 / (RRF_K + denseRanks.get(cid) + 1);
+            }
+            if (sparseRanks.containsKey(cid)) {
+                s += 1.0 / (RRF_K + sparseRanks.get(cid) + 1);
+            }
+            scores.put(cid, s);
+        }
+
+        List<SearchResult> results = new ArrayList<>();
+        for (String cid : allIds) {
+            SearchResult base = lookup.get(cid);
+            double score = Math.round(scores.get(cid) * 1_000_000.0) / 1_000_000.0;
+            results.add(new SearchResult(base.chunkId(), base.text(), score,
+                    base.documentId(), base.documentName(), base.chunkIndex(), "hybrid_rrf"));
+        }
+        results.sort((a, b) -> Double.compare(b.similarityScore(), a.similarityScore()));
+        return results.size() > topK ? results.subList(0, topK) : results;
+    }
+
+    @Override
+    public boolean supportsSparse() {
+        return true;
     }
 
     @Override
