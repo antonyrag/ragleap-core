@@ -179,7 +179,7 @@
       "version": "0.8.0"
     },
     {
-      "bom-ref": "anthropic==1.4.0",
+      "bom-ref": "anthropic==1.5.0",
       "description": "The official Python library for the anthropic API",
       "externalReferences": [
         {
@@ -202,9 +202,9 @@
         }
       ],
       "name": "anthropic",
-      "purl": "pkg:pypi/anthropic@1.4.0",
+      "purl": "pkg:pypi/anthropic@1.5.0",
       "type": "library",
-      "version": "1.4.0"
+      "version": "1.5.0"
     },
     {
       "bom-ref": "anyio==4.15.1",
@@ -1031,7 +1031,7 @@
       "version": "1.15.0"
     },
     {
-      "bom-ref": "filelock==3.32.5",
+      "bom-ref": "filelock==3.32.6",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1064,9 +1064,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@3.32.5",
+      "purl": "pkg:pypi/filelock@3.32.6",
       "type": "library",
-      "version": "3.32.5"
+      "version": "3.32.6"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -1158,7 +1158,7 @@
       "version": "2026.7.0"
     },
     {
-      "bom-ref": "google-auth==2.57.1",
+      "bom-ref": "google-auth==2.58.0",
       "description": "Google Authentication Library",
       "externalReferences": [
         {
@@ -1182,12 +1182,12 @@
           "value": "requests"
         }
       ],
-      "purl": "pkg:pypi/google-auth@2.57.1",
+      "purl": "pkg:pypi/google-auth@2.58.0",
       "type": "library",
-      "version": "2.57.1"
+      "version": "2.58.0"
     },
     {
-      "bom-ref": "google-genai==2.22.0",
+      "bom-ref": "google-genai==2.23.0",
       "description": "GenAI Python SDK",
       "externalReferences": [
         {
@@ -1205,9 +1205,9 @@
         }
       ],
       "name": "google-genai",
-      "purl": "pkg:pypi/google-genai@2.22.0",
+      "purl": "pkg:pypi/google-genai@2.23.0",
       "type": "library",
-      "version": "2.22.0"
+      "version": "2.23.0"
     },
     {
       "bom-ref": "grpcio==1.78.0",
@@ -1578,7 +1578,7 @@
       "version": "2.12.0"
     },
     {
-      "bom-ref": "huggingface_hub==1.30.0",
+      "bom-ref": "huggingface_hub==1.31.0",
       "description": "Client library to download and publish models, datasets and other repos on the huggingface.co hub",
       "externalReferences": [
         {
@@ -1602,9 +1602,9 @@
         }
       ],
       "name": "huggingface_hub",
-      "purl": "pkg:pypi/huggingface-hub@1.30.0",
+      "purl": "pkg:pypi/huggingface-hub@1.31.0",
       "type": "library",
-      "version": "1.30.0"
+      "version": "1.31.0"
     },
     {
       "bom-ref": "hyperframe==6.1.0",
@@ -1716,7 +1716,7 @@
       "version": "20.11.0"
     },
     {
-      "bom-ref": "jiter==0.16.0",
+      "bom-ref": "jiter==0.17.0",
       "description": "Fast iterable JSON parser.",
       "externalReferences": [
         {
@@ -1734,9 +1734,9 @@
         }
       ],
       "name": "jiter",
-      "purl": "pkg:pypi/jiter@0.16.0",
+      "purl": "pkg:pypi/jiter@0.17.0",
       "type": "library",
-      "version": "0.16.0"
+      "version": "0.17.0"
     },
     {
       "bom-ref": "joserfc==1.7.5",
@@ -2168,7 +2168,7 @@
       "version": "1.4.1"
     },
     {
-      "bom-ref": "onnxruntime==1.29.0",
+      "bom-ref": "onnxruntime==1.30.0",
       "description": "ONNX Runtime is a runtime accelerator for Machine Learning models",
       "externalReferences": [
         {
@@ -2191,12 +2191,12 @@
         }
       ],
       "name": "onnxruntime",
-      "purl": "pkg:pypi/onnxruntime@1.29.0",
+      "purl": "pkg:pypi/onnxruntime@1.30.0",
       "type": "library",
-      "version": "1.29.0"
+      "version": "1.30.0"
     },
     {
-      "bom-ref": "openai==3.8.0",
+      "bom-ref": "openai==3.13.0",
       "description": "The official Python library for the openai API",
       "externalReferences": [
         {
@@ -2219,9 +2219,9 @@
         }
       ],
       "name": "openai",
-      "purl": "pkg:pypi/openai@3.8.0",
+      "purl": "pkg:pypi/openai@3.13.0",
       "type": "library",
-      "version": "3.8.0"
+      "version": "3.13.0"
     },
     {
       "bom-ref": "openpyxl==3.1.5",
@@ -2579,7 +2579,7 @@
       "version": "6.33.6"
     },
     {
-      "bom-ref": "psycopg2-binary==2.9.12",
+      "bom-ref": "psycopg2-binary==2.9.13",
       "description": "psycopg2 - Python-PostgreSQL Database Adapter",
       "externalReferences": [
         {
@@ -2627,9 +2627,9 @@
         }
       ],
       "name": "psycopg2-binary",
-      "purl": "pkg:pypi/psycopg2-binary@2.9.12",
+      "purl": "pkg:pypi/psycopg2-binary@2.9.13",
       "type": "library",
-      "version": "2.9.12"
+      "version": "2.9.13"
     },
     {
       "bom-ref": "py-serializable==2.1.0",
@@ -2965,7 +2965,7 @@
       "version": "3.3.2"
     },
     {
-      "bom-ref": "pypdf==6.17.0",
+      "bom-ref": "pypdf==6.18.1",
       "description": "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files",
       "externalReferences": [
         {
@@ -2998,9 +2998,9 @@
         }
       ],
       "name": "pypdf",
-      "purl": "pkg:pypi/pypdf@6.17.0",
+      "purl": "pkg:pypi/pypdf@6.18.1",
       "type": "library",
-      "version": "6.17.0"
+      "version": "6.18.1"
     },
     {
       "bom-ref": "pytesseract==0.3.13",
@@ -3332,7 +3332,7 @@
       "version": "0.37.0"
     },
     {
-      "bom-ref": "regex==2026.9.3",
+      "bom-ref": "regex==2026.9.10",
       "description": "Alternative regular expression module, to replace re.",
       "externalReferences": [
         {
@@ -3348,9 +3348,9 @@
         }
       ],
       "name": "regex",
-      "purl": "pkg:pypi/regex@2026.9.3",
+      "purl": "pkg:pypi/regex@2026.9.10",
       "type": "library",
-      "version": "2026.9.3"
+      "version": "2026.9.10"
     },
     {
       "bom-ref": "requests==2.34.2",
@@ -3809,7 +3809,7 @@
       "version": "0.23.2"
     },
     {
-      "bom-ref": "tqdm==4.70.0",
+      "bom-ref": "tqdm==4.70.1",
       "description": "Fast, Extensible Progress Meter",
       "externalReferences": [
         {
@@ -3840,9 +3840,9 @@
         }
       ],
       "name": "tqdm",
-      "purl": "pkg:pypi/tqdm@4.70.0",
+      "purl": "pkg:pypi/tqdm@4.70.1",
       "type": "library",
-      "version": "4.70.0"
+      "version": "4.70.1"
     },
     {
       "bom-ref": "trafilatura==2.2.0",
@@ -3997,7 +3997,7 @@
       "version": "4.16.0"
     },
     {
-      "bom-ref": "tzdata==2026.3",
+      "bom-ref": "tzdata==2026.4",
       "description": "Provider of IANA time zone data",
       "externalReferences": [
         {
@@ -4030,9 +4030,9 @@
         }
       ],
       "name": "tzdata",
-      "purl": "pkg:pypi/tzdata@2026.3",
+      "purl": "pkg:pypi/tzdata@2026.4",
       "type": "library",
-      "version": "2026.3"
+      "version": "2026.4"
     },
     {
       "bom-ref": "tzlocal==5.4.4",
@@ -4361,14 +4361,14 @@
       "dependsOn": [
         "anyio==4.15.1",
         "docstring_parser==0.18.0",
-        "google-auth==2.57.1",
+        "google-auth==2.58.0",
         "httpx2==2.12.0",
-        "jiter==0.16.0",
+        "jiter==0.17.0",
         "pydantic==2.13.5",
         "sniffio==1.3.1",
         "typing_extensions==4.16.0"
       ],
-      "ref": "anthropic==1.4.0"
+      "ref": "anthropic==1.5.0"
     },
     {
       "dependsOn": [
@@ -4382,7 +4382,7 @@
         "dateparser==1.4.3",
         "python-dateutil==2.9.0.post0",
         "pytz==2026.3.post1",
-        "tzdata==2026.3"
+        "tzdata==2026.4"
       ],
       "ref": "arrow==1.4.0"
     },
@@ -4393,7 +4393,7 @@
       "dependsOn": [
         "pytz==2026.3.post1",
         "setuptools==79.0.1",
-        "tzdata==2026.3"
+        "tzdata==2026.4"
       ],
       "ref": "babel==2.18.0"
     },
@@ -4473,7 +4473,7 @@
       "dependsOn": [
         "python-dateutil==2.9.0.post0",
         "pytz==2026.3.post1",
-        "regex==2026.9.3",
+        "regex==2026.9.10",
         "tzlocal==5.4.4"
       ],
       "ref": "dateparser==1.4.3"
@@ -4498,7 +4498,7 @@
       "ref": "faiss-cpu==1.15.0"
     },
     {
-      "ref": "filelock==3.32.5"
+      "ref": "filelock==3.32.6"
     },
     {
       "ref": "flatbuffers==25.12.19"
@@ -4512,7 +4512,7 @@
         "pandas==3.0.5",
         "pyarrow==25.0.1",
         "requests==2.34.2",
-        "tqdm==4.70.0",
+        "tqdm==4.70.1",
         "urllib3==2.7.0"
       ],
       "ref": "fsspec==2026.7.0"
@@ -4526,13 +4526,13 @@
         "requests==2.34.2",
         "urllib3==2.7.0"
       ],
-      "ref": "google-auth==2.57.1"
+      "ref": "google-auth==2.58.0"
     },
     {
       "dependsOn": [
         "anyio==4.15.1",
         "distro==1.9.0",
-        "google-auth==2.57.1",
+        "google-auth==2.58.0",
         "httpx==0.28.1",
         "pillow==12.3.0",
         "protobuf==6.33.6",
@@ -4543,7 +4543,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "google-genai==2.22.0"
+      "ref": "google-genai==2.23.0"
     },
     {
       "dependsOn": [
@@ -4623,7 +4623,7 @@
         "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
-        "filelock==3.32.5",
+        "filelock==3.32.6",
         "fsspec==2026.7.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -4631,11 +4631,11 @@
         "packaging==26.3",
         "pillow==12.3.0",
         "requests==2.34.2",
-        "tqdm==4.70.0",
+        "tqdm==4.70.1",
         "typing_extensions==4.16.0",
         "urllib3==2.7.0"
       ],
-      "ref": "huggingface_hub==1.30.0"
+      "ref": "huggingface_hub==1.31.0"
     },
     {
       "ref": "hyperframe==6.1.0"
@@ -4650,7 +4650,7 @@
       "ref": "isoduration==20.11.0"
     },
     {
-      "ref": "jiter==0.16.0"
+      "ref": "jiter==0.17.0"
     },
     {
       "dependsOn": [
@@ -4693,7 +4693,7 @@
     },
     {
       "dependsOn": [
-        "regex==2026.9.3"
+        "regex==2026.9.10"
       ],
       "ref": "lark==1.3.1"
     },
@@ -4738,13 +4738,13 @@
         "packaging==26.3",
         "protobuf==6.33.6"
       ],
-      "ref": "onnxruntime==1.29.0"
+      "ref": "onnxruntime==1.30.0"
     },
     {
       "dependsOn": [
         "anyio==4.15.1",
         "httpx2==2.12.0",
-        "jiter==0.16.0",
+        "jiter==0.17.0",
         "numpy==2.4.6",
         "pandas==3.0.5",
         "pydantic==2.13.5",
@@ -4753,7 +4753,7 @@
         "urllib3==2.7.0",
         "websockets==16.1.1"
       ],
-      "ref": "openai==3.8.0"
+      "ref": "openai==3.13.0"
     },
     {
       "dependsOn": [
@@ -4784,7 +4784,7 @@
         "pyarrow==25.0.1",
         "python-dateutil==2.9.0.post0",
         "pytz==2026.3.post1",
-        "tzdata==2026.3",
+        "tzdata==2026.4",
         "xlrd==2.0.2",
         "xlsxwriter==3.2.9"
       ],
@@ -4828,7 +4828,7 @@
       "ref": "protobuf==6.33.6"
     },
     {
-      "ref": "psycopg2-binary==2.9.12"
+      "ref": "psycopg2-binary==2.9.13"
     },
     {
       "dependsOn": [
@@ -4857,7 +4857,7 @@
         "pydantic_core==2.46.5",
         "typing-inspection==0.4.4",
         "typing_extensions==4.16.0",
-        "tzdata==2026.3"
+        "tzdata==2026.4"
       ],
       "ref": "pydantic==2.13.5"
     },
@@ -4891,7 +4891,7 @@
         "pillow==12.3.0",
         "typing_extensions==4.16.0"
       ],
-      "ref": "pypdf==6.17.0"
+      "ref": "pypdf==6.18.1"
     },
     {
       "dependsOn": [
@@ -4959,7 +4959,7 @@
       "ref": "referencing==0.37.0"
     },
     {
-      "ref": "regex==2026.9.3"
+      "ref": "regex==2026.9.10"
     },
     {
       "dependsOn": [
@@ -4990,22 +4990,22 @@
       "dependsOn": [
         "EbookLib==0.20",
         "PyYAML==6.0.3",
-        "anthropic==1.4.0",
+        "anthropic==1.5.0",
         "beautifulsoup4==4.15.0",
         "faiss-cpu==1.15.0",
-        "google-genai==2.22.0",
-        "huggingface_hub==1.30.0",
+        "google-genai==2.23.0",
+        "huggingface_hub==1.31.0",
         "jsonschema==4.26.0",
         "odfpy==1.4.1",
-        "onnxruntime==1.29.0",
-        "openai==3.8.0",
+        "onnxruntime==1.30.0",
+        "openai==3.13.0",
         "openpyxl==3.1.5",
         "pillow==12.3.0",
         "pinecone==10.0.0",
-        "psycopg2-binary==2.9.12",
+        "psycopg2-binary==2.9.13",
         "pyarrow==25.0.1",
         "pymilvus==3.0.1",
-        "pypdf==6.17.0",
+        "pypdf==6.18.1",
         "pytesseract==0.3.13",
         "python-docx==1.2.0",
         "python-pptx==1.0.2",
@@ -5026,7 +5026,7 @@
     },
     {
       "dependsOn": [
-        "filelock==3.32.5",
+        "filelock==3.32.6",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -5052,7 +5052,7 @@
     },
     {
       "dependsOn": [
-        "regex==2026.9.3",
+        "regex==2026.9.10",
         "requests==2.34.2"
       ],
       "ref": "tiktoken==0.14.0"
@@ -5062,7 +5062,7 @@
     },
     {
       "dependsOn": [
-        "huggingface_hub==1.30.0",
+        "huggingface_hub==1.31.0",
         "numpy==2.4.6",
         "requests==2.34.2"
       ],
@@ -5072,7 +5072,7 @@
       "dependsOn": [
         "requests==2.34.2"
       ],
-      "ref": "tqdm==4.70.0"
+      "ref": "tqdm==4.70.1"
     },
     {
       "dependsOn": [
@@ -5084,7 +5084,7 @@
         "jusText==3.0.2",
         "lxml==6.1.3",
         "pandas==3.0.5",
-        "tqdm==4.70.0",
+        "tqdm==4.70.1",
         "urllib3==2.7.0"
       ],
       "ref": "trafilatura==2.2.0"
@@ -5102,11 +5102,11 @@
       "ref": "typing_extensions==4.16.0"
     },
     {
-      "ref": "tzdata==2026.3"
+      "ref": "tzdata==2026.4"
     },
     {
       "dependsOn": [
-        "tzdata==2026.3"
+        "tzdata==2026.4"
       ],
       "ref": "tzlocal==5.4.4"
     },
@@ -5183,9 +5183,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.12.4"
+      "version": "0.12.5"
     },
-    "timestamp": "2026-09-07T09:51:46.145696+00:00",
+    "timestamp": "2026-09-13T12:49:20.805610+00:00",
     "tools": {
       "components": [
         {
@@ -5289,7 +5289,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:d071edbd-a4bd-4ae1-9ba0-67ad10c202ab",
+  "serialNumber": "urn:uuid:9eb4adfb-70b2-4b69-891e-2f3fa2d4f26d",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
