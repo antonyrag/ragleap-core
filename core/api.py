@@ -686,3 +686,15 @@ def execute_autonomous_action(req: AutonomyActionRequest):
 def get_autonomy_report():
     """Get today's Autonomous Loop activity report."""
     return {"report": autonomy.generate_autonomy_daily_report()}
+
+
+@app.get("/autonomy/rejection-report")
+def get_autonomy_rejection_report():
+    """
+    Real, honest rejection-pattern report (all-time, grouped by action
+    type/channel/role) - see generate_rejection_pattern_report()'s
+    docstring. Does not suggest or apply any config change - that part
+    (suggest_autonomy_changes()) is intentionally not implemented yet;
+    see its docstring for why.
+    """
+    return {"report": autonomy.generate_rejection_pattern_report()}
