@@ -103,6 +103,17 @@ alone will never show you.
 
 ## 2. neo4j-crash-loop
 
+**Live-tested this session -- these triage steps worked correctly.**
+Deliberately set a malformed `NEO4J_AUTH` value (missing the required
+`/` separator) to produce a genuine `CrashLoopBackOff`, then followed
+the documented triage steps below exactly as written. Unlike the
+db-down and backup-failure sections (both of which had real command
+errors found and fixed this session), this section's `kubectl logs`
+command surfaced the real, actionable error immediately and clearly:
+`Invalid value for NEO4J_AUTH: 'this-is-not-valid-auth-format'`.
+Confirmed recovery afterward: real Cypher query succeeded once the
+correct secret was restored.
+
 **Symptom:** `ragleap-neo4j` pod in `CrashLoopBackOff` or repeatedly
 restarting.
 
