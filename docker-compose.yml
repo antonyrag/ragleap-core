@@ -67,6 +67,40 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - ragleap_core_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+      REDIS_URL: redis://redis:6379/0
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["rq", "worker", "--url", "redis://redis:6379/0", "default"]
+    # Scale horizontally with: docker compose up -d --scale worker=3
+    # (only useful once REDIS_URL is set in .env - the app runs work
+    # inline otherwise, and this container just idles waiting for jobs)
+
 volumes:
   ragleap_core_data:
   ragleap_core_neo4j_data:
+  ragleap_core_redis_data:
