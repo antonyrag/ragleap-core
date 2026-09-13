@@ -1,0 +1,50 @@
+# Reference KEDA ScaledObject for autoscaling ragleap-core's `worker`
+# service in Kubernetes, based on how many jobs are waiting in the Redis
+# "default" queue (core/queue.py). NOT wired into any deployment by
+# this repo - ragleap-core itself deploys via docker-compose.yml, where
+# horizontal scaling is `docker compose up -d --scale worker=N` instead
+# (see that file's `worker` service).
+#
+# This file is a starting point for anyone deploying ragleap-core to
+# Kubernetes (e.g. via a Helm chart) who wants the worker deployment to
+# scale automatically with real queue depth, using KEDA's built-in Redis
+# List Length trigger: https://keda.sh/docs/latest/scalers/redis-lists/
+#
+# Prerequisites this assumes, not provided here:
+# - KEDA installed in the cluster (https://keda.sh/docs/latest/deploy/)
+# - A Kubernetes Deployment named "ragleap-core-worker" already running
+#   the same image/command as docker-compose.yml's `worker` service
+# - A Redis Secret named "ragleap-core-redis" with a "password" key
+#   (omit the authenticationRef block entirely if your Redis has no auth)
+
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ragleap-core-worker-scaler
+spec:
+  scaleTargetRef:
+    name: ragleap-core-worker
+  minReplicaCount: 0
+  maxReplicaCount: 10
+  cooldownPeriod: 60
+  triggers:
+    - type: redis
+      metadata:
+        address: ragleap-core-redis:6379
+        listName: "rq:queue:default"
+        listLength: "5"
+        # ^ target: 1 replica per 5 queued jobs, roughly - tune to your
+        #   actual per-job duration and acceptable latency
+      authenticationRef:
+        name: ragleap-core-redis-trigger-auth
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: ragleap-core-redis-trigger-auth
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: ragleap-core-redis
+      key: password

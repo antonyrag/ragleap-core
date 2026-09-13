@@ -27,6 +27,7 @@ from core.employees import channel_roles as employee_channel_roles
 from core.employees import memory as employee_memory
 from core import workflows
 from core import autonomy
+from core import queue
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
@@ -57,7 +58,9 @@ async def _sync_job():
                 # Per maintainer discussion: we ignore sync failures and retry on the next tick
                 # regardless. If they continue failing, last_sync_status will just remain 'failed'.
                 logger.info("Background sync triggered for source %s (%s)", src['name'], src['id'])
-                await asyncio.to_thread(integrations_service.sync_data_source, src['id'])
+                # Enqueued onto Redis + processed by worker process(es) if REDIS_URL is
+                # set (see core/queue.py); otherwise runs inline exactly as before.
+                await asyncio.to_thread(queue.enqueue_sync, src['id'])
     except Exception as e:
         logger.error("Error in background sync job: %s", e)
 

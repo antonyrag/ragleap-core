@@ -201,6 +201,8 @@ flowchart TD
 
 **[locked]** = commercial/hosted-only feature, not included in this repository. See below for the full breakdown.
 
+**Optional background job queue.** The periodic integration sync job runs inline in the API process by default. Setting `REDIS_URL` switches it to a real Redis queue (RQ) instead, processed by separate `worker` process(es) that scale independently — horizontally via `docker compose up -d --scale worker=N`, or in Kubernetes via a queue-depth autoscaler like KEDA (see `examples/keda-scaledobject-worker.yaml` for a reference `ScaledObject`). Entirely optional — nothing changes if `REDIS_URL` is unset.
+
 ### Repo structure
 
 ```
