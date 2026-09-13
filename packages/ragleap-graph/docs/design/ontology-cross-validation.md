@@ -1,6 +1,14 @@
 # Design: Ontology Cross-Validation (#152)
 
-**Status:** Proposed — needs maintainer decision before implementation.
+> **Status: Implemented (v0.9.0).**
+> This document originally proposed ontology cross-validation for
+> `ragleap-graph`. It shipped in v0.9.0 - see CHANGELOG.md for the full
+> implementation summary. Left here as historical design record. The
+> open questions in Section 6 were resolved as: Q1 dict-of-tuples shape
+> (as proposed), Q2 drop-with-warning (not tag-and-keep), Q3 yes -
+> relation_ontology without entity_types raises ValueError at config
+> time, Q4 yes - applies to both the per-chunk and cross-chunk passes.
+
 **Package:** `ragleap-graph`
 **Depends on / precedent:** entity_types= enforcement (v0.6.3, coerces
 out-of-vocabulary entity types to "UNKNOWN" post-hoc rather than relying

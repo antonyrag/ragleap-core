@@ -28,7 +28,7 @@ related = graph.search_related_entities(["Acme Corp"], max_depth=2)
 ```
 
 <!-- AUTO-STATS:START -->
-**Current: v0.6.5** · 87 tests (86 passed, 1 skipped)
+**Current: v0.9.0** · 108 tests (92 passed without live credentials, 16 skipped)
 <!-- AUTO-STATS:END -->
 
 ## Architecture
@@ -62,6 +62,46 @@ one real-world entity into multiple candidates in the first place — see
 CHANGELOG.md for a real, measured example of this and how `method="llm"`
 avoids it at the source.
 
+## Cross-chunk relation extraction (v0.8.0+)
+
+Relation extraction normally runs per-chunk, so a relation whose evidence
+spans two chunks — e.g. an entity named in chunk 1, referred to only by
+pronoun ("it", "the company") in a later chunk — can be missed. Enable
+`cross_chunk_relations=True` for one additional pass over the full
+document using every entity found across all chunks:
+
+```python
+extraction=ExtractionConfig(
+    method="llm",
+    provider=ProviderConfig(provider="gemini", api_key="...", model="gemini-3.6-flash"),
+    extract_relations=True,
+    cross_chunk_relations=True,
+)
+```
+
+Known limitation: this depends on the provider's reasoning ability to
+resolve the reference correctly. Live-verified working with Gemini;
+small local models (e.g. `qwen2.5:0.5b`) were found, via live testing,
+to produce an incorrect relation rather than none on this task — not
+recommended for this feature without independently verifying its output.
+
+## Ontology cross-validation (v0.9.0+)
+
+Constrain which `relation_type` values are valid between which
+`entity_type` pairs. A relation violating the ontology is dropped (with
+a `WARNING` logged) rather than written to Neo4j; `relation_type` values
+not listed remain unconstrained. Requires `entity_types=` to also be set:
+
+```python
+extraction=ExtractionConfig(
+    method="llm",
+    provider=ProviderConfig(provider="gemini", api_key="...", model="gemini-3.6-flash"),
+    extract_relations=True,
+    entity_types=["ORGANIZATION", "PERSON"],
+    relation_ontology={"FOUNDED_BY": (["ORGANIZATION"], ["PERSON"])},
+)
+```
+
 ## Operations
 
 `ragleap-graph` is a knowledge-graph retrieval library, not a database
@@ -76,7 +116,7 @@ for the reasoning behind this scope decision.
 
 ## Status
 
-v0.6.5. Ported from a real production `GraphService`, adapted for standalone open-source use — see `HANDOFF.md` for the full design history. `ragleap-rag` >=0.12.0 is an optional dependency, required only for `method="llm"`.
+v0.9.0. Ported from a real production `GraphService`, adapted for standalone open-source use — see `HANDOFF.md` for the full design history. `ragleap-rag` >=0.12.0 is an optional dependency, required only for `method="llm"`.
 
 ## License
 

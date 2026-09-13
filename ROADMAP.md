@@ -71,7 +71,7 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 
 ## Phase 7 — `ragleap-graph` hardening (in progress)
 
-`ragleap-graph` (the standalone PyPI library, `packages/ragleap-graph/`) went from v0.1.0 to v0.6.5 across this and prior sessions: LLM-based entity/relation extraction, entity deduplication, hybrid vector+graph retrieval, per-document contribution tracking (idempotent re-upserts), lineage lookup (`find_lineage()`), and per-user data isolation (`user_id=`, with a `backfill_user_id_defaults()` migration for pre-upgrade installs). 87 tests, 86 passing, 1 skipped without `GEMINI_API_KEY`.
+`ragleap-graph` (the standalone PyPI library, `packages/ragleap-graph/`) went from v0.1.0 to v0.9.0 across this and prior sessions: LLM-based entity/relation extraction, entity deduplication, hybrid vector+graph retrieval, per-document contribution tracking (idempotent re-upserts), lineage lookup (`find_lineage()`), per-user data isolation (`user_id=`, with a `backfill_user_id_defaults()` migration for pre-upgrade installs), Postgres-backed audit logging, schema migrations, cross-chunk relation extraction, and ontology cross-validation. 108 tests, 92 passing without live credentials, 16 skipped.
 
 - [x] Core graph indexing, regex + LLM entity extraction, co-occurrence graphs
 - [x] Typed relation extraction (`RELATES_AS` edges), hybrid `GraphRetriever`
@@ -79,10 +79,10 @@ RagLeap's production RAG engine originally lived inside a larger private Django 
 - [x] Per-document idempotency for `CONTAINS`/`CO_OCCURS_WITH`/`RELATES_AS` (fixed real weight-doubling and stale-edge bugs)
 - [x] `find_lineage()` — per-document contribution lookup, previously unreachable via any public method
 - [x] `user_id=` for per-user data isolation across `upsert_document()` and all read methods, plus `backfill_user_id_defaults()` migration
-- [ ] Audit logging (Postgres-backed, `database_url=`, writes+reads) — see [#151](../../issues/151)
-- [ ] Ontology cross-validation between relation types and entity types — blocked on a design decision, see [#152](../../issues/152)
-- [ ] Eval framework (graph-RAG vs vector-RAG accuracy) — new engineering, see [#153](../../issues/153)
-- [ ] Cross-chunk relation extraction — see [#154](../../issues/154)
+- [x] Audit logging (Postgres-backed, `database_url=`, writes+reads) — shipped v0.6.6, [#151](../../issues/151) closed (found already implemented during a documentation-claims audit, the issue description had drifted stale)
+- [x] Ontology cross-validation between relation types and entity types — shipped v0.9.0, see [#152](../../issues/152)
+- [ ] Eval framework (graph-RAG vs vector-RAG accuracy) — new engineering, still needs domain-expert-authored labeled test cases, see [#153](../../issues/153)
+- [x] Cross-chunk relation extraction — shipped v0.8.0, see [#154](../../issues/154)
 
 Also open: rotating a previously-exposed `GEMINI_API_KEY` ([#155](../../issues/155)), deciding how a future `ragleap-voice` package should relate to the existing `channels/voice/` code ([#156](../../issues/156)), and confirming the `/simple/` PyPI proxy serves real package data ([#157](../../issues/157)).
 
