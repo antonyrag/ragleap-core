@@ -145,6 +145,7 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | 🔁 **Provider fallback** | Automatically retries with a backup LLM provider if the primary fails |
 | 💰 **Token usage reporting** | Real per-call token counts from the provider, plus context-size budget trimming |
 | 🧑‍💼 **AI Employees** | Role-based agents (46 default roles) with persistent business-context memory, wired into `/chat` via `role=<role>` |
+| 🛠️ **Build your own AI Employee** | Define a fully custom role (any name, personality, channels, skill tags) via `PATCH /employees/{role}` - no fork, no code change. Verified live: create, retrieve, and list a new role end-to-end. |
 | 🔗 **n8n workflow automation** | Fire a webhook after the AI replies on WhatsApp/Telegram/Discord — no-code automations triggered directly from a conversation |
 ## Architecture
 
