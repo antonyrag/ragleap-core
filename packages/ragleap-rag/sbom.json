@@ -5185,7 +5185,7 @@
       "type": "library",
       "version": "0.12.5"
     },
-    "timestamp": "2026-09-13T12:49:20.805610+00:00",
+    "timestamp": "2026-09-14T10:13:39.026633+00:00",
     "tools": {
       "components": [
         {
@@ -5289,7 +5289,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:9eb4adfb-70b2-4b69-891e-2f3fa2d4f26d",
+  "serialNumber": "urn:uuid:b6e4f648-5964-4b7b-98af-2cd5dab98904",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
