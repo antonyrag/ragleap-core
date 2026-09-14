@@ -1,0 +1,80 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ragleap-prometheus-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi   # UNVERIFIED -- size for real retention needs, matches ragleap-ops's PVC-sizing convention
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-prometheus
+  labels:
+    app: ragleap-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragleap-prometheus
+  template:
+    metadata:
+      labels:
+        app: ragleap-prometheus
+    spec:
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: {{ .Values.prometheus.image }}
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time={{ .Values.prometheus.retention }}"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: data
+              mountPath: /prometheus
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9090
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9090
+            initialDelaySeconds: 15
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: ragleap-prometheus-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: ragleap-prometheus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragleap-prometheus
+  labels:
+    app: ragleap-prometheus
+spec:
+  selector:
+    app: ragleap-prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+{{- end }}
