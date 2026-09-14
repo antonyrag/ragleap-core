@@ -1,0 +1,15 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ragleap-grafana-datasources
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://ragleap-prometheus:9090
+        isDefault: true
+{{- end }}
