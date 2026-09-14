@@ -5,6 +5,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.6] - 2026-09-13
+
+### Fixed
+
+- `EmbeddingConfig(provider="gemini", dimensions=...)` silently ignored `dimensions=` - `_embed_gemini()` and `_embed_batch_gemini()` never passed it to the real `google.genai` client call at all, despite `dimensions=` being validated as *required* at config-construction time (`__post_init__` raises `ValueError` if unset). Every other provider path that supports a configurable dimension (`openai`) correctly passed it through; Gemini specifically did not. Concretely: requesting `dimensions=768` against `gemini-embedding-001` silently returned the model's full 3072-dimension default instead, which would fail loudly downstream (a `psycopg2.errors.DataException: expected N dimensions, not 3072` against a pgvector column sized for the requested dimension) rather than fail at the point of the actual mistake.
+- Fix: both `_embed_gemini()` and `_embed_batch_gemini()` now pass `config=google.genai.types.EmbedContentConfig(output_dimensionality=self.config.dimensions)` to the real API call, matching the documented `google-genai` SDK parameter for controlling output embedding size.
+- Found while live-testing the #153 eval framework tooling (`ragleap-rag` + `ragleap-graph` comparison) against a real Gemini embedding call - a genuine live run surfaced this, not a code read.
+
+### Verified
+
+- Full suite: 252 passed, zero regressions.
+- Live-verified against the real `google.genai` API: a real embed call requesting `dimensions=768` now actually returns a 768-length vector (confirmed by successful insertion into a pgvector column sized to 768, which previously failed with the dimension mismatch above).
+
 ## [0.12.5] - 2026-09-13
 
 ### Fixed

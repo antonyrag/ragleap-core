@@ -169,14 +169,24 @@ class EmbeddingService:
 
     def _embed_gemini(self, text: str) -> Optional[List[float]]:
         import google.genai as genai
+        from google.genai import types as genai_types
         client = genai.Client(api_key=self.config.api_key)
-        response = client.models.embed_content(model=self.config.model, contents=text)
+        response = client.models.embed_content(
+            model=self.config.model,
+            contents=text,
+            config=genai_types.EmbedContentConfig(output_dimensionality=self.config.dimensions),
+        )
         return response.embeddings[0].values
 
     def _embed_batch_gemini(self, texts: List[str]) -> List[Optional[List[float]]]:
         import google.genai as genai
+        from google.genai import types as genai_types
         client = genai.Client(api_key=self.config.api_key)
-        response = client.models.embed_content(model=self.config.model, contents=texts)
+        response = client.models.embed_content(
+            model=self.config.model,
+            contents=texts,
+            config=genai_types.EmbedContentConfig(output_dimensionality=self.config.dimensions),
+        )
         return [e.values for e in response.embeddings]
 
     def _embed_openai_compatible(self, text: str) -> Optional[List[float]]:
