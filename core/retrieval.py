@@ -257,11 +257,18 @@ class VectorRetrievalService:
         top_k: int = 5,
         document_id: Optional[str] = None,
         graph_boost: float = 0.15,
+        indirect_graph_boost: float = 0.25,
     ) -> List[Dict]:
         """
         Vector search, then boost chunks whose document is linked via the
         knowledge graph to entities mentioned in the query. Falls back to
         pure vector search if the graph is unavailable or finds nothing.
+
+        Direct matches (document contains a query entity) get graph_boost.
+        Indirect matches (document contains an entity 1-2 hops away from
+        a query entity, via search_related_entities) get the smaller
+        indirect_graph_boost instead. A document that qualifies as both
+        only receives the direct boost.
 
         Kept for backward compatibility — search_hybrid_chunks() is the
         recommended method going forward, since it includes this same
@@ -273,20 +280,33 @@ class VectorRetrievalService:
         if not candidates:
             return []
 
+        linked_doc_ids = set()
+        indirect_doc_ids = set()
         try:
             entities = graph_service.extract_query_entities(query_text)
-            linked_doc_ids = set()
             if entities:
                 linked_docs = graph_service.find_documents_by_entities(entities)
                 linked_doc_ids = {d["document_id"] for d in linked_docs} if linked_docs else set()
+
+                related_entities = graph_service.search_related_entities(entities)
+                related_entity_names = [e["entity_name"] for e in related_entities] if related_entities else []
+
+                if related_entity_names:
+                    indirect_docs = graph_service.find_documents_by_entities(related_entity_names)
+                    indirect_doc_ids = {d["document_id"] for d in indirect_docs} if indirect_docs else set()
         except Exception as e:
             logger.warning(f"Graph lookup failed during retrieval (non-fatal): {e}")
             linked_doc_ids = set()
+            indirect_doc_ids = set()
 
         for chunk in candidates:
             if chunk["document_id"] in linked_doc_ids:
                 chunk["similarity_score"] = min(1.0, chunk["similarity_score"] + graph_boost)
                 chunk["graph_boosted"] = True
+            elif chunk["document_id"] in indirect_doc_ids:
+                chunk["similarity_score"] = min(1.0, chunk["similarity_score"] + indirect_graph_boost)
+                chunk["graph_boosted"] = True
+                chunk["graph_boost_type"] = "indirect"
 
         candidates.sort(key=lambda c: c["similarity_score"], reverse=True)
         return candidates[:top_k]
