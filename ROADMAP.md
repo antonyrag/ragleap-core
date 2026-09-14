@@ -138,11 +138,19 @@ is being sequenced deliberately:
    templates to contributors.
 4. Only then invite wide contribution on actual vertical role templates.
 
-As of this guardrail landing, no vertical role template exists yet —
-`SENSITIVE_DOMAIN_ROLES` is an empty set, ready for contributors to opt
-new sensitive role types into, not a set of shipped roles.
+**Update:** `SENSITIVE_DOMAIN_ROLES` is no longer an empty set — 7 roles
+(legal_intake, healthcare_intake, insurance_agent, compliance_officer,
+veterinary_intake, tax_preparation_intake, immigration_intake) have
+since shipped with the structural guardrail from step 1 above (forced
+`semi`/`off` autonomy mode) and per-role compliance memory seeds. This
+section's text below predates that and is kept as-is rather than quietly
+edited, because whether the open questions below were actually worked
+through before these roles shipped is not confirmed anywhere in this
+repo's history as of this update - flagging that honestly rather than
+either claiming they were resolved or pretending the roles don't exist.
 
-Open questions that need real answers before any vertical role ships:
+Open questions that need real, confirmed answers - status of each as of
+this update: unconfirmed, not "already handled":
 
 - **Data handling boundaries** — how do we validate that a role's data
   access actually stays within a defined boundary (e.g. a healthcare
