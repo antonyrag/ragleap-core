@@ -5,6 +5,18 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Prometheus server itself, and Grafana -- both live-verified end-to-end on a real kind cluster.** `values.yaml` already anticipated this config (image, retention, scrapeInterval) but the actual Prometheus Deployment/Service/PVC templates never existed -- only the exporter and a scrape ConfigMap with nothing consuming it. Added, plus Grafana (Deployment, Service, Secret for admin credentials with a placeholder value and a clear REPLACE comment, and a datasource ConfigMap pointing at the new Prometheus service).
+- Real UIDs confirmed via `docker run` before use, not assumed: `prom/prometheus:v2.55.1` -> uid=65534(nobody), `grafana/grafana:11.3.1` -> uid=472(grafana).
+- Deliberately did NOT enable `readOnlyRootFilesystem` on either -- per this session's own neo4j finding, blindly enabling this flag without investigating what each image's entrypoint writes on startup is a real, non-obvious risk. Needs its own dedicated investigation before enabling here, same as neo4j.
+
+### Verified
+
+- **Full pipeline confirmed live, layer by layer, not just \"pods are Running\":** Prometheus's own `/api/v1/targets` endpoint confirmed `\"health\":\"up\"` for the postgres exporter target with a real recent scrape timestamp and no error. `pg_up` queried successfully through Prometheus's own query API (not just the exporter directly, like the earlier verification). Grafana's `/api/health` confirmed `\"database\":\"ok\"`. Grafana's `/api/datasources` confirmed the Prometheus datasource genuinely registered and authenticated login working. Finally, queried `pg_up` through Grafana's own datasource proxy (`/api/datasources/proxy/uid/.../api/v1/query`) -- the real, complete path a dashboard would actually use -- and got the correct live result. Every layer independently verified working, not assumed from the layer below it looking healthy.
+- As an unplanned bonus confirmation: this session's earlier neo4j backup scale-up fix was observed working correctly on its own, unprompted, during this deploy -- the scheduled `ragleap-neo4j-backup` CronJob fired, completed cleanly (0 restarts, both containers), and neo4j cycled through a fresh pod without any manual intervention needed.
+
+
 ### Fixed
 
 - `postgres-exporter` had `runAsNonRoot: true` with no `runAsUser` set. The image's Dockerfile sets its user by name (`nobody`) rather than a numeric UID, which Kubernetes cannot verify against `runAsNonRoot` without an explicit numeric value -- failed on real cluster with `container has runAsNonRoot and image has non-numeric user (nobody), cannot verify user is non-root`. Fixed with `runAsUser: 65534`, confirmed via `docker run --rm --entrypoint id quay.io/prometheuscommunity/postgres-exporter:v0.15.0` (uid=65534(nobody)), not assumed. Distinct bug pattern from the earlier root-default-image issues found in `ragleap-ops` -- same root problem (runAsNonRoot needs a numeric UID) but a different underlying cause.
