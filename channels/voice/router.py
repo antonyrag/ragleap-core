@@ -20,6 +20,7 @@ from core.chat import ask
 from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
 from core.employees.learning import record_role_memory_outcome
 from core.employees.channel_roles import resolve_role
+from core.employees.tools import TOOL_REGISTRY
 from channels.voice.audio import transcribe_audio, text_to_speech
 from channels.voice.config import get_voice_config
 
@@ -173,13 +174,19 @@ async def handle_call(ws):
                                 record_role_memory_outcome(last_ids, success=feedback)
                             answer = "Thanks for the feedback!" if feedback else "Thanks, I'll do better next time."
                         else:
-                            try:
-                                result = ask(transcript, role=resolve_role("voice", transcript))
-                                answer = result.get("answer", "Sorry, I couldn't generate an answer.")
-                                record_last_reply("voice", stream_sid, result.get("role_memory_ids", []))
-                            except Exception as e:
-                                logger.error(f"Voice: error answering: {e}", exc_info=True)
-                                answer = "Sorry, something went wrong. Please try again."
+                            escalation = TOOL_REGISTRY["escalate_to_owner"].handler(
+                                channel="voice", target=stream_sid, message_text=transcript
+                            )
+                            if escalation and escalation.get("status") in ("executed", "pending_approval"):
+                                answer = "I've flagged this for a team member -- they'll follow up with you soon."
+                            else:
+                                try:
+                                    result = ask(transcript, role=resolve_role("voice", transcript))
+                                    answer = result.get("answer", "Sorry, I couldn't generate an answer.")
+                                    record_last_reply("voice", stream_sid, result.get("role_memory_ids", []))
+                                except Exception as e:
+                                    logger.error(f"Voice: error answering: {e}", exc_info=True)
+                                    answer = "Sorry, something went wrong. Please try again."
 
                         logger.info(f"Voice: answer: {answer[:120]}")
                         await speak_reply(ws, stream_sid, answer, cfg)
