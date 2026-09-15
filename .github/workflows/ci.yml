@@ -33,7 +33,7 @@ jobs:
           NEO4J_PASSWORD=ragleapgraph
           ENVEOF
       - name: Build and start stack
-        run: docker compose up --build -d
+        run: docker compose --profile full up --build -d
       - name: Wait for services to be healthy
         run: |
           for i in {1..30}; do
@@ -90,7 +90,7 @@ jobs:
         run: docker compose logs
       - name: Tear down
         if: always()
-        run: docker compose down -v
+        run: docker compose --profile full down -v
   core-tests:
     runs-on: ubuntu-latest
     services:
