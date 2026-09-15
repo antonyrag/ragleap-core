@@ -17,21 +17,22 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 /**
  * Generates a grounded answer using the configured provider, with an
- * optional fallback chain, and real token usage reporting. Java port
- * of ragleap-rag's generation.py - GenerationService.
+ * optional fallback chain, streaming, and real token usage reporting.
+ * Java port of ragleap-rag's generation.py - GenerationService.
  *
  * Chunks are represented as com.ragleap.rag.vectorstore.SearchResult
  * rather than a duplicate shape - its fields (text, documentName,
  * chunkIndex, documentId, chunkId) already match exactly what the
  * Python source's chunk dicts carry into this class.
  *
- * generateAnswerStream() (streaming) and describeImage() (Gemini
- * vision) are deliberate follow-up PRs, same split strategy used for
- * the rest of this module.
+ * describeImage() (Gemini vision) is a deliberate follow-up PR, same
+ * split strategy used for the rest of this module.
  */
 public class GenerationService {
 
@@ -45,12 +46,6 @@ public class GenerationService {
 
     private static final String DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
     private static final String DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com";
-
-    // Generous on purpose: live-verified on the project's VPS that a warm,
-    // CPU-only qwen2.5:0.5b took ~42s for a 60-token completion, and a
-    // cold/contended call took ~130s (host was showing ~78% CPU steal at
-    // the time - genuine resource starvation, not a code issue). 180s
-    // gives real headroom above the worst observed case.
     private static final int REQUEST_TIMEOUT_SECONDS = 180;
 
     private final ProviderConfig primary;
@@ -75,13 +70,6 @@ public class GenerationService {
                 DEFAULT_GEMINI_BASE_URL, DEFAULT_ANTHROPIC_BASE_URL);
     }
 
-    /**
-     * Package-private constructor allowing tests to inject a stub
-     * HttpClient and point the gemini/anthropic base URLs at a local
-     * stub server instead of the real provider hosts - same
-     * package-private test-visibility pattern used by EmbeddingConfig/
-     * EmbeddingService/ProviderConfig (see handover Part 2.8).
-     */
     GenerationService(ProviderConfig primary, List<ProviderConfig> fallbacks,
                         double defaultTemperature, int defaultMaxTokens,
                         int maxContextChars, String systemPrompt,
@@ -97,38 +85,13 @@ public class GenerationService {
         this.anthropicBaseUrl = anthropicBaseUrl;
     }
 
-    public ProviderConfig getPrimary() {
-        return primary;
-    }
+    public ProviderConfig getPrimary() { return primary; }
+    public List<ProviderConfig> getFallbacks() { return fallbacks; }
+    public double getDefaultTemperature() { return defaultTemperature; }
+    public int getDefaultMaxTokens() { return defaultMaxTokens; }
+    public int getMaxContextChars() { return maxContextChars; }
+    public String getSystemPrompt() { return systemPrompt; }
 
-    public List<ProviderConfig> getFallbacks() {
-        return fallbacks;
-    }
-
-    public double getDefaultTemperature() {
-        return defaultTemperature;
-    }
-
-    public int getDefaultMaxTokens() {
-        return defaultMaxTokens;
-    }
-
-    public int getMaxContextChars() {
-        return maxContextChars;
-    }
-
-    public String getSystemPrompt() {
-        return systemPrompt;
-    }
-
-    /**
-     * The ordered list of providers to try. If overrideProvider is
-     * given, it's the only entry - otherwise it's primary followed by
-     * every fallback whose provider name differs from primary's.
-     * Matches the Python source exactly: this filters fallbacks against
-     * primary only, not against each other - two fallbacks with the
-     * same provider name both stay in the chain.
-     */
     List<ProviderConfig> chain(ProviderConfig overrideProvider) {
         if (overrideProvider != null) {
             return List.of(overrideProvider);
@@ -143,13 +106,6 @@ public class GenerationService {
         return result;
     }
 
-    /**
-     * Trims the chunk list to fit within maxContextChars, keeping
-     * chunks in order and always keeping at least the first one even
-     * if it alone exceeds the budget (matches the Python source's
-     * "&& kept" guard - the break only fires once something is
-     * already kept).
-     */
     List<SearchResult> trimChunksToBudget(List<SearchResult> chunks) {
         if (maxContextChars <= 0 || chunks == null || chunks.isEmpty()) {
             return chunks;
@@ -173,7 +129,6 @@ public class GenerationService {
         return kept;
     }
 
-    /** Builds the numbered [Source N: ...] context block sent to the model. */
     String buildContext(List<SearchResult> chunks) {
         if (chunks == null || chunks.isEmpty()) {
             return "No relevant context was found.";
@@ -189,10 +144,6 @@ public class GenerationService {
         return String.join("\n\n", parts);
     }
 
-    /**
-     * Structured citation list mapping each [Source N] label used in
-     * the prompt to the specific chunk it refers to.
-     */
     List<Citation> buildCitations(List<SearchResult> chunks) {
         List<Citation> citations = new ArrayList<>();
         if (chunks == null) {
@@ -209,7 +160,6 @@ public class GenerationService {
         return citations;
     }
 
-    /** Assembles the full prompt sent to the model: instructions, history, context, question. */
     String buildPrompt(String query, List<SearchResult> chunks, String systemPromptOverride, String historyPrefix) {
         String context = buildContext(chunks);
         String instructions = systemPromptOverride != null ? systemPromptOverride : this.systemPrompt;
@@ -217,14 +167,6 @@ public class GenerationService {
         return instructions + "\n\n" + prefix + "Context:\n" + context + "\n\nQuestion: " + query + "\nAnswer:";
     }
 
-    /**
-     * Generates a grounded answer. Tries primary, then each fallback in
-     * order (or only overrideProvider if given), returning the first
-     * success. If every provider fails, returns a GenerationResult
-     * whose answer explains that rather than throwing - matching the
-     * Python source's "never blow up the caller for a provider outage"
-     * behavior.
-     */
     public GenerationResult generateAnswer(String query, List<SearchResult> chunks, Double temperature,
             ProviderConfig overrideProvider, Integer maxTokens, String historyPrefix,
             String systemPromptOverride, JsonNode responseFormat) {
@@ -266,6 +208,42 @@ public class GenerationService {
                 null, responseFormat != null ? Boolean.FALSE : null, null, null);
     }
 
+    public void generateAnswerStream(String query, List<SearchResult> chunks, Double temperature,
+            ProviderConfig overrideProvider, Integer maxTokens, String historyPrefix,
+            String systemPromptOverride, Consumer<String> onPiece) {
+
+        double temp = temperature != null ? temperature : defaultTemperature;
+        int tokens = maxTokens != null ? maxTokens : defaultMaxTokens;
+
+        List<SearchResult> trimmed = trimChunksToBudget(chunks);
+        String prompt = buildPrompt(query, trimmed, systemPromptOverride, historyPrefix);
+
+        Exception lastError = null;
+        for (ProviderConfig provider : chain(overrideProvider)) {
+            boolean[] yielded = {false};
+            try {
+                streamProvider(provider, prompt, temp, tokens, piece -> {
+                    yielded[0] = true;
+                    onPiece.accept(piece);
+                });
+                return;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                lastError = e;
+            } catch (Exception e) {
+                lastError = e;
+                logger.warning(() -> "Provider '" + provider.getProvider() + "' failed during streaming: " + e.getMessage());
+                if (yielded[0]) {
+                    onPiece.accept("\n[Error: generation interrupted — " + e.getMessage() + "]");
+                    return;
+                }
+            }
+        }
+
+        onPiece.accept("Sorry, all configured providers failed. Last error: "
+                + (lastError != null ? lastError.getMessage() : "unknown"));
+    }
+
     private ProviderCallResult callProvider(ProviderConfig provider, String prompt, double temperature,
             int maxTokens, JsonNode responseFormat) throws IOException, InterruptedException {
         switch (provider.getProvider()) {
@@ -275,6 +253,20 @@ public class GenerationService {
                 return callAnthropic(provider, prompt, temperature, maxTokens, responseFormat);
             default:
                 return callOpenAiCompatible(provider, prompt, temperature, maxTokens, responseFormat);
+        }
+    }
+
+    private void streamProvider(ProviderConfig provider, String prompt, double temperature, int maxTokens,
+            Consumer<String> onPiece) throws IOException, InterruptedException {
+        switch (provider.getProvider()) {
+            case "gemini":
+                streamGemini(provider, prompt, temperature, maxTokens, onPiece);
+                break;
+            case "anthropic":
+                streamAnthropic(provider, prompt, temperature, maxTokens, onPiece);
+                break;
+            default:
+                streamOpenAiCompatible(provider, prompt, temperature, maxTokens, onPiece);
         }
     }
 
@@ -315,6 +307,30 @@ public class GenerationService {
         } catch (Exception e) {
             return new ProviderCallResult(text, usage, null, Boolean.FALSE, "native", null);
         }
+    }
+
+    private void streamGemini(ProviderConfig provider, String prompt, double temperature, int maxTokens,
+            Consumer<String> onPiece) throws IOException, InterruptedException {
+        ObjectNode body = MAPPER.createObjectNode();
+        ArrayNode contents = body.putArray("contents");
+        ObjectNode content = contents.addObject();
+        ArrayNode parts = content.putArray("parts");
+        parts.addObject().put("text", prompt);
+        ObjectNode generationConfig = body.putObject("generationConfig");
+        generationConfig.put("temperature", temperature);
+        generationConfig.put("maxOutputTokens", maxTokens);
+
+        String base = geminiBaseUrl != null ? geminiBaseUrl : DEFAULT_GEMINI_BASE_URL;
+        String url = base + "/v1beta/models/" + provider.getModel()
+                + ":streamGenerateContent?alt=sse&key=" + provider.getApiKey();
+
+        consumeSse(url, body.toString(), null, data -> {
+            JsonNode node = parseOrThrow(data);
+            String text = node.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText(null);
+            if (text != null && !text.isEmpty()) {
+                onPiece.accept(text);
+            }
+        });
     }
 
     private ProviderCallResult callAnthropic(ProviderConfig provider, String prompt, double temperature,
@@ -377,6 +393,39 @@ public class GenerationService {
         return new ProviderCallResult(text, usage, null, null, null, null);
     }
 
+    private void streamAnthropic(ProviderConfig provider, String prompt, double temperature, int maxTokens,
+            Consumer<String> onPiece) throws IOException, InterruptedException {
+        ObjectNode body = MAPPER.createObjectNode();
+        body.put("model", provider.getModel());
+        body.put("max_tokens", maxTokens);
+        body.put("temperature", temperature);
+        body.put("stream", true);
+        ArrayNode messages = body.putArray("messages");
+        ObjectNode userMsg = messages.addObject();
+        userMsg.put("role", "user");
+        userMsg.put("content", prompt);
+
+        String base = anthropicBaseUrl != null ? anthropicBaseUrl : DEFAULT_ANTHROPIC_BASE_URL;
+        String url = base + "/v1/messages";
+
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("x-api-key", provider.getApiKey());
+        headers.put("anthropic-version", "2023-06-01");
+
+        consumeSse(url, body.toString(), headers, data -> {
+            JsonNode node = parseOrThrow(data);
+            if ("content_block_delta".equals(node.path("type").asText())) {
+                JsonNode delta = node.path("delta");
+                if ("text_delta".equals(delta.path("type").asText())) {
+                    String text = delta.path("text").asText(null);
+                    if (text != null && !text.isEmpty()) {
+                        onPiece.accept(text);
+                    }
+                }
+            }
+        });
+    }
+
     private ProviderCallResult callOpenAiCompatible(ProviderConfig provider, String prompt, double temperature,
             int maxTokens, JsonNode responseFormat) throws IOException, InterruptedException {
         String url = provider.getBaseUrl() + "/chat/completions";
@@ -406,7 +455,6 @@ public class GenerationService {
                 }
             }
 
-            // Strict mode was rejected by the provider - fall back to json_object mode.
             ObjectNode fallbackBody = buildOpenAiBody(provider, prompt, temperature, maxTokens);
             fallbackBody.putObject("response_format").put("type", "json_object");
             JsonNode fallbackResp = postJson(url, fallbackBody.toString(), headers);
@@ -425,6 +473,29 @@ public class GenerationService {
         String content = resp.path("choices").path(0).path("message").path("content").asText("");
         Usage usage = parseOpenAiUsage(resp);
         return new ProviderCallResult(content, usage, null, null, null, null);
+    }
+
+    private void streamOpenAiCompatible(ProviderConfig provider, String prompt, double temperature, int maxTokens,
+            Consumer<String> onPiece) throws IOException, InterruptedException {
+        ObjectNode body = buildOpenAiBody(provider, prompt, temperature, maxTokens);
+        body.put("stream", true);
+
+        String url = provider.getBaseUrl() + "/chat/completions";
+        Map<String, String> headers = new LinkedHashMap<>();
+        if (provider.getApiKey() != null) {
+            headers.put("Authorization", "Bearer " + provider.getApiKey());
+        }
+
+        consumeSse(url, body.toString(), headers, data -> {
+            if ("[DONE]".equals(data)) {
+                return;
+            }
+            JsonNode node = parseOrThrow(data);
+            String delta = node.path("choices").path(0).path("delta").path("content").asText(null);
+            if (delta != null && !delta.isEmpty()) {
+                onPiece.accept(delta);
+            }
+        });
     }
 
     private static ObjectNode buildOpenAiBody(ProviderConfig provider, String prompt, double temperature, int maxTokens) {
@@ -448,7 +519,14 @@ public class GenerationService {
                 u.path("total_tokens").asInt(0));
     }
 
-    /** Sends the request; throws IOException if the response is not 2xx. */
+    private static JsonNode parseOrThrow(String json) {
+        try {
+            return MAPPER.readTree(json);
+        } catch (Exception e) {
+            throw new RuntimeException("Malformed SSE data payload: " + e.getMessage(), e);
+        }
+    }
+
     private JsonNode postJson(String url, String body, Map<String, String> headers)
             throws IOException, InterruptedException {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
@@ -465,13 +543,38 @@ public class GenerationService {
         return MAPPER.readTree(response.body());
     }
 
-    /** Like postJson, but returns null instead of throwing on a non-2xx response. */
     private JsonNode postJsonAllowError(String url, String body, Map<String, String> headers)
             throws InterruptedException {
         try {
             return postJson(url, body, headers);
         } catch (IOException e) {
             return null;
+        }
+    }
+
+    private void consumeSse(String url, String body, Map<String, String> headers, Consumer<String> onDataLine)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(REQUEST_TIMEOUT_SECONDS))
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+        if (headers != null) {
+            headers.forEach(builder::header);
+        }
+        HttpResponse<Stream<String>> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofLines());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("Provider returned HTTP " + response.statusCode() + " during streaming");
+        }
+        try (Stream<String> lines = response.body()) {
+            for (String line : (Iterable<String>) lines::iterator) {
+                if (line.startsWith("data:")) {
+                    String data = line.substring(5).trim();
+                    if (!data.isEmpty()) {
+                        onDataLine.accept(data);
+                    }
+                }
+            }
         }
     }
 
