@@ -37,7 +37,7 @@ TARGET_LANGUAGES = {
     "zh-cn": "Chinese (Simplified)", "zh-tw": "Chinese (Traditional)",
 }
 
-MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-3.5-flash")
 OUTPUT_DIR = "readmes"
 
 

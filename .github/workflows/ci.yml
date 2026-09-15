@@ -25,7 +25,7 @@ jobs:
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY_CI }}
           GEMINI_EMBEDDING_MODEL=models/gemini-embedding-001
           EMBEDDING_DIMENSIONS=3072
-          GEMINI_CHAT_MODEL=gemini-2.5-flash
+          GEMINI_CHAT_MODEL=gemini-3.5-flash
           DATABASE_URL=postgresql://ragleap:ragleap@db:5432/ragleap_core
           LLM_PROVIDER=gemini
           NEO4J_URI=bolt://neo4j:7687
