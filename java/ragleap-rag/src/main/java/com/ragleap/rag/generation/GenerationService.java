@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.Base64;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 
@@ -31,8 +32,8 @@ import java.util.stream.Stream;
  * chunkIndex, documentId, chunkId) already match exactly what the
  * Python source's chunk dicts carry into this class.
  *
- * describeImage() (Gemini vision) is a deliberate follow-up PR, same
- * split strategy used for the rest of this module.
+ * describeImage() uses Gemini specifically for vision, regardless of
+ * the configured text-generation primary/fallback chain.
  */
 public class GenerationService {
 
@@ -242,6 +243,68 @@ public class GenerationService {
 
         onPiece.accept("Sorry, all configured providers failed. Last error: "
                 + (lastError != null ? lastError.getMessage() : "unknown"));
+    }
+
+    public String describeImage(byte[] imageBytes) throws IOException, InterruptedException {
+        return describeImage(imageBytes, "image/jpeg", null);
+    }
+
+    public String describeImage(byte[] imageBytes, String mimeType) throws IOException, InterruptedException {
+        return describeImage(imageBytes, mimeType, null);
+    }
+
+    /**
+     * Uses a vision-capable model to describe an image's contents -
+     * for photos, diagrams, or charts with no readable text to OCR.
+     * Java port of describe_image(). Currently only supports Gemini
+     * as the vision provider (the primary provider's Gemini config is
+     * used regardless of what the text-generation primary/fallback
+     * chain is set to) - matches the Python source exactly, including
+     * using chain(null) rather than any override.
+     *
+     * Unlike generateAnswer/generateAnswerStream, this does NOT
+     * swallow provider failures into a fallback message - it
+     * propagates real exceptions directly, matching the Python
+     * source's plain raise (no try/except around the network call
+     * here).
+     */
+    public String describeImage(byte[] imageBytes, String mimeType, String prompt)
+            throws IOException, InterruptedException {
+        ProviderConfig geminiConfig = null;
+        for (ProviderConfig config : chain(null)) {
+            if ("gemini".equals(config.getProvider())) {
+                geminiConfig = config;
+                break;
+            }
+        }
+        if (geminiConfig == null) {
+            throw new IllegalArgumentException(
+                    "Vision captioning currently requires a Gemini provider configured " +
+                    "(as primary or a fallback) - no Gemini config found in this chain.");
+        }
+
+        String instruction = prompt != null ? prompt
+                : "Describe this image in detail, including any visible text, objects, people, charts, or diagrams.";
+
+        ObjectNode body = MAPPER.createObjectNode();
+        ArrayNode contents = body.putArray("contents");
+        ObjectNode content = contents.addObject();
+        ArrayNode parts = content.putArray("parts");
+        ObjectNode inlineDataPart = parts.addObject();
+        ObjectNode inlineData = inlineDataPart.putObject("inline_data");
+        inlineData.put("mime_type", mimeType);
+        inlineData.put("data", Base64.getEncoder().encodeToString(imageBytes));
+        parts.addObject().put("text", instruction);
+
+        String base = geminiBaseUrl != null ? geminiBaseUrl : DEFAULT_GEMINI_BASE_URL;
+        String url = base + "/v1beta/models/" + geminiConfig.getModel() + ":generateContent?key=" + geminiConfig.getApiKey();
+
+        JsonNode resp = postJson(url, body.toString(), null);
+        String text = resp.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText("").strip();
+        if (text.isEmpty()) {
+            throw new IllegalStateException("Vision model returned no description for this image.");
+        }
+        return text;
     }
 
     private ProviderCallResult callProvider(ProviderConfig provider, String prompt, double temperature,
