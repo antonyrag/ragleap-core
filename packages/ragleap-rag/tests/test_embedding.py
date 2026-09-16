@@ -60,6 +60,35 @@ def test_cohere_works_with_explicit_model_and_dimensions():
     assert config.dimensions == 1024
 
 
+def test_cohere_defaults_base_url_to_first_party_when_unset():
+    """Regression test for antonyrag/ragleap-core#360's CO1 finding:
+    base_url was accepted by EmbeddingConfig but silently never read by
+    _embed_cohere -- the wire request always went to the first-party
+    URL regardless of what base_url was set to. Default behavior for
+    existing users (no base_url passed) must stay unchanged."""
+    config = EmbeddingConfig(provider="cohere", api_key="fake-key", model="embed-english-v3.0", dimensions=1024)
+    assert config.base_url == "https://api.cohere.ai/v1"
+
+
+def test_cohere_honors_explicit_base_url():
+    """The actual bug fix: a caller-supplied base_url must now be used
+    (previously silently ignored, see #360)."""
+    from unittest.mock import patch, MagicMock
+
+    config = EmbeddingConfig(
+        provider="cohere", api_key="fake-key", model="embed-english-v3.0",
+        dimensions=1024, base_url="https://gateway.example.com/v1",
+    )
+    service = EmbeddingService(config)
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"embeddings": [[0.1, 0.2, 0.3, 0.4]]}
+    with patch("requests.post", return_value=mock_response) as mock_post:
+        service._embed_cohere(["hello"])
+        called_url = mock_post.call_args[0][0]
+        assert called_url == "https://gateway.example.com/v1/embed"
+
+
 def test_voyage_requires_explicit_model_and_dimensions():
     with pytest.raises(ValueError, match="No embedding model specified"):
         EmbeddingConfig(provider="voyage", api_key="fake-key")
@@ -69,6 +98,29 @@ def test_voyage_works_with_explicit_model_and_dimensions():
     config = EmbeddingConfig(provider="voyage", api_key="fake-key", model="voyage-3", dimensions=1024)
     assert config.model == "voyage-3"
     assert config.dimensions == 1024
+
+
+def test_voyage_defaults_base_url_to_first_party_when_unset():
+    """Same regression coverage as cohere's, for V1's finding."""
+    config = EmbeddingConfig(provider="voyage", api_key="fake-key", model="voyage-3", dimensions=1024)
+    assert config.base_url == "https://api.voyageai.com/v1"
+
+
+def test_voyage_honors_explicit_base_url():
+    from unittest.mock import patch, MagicMock
+
+    config = EmbeddingConfig(
+        provider="voyage", api_key="fake-key", model="voyage-3",
+        dimensions=1024, base_url="https://gateway.example.com/v1",
+    )
+    service = EmbeddingService(config)
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = {"data": [{"embedding": [0.1, 0.2, 0.3, 0.4]}]}
+    with patch("requests.post", return_value=mock_response) as mock_post:
+        service._embed_voyage(["hello"])
+        called_url = mock_post.call_args[0][0]
+        assert called_url == "https://gateway.example.com/v1/embeddings"
 
 
 def test_missing_api_key_raises_for_mistral():
