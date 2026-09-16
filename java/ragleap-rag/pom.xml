@@ -6,18 +6,26 @@
 
     <groupId>io.github.antonyrag</groupId>
     <artifactId>ragleap-rag</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.5.0</version>
     <packaging>jar</packaging>
 
     <name>ragleap-rag (Java port)</name>
     <description>
-        Java port of ragleap-rag, RagLeap's self-hosted RAG engine
-        library (see https://pypi.org/project/ragleap-rag/ for the
-        original Python package). Ported module by module, starting
-        with chunker.py -&gt; TextChunker. Lives entirely under java/ in
-        the ragleap-core repo, outside packages/ - that directory is
-        other employees' territory and is never touched, per the
-        repo's standing rule.
+        Java port of ragleap-rag's core RAG pipeline: connection
+        pooling, embeddings (7 providers), pgvector storage (dense,
+        sparse, hybrid RRF search), retrieval, and generation
+        (streaming, structured output, provider fallback, vision
+        captioning) - plus standalone utilities (chunking,
+        sanitization, guardrails, cost tracking, evaluation scoring,
+        structured-output validation, observability hooks).
+        Independently versioned from the Python ragleap-rag package
+        (see https://pypi.org/project/ragleap-rag/) rather than kept
+        in lockstep - this port does not yet have parity with the
+        Python package's full surface (only pgvector of its 6 vector
+        backends, no query rewriting, no conversation memory, no
+        ingestion pipeline). Every module here is genuinely tested;
+        most of the core pipeline is live-verified against real
+        Postgres and Ollama, documented per-class where it is not.
     </description>
     <url>https://github.com/antonyrag/ragleap-core</url>
 
