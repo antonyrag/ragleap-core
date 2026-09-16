@@ -2,16 +2,30 @@
 """
 Translates README.md into every language core/language.py's
 LanguageDetector supports (langdetect's 55 profiles, minus 'en' since
-that's the source language README.md is already written in) -- keeps the
-docs' language coverage matching what the product can actually detect.
-Writes readmes/README.<code>.md for each target language.
+that's the source language README.md is already written in). Writes
+readmes/README.<code>.md for each target language.
 
-Manual trigger only (see .github/workflows/translate-readme.yml,
-workflow_dispatch) -- deliberately not run on every README push, to
-control API cost against a free-tier Gemini key.
+Resumable and staleness-aware: readmes/.translation_state.json tracks
+the sha256 of the README.md content each language was last translated
+from. A language is skipped if its output file exists AND the stored
+hash matches the current README.md -- so re-running only translates
+languages that are missing or stale (README.md changed since their last
+translation), never re-does up-to-date work.
+
+This matters in practice because the free-tier Gemini key this runs
+against has a hard 20-requests/day cap (confirmed live, not just a
+per-minute limit) -- translating all 54 languages in one run is not
+possible on a free key. Each run makes whatever progress the day's
+quota allows; running it again (same day or a later day) picks up
+exactly where it left off. Quota-exhaustion errors (429
+RESOURCE_EXHAUSTED, 503 UNAVAILABLE) are treated as expected/incomplete,
+not a hard failure -- the script exits 0 so partial progress still gets
+committed/PR'd rather than the whole run being discarded.
 
 Usage: GEMINI_API_KEY=... python3 scripts/translate_readme.py
 """
+import hashlib
+import json
 import os
 import sys
 import time
@@ -39,6 +53,29 @@ TARGET_LANGUAGES = {
 
 MODEL = os.environ.get("GEMINI_CHAT_MODEL", "gemini-3.5-flash")
 OUTPUT_DIR = "readmes"
+STATE_PATH = os.path.join(OUTPUT_DIR, ".translation_state.json")
+
+# Substrings that mean "quota/capacity, try again later" -- not a real
+# bug, expected on a free-tier key. Anything else is treated as a real
+# failure worth surfacing loudly.
+TRANSIENT_MARKERS = ("RESOURCE_EXHAUSTED", "UNAVAILABLE", "429", "503")
+
+
+def load_state() -> dict:
+    if os.path.exists(STATE_PATH):
+        try:
+            with open(STATE_PATH, encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_state(state: dict):
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, sort_keys=True)
+        f.write("\n")
 
 
 def translate(client, text: str, language_name: str) -> str:
@@ -70,31 +107,73 @@ def main():
 
     with open("README.md", encoding="utf-8") as f:
         source = f.read()
+    source_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    state = load_state()
 
     client = genai.Client(api_key=api_key)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    failures = []
+    already_current = []
+    translated_now = []
+    transient_failures = []
+    real_failures = []
+
     for code, name in TARGET_LANGUAGES.items():
+        out_path = os.path.join(OUTPUT_DIR, f"README.{code}.md")
+        up_to_date = (
+            os.path.exists(out_path)
+            and state.get(code) == source_hash
+        )
+        if up_to_date:
+            already_current.append(code)
+            continue
+
         print(f"Translating -> {name} ({code})...")
         try:
             translated = translate(client, source, name)
             if not translated:
                 raise ValueError("empty response")
-            out_path = os.path.join(OUTPUT_DIR, f"README.{code}.md")
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(translated + "\n")
+            state[code] = source_hash
+            save_state(state)  # persist after every success, not just at the end
+            translated_now.append(code)
             print(f"  wrote {out_path} ({len(translated)} chars)")
         except Exception as e:
-            print(f"  FAILED ({code}): {e}", file=sys.stderr)
-            failures.append(code)
+            msg = str(e)
+            if any(marker in msg for marker in TRANSIENT_MARKERS):
+                print(f"  QUOTA/TRANSIENT ({code}): {msg[:150]}", file=sys.stderr)
+                transient_failures.append(code)
+            else:
+                print(f"  FAILED ({code}): {msg[:300]}", file=sys.stderr)
+                real_failures.append(code)
         time.sleep(1)  # be polite to the free-tier rate limit
 
-    if failures:
-        print(f"\n{len(failures)} language(s) failed: {', '.join(failures)}", file=sys.stderr)
+    total = len(TARGET_LANGUAGES)
+    done = len(already_current) + len(translated_now)
+    print(f"\n--- Summary ---")
+    print(f"Already up to date: {len(already_current)}")
+    print(f"Translated this run: {len(translated_now)}")
+    print(f"Quota/transient (will retry on next run): {len(transient_failures)}")
+    print(f"Real failures: {len(real_failures)}")
+    print(f"Progress: {done}/{total} complete")
+
+    if real_failures:
+        print(f"\nReal (non-transient) failures: {', '.join(real_failures)}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"\nAll {len(TARGET_LANGUAGES)} languages translated successfully.")
+    if transient_failures:
+        print(
+            f"\n{len(transient_failures)} language(s) hit quota limits this run "
+            f"(expected on a free-tier key) -- re-run the workflow later to continue: "
+            f"{', '.join(transient_failures)}"
+        )
+        # Exit 0 deliberately: partial progress is real progress, and quota
+        # exhaustion is expected/normal here, not a bug to fail the job over.
+
+    if done == total:
+        print(f"\nAll {total} languages are up to date.")
 
 
 if __name__ == "__main__":
