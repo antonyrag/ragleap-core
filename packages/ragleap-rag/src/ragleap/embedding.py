@@ -33,6 +33,17 @@ OPENAI_COMPATIBLE_BASE_URLS = {
 # Providers with their own (non-OpenAI-compatible) response shape.
 CUSTOM_SHAPE_PROVIDERS = ("cohere", "voyage")
 
+# Default base_url prefix for each custom-shape provider (same "/v1"-style
+# prefix convention as OPENAI_COMPATIBLE_BASE_URLS above) - overridable via
+# EmbeddingConfig(base_url=...), same as every other provider. Previously
+# _embed_cohere/_embed_voyage hardcoded the full first-party URL and never
+# read self.config.base_url at all - a real bug found via a community
+# live-verification report (see antonyrag/ragleap-core#360).
+CUSTOM_SHAPE_DEFAULT_BASE_URLS = {
+    "cohere": "https://api.cohere.ai/v1",
+    "voyage": "https://api.voyageai.com/v1",
+}
+
 _ALL_PROVIDERS = ("gemini",) + tuple(OPENAI_COMPATIBLE_BASE_URLS.keys()) + CUSTOM_SHAPE_PROVIDERS + ("custom",)
 
 
@@ -72,6 +83,7 @@ class EmbeddingConfig:
             self.model = self.model or os.environ.get(f"{self.provider.upper()}_EMBEDDING_MODEL")
             env_dims = os.environ.get(f"{self.provider.upper()}_EMBEDDING_DIMENSIONS") or os.environ.get("EMBEDDING_DIMENSIONS")
             self.dimensions = self.dimensions or (int(env_dims) if env_dims else None)
+            self.base_url = self.base_url or CUSTOM_SHAPE_DEFAULT_BASE_URLS[self.provider]
         elif self.provider == "custom":
             # Any OpenAI-compatible embeddings endpoint not already named
             # above - self-hosted servers (vLLM, LM Studio, etc.), or a
@@ -218,7 +230,7 @@ class EmbeddingService:
         embedding calls - a known limitation, not an optimal setup."""
         import requests
         response = requests.post(
-            "https://api.cohere.ai/v1/embed",
+            f"{self.config.base_url.rstrip('/')}/embed",
             headers={"Authorization": f"Bearer {self.config.api_key}", "Content-Type": "application/json"},
             json={"texts": texts, "model": self.config.model, "input_type": "search_document"},
             timeout=30,
@@ -230,7 +242,7 @@ class EmbeddingService:
         """NOT live-verified - implemented per Voyage AI's public API docs."""
         import requests
         response = requests.post(
-            "https://api.voyageai.com/v1/embeddings",
+            f"{self.config.base_url.rstrip('/')}/embeddings",
             headers={"Authorization": f"Bearer {self.config.api_key}", "Content-Type": "application/json"},
             json={"input": texts, "model": self.config.model},
             timeout=30,
