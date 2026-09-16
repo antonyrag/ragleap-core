@@ -14,6 +14,15 @@ on:
       - README.md
   workflow_dispatch:
 
+# github-actions[bot]'s default token is read-only in this repo, which
+# made peter-evans/create-pull-request fail with a 403 pushing the
+# translation branch (confirmed live). Explicitly grant this workflow
+# the two scopes it actually needs, rather than changing the repo-wide
+# default token permissions.
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   translate:
     runs-on: ubuntu-latest
