@@ -251,7 +251,7 @@ Answer:"""
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": {"prompt_tokens": int, "completion_tokens": int,
                             "total_tokens": int} or None,
-                  "chunks_sent": int}
+                  "chunks_sent": int, "fallback_used": bool}
 
         Retrieved chunks are trimmed to MAX_CONTEXT_CHARS before building
         the prompt (see _trim_chunks_to_budget) — chunks_sent reports how
@@ -295,6 +295,7 @@ Answer:"""
                     "provider_used": config["provider"],
                     "usage": usage,
                     "chunks_sent": len(trimmed_chunks),
+                    "fallback_used": i > 0,
                 }
             except Exception as e:
                 last_error = e

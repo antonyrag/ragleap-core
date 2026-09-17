@@ -5,6 +5,7 @@ Wires together: query language detection -> embedding the query -> hybrid
 or streaming).
 """
 import logging
+import time
 from typing import Iterator, Optional
 
 from core.embedding import EmbeddingService
@@ -13,6 +14,7 @@ from core.generation import GenerationService, SYSTEM_PROMPT as DEFAULT_SYSTEM_P
 from core.language import language_detector
 from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
+from core.observability import record_trace
 
 logger = logging.getLogger(__name__)
 
@@ -138,10 +140,17 @@ def ask(
     role: optional AI Employee role (see core/employees/) — layers the
         role's personality and learned business context into the prompt.
     """
+    _trace_start = time.monotonic()
+
     generator = GenerationService()
     chunks, detected_language, embedding_failed = _prepare(query, top_k, hybrid)
 
     if embedding_failed:
+        record_trace(
+            query=query, role=role, detected_language=detected_language,
+            chunks_retrieved=len(chunks), error="embedding failed",
+            latency_ms=int((time.monotonic() - _trace_start) * 1000),
+        )
         return {
             "answer": "Sorry, I couldn't process your question (embedding failed).",
             "sources": [],
@@ -157,6 +166,17 @@ def ask(
     result["chunks_used"] = len(chunks)
     result["detected_language"] = detected_language
     result["role_memory_ids"] = role_memory_ids
+
+    usage = result.get("usage") or {}
+    record_trace(
+        query=query, role=role, detected_language=detected_language,
+        chunks_retrieved=len(chunks), chunks_sent=result.get("chunks_sent"),
+        provider_used=result.get("provider_used"), fallback_used=bool(result.get("fallback_used")),
+        prompt_tokens=usage.get("prompt_tokens"), completion_tokens=usage.get("completion_tokens"),
+        total_tokens=usage.get("total_tokens"),
+        latency_ms=int((time.monotonic() - _trace_start) * 1000),
+        error=None if result.get("provider_used") else "all providers failed",
+    )
     return result
 
 

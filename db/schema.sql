@@ -239,3 +239,29 @@ CREATE TABLE IF NOT EXISTS channel_role_config (
 -- else in Core, rather than on the container filesystem.
 ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS csv_content TEXT;
 ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS csv_filename TEXT;
+
+-- Item #2 of the 9-pattern agentic-architecture build: a real per-request
+-- trace record for the blocking chat pipeline (core.chat.ask()). Scoped
+-- narrow on purpose, same as the Tool Registry's first entry -- ask_stream()
+-- is NOT traced here (see core/observability.py's module docstring for
+-- why), and this is a flat record per request, not a formal span/tree
+-- layer. Also strengthens the audit story for the still-open compliance
+-- questions on the 7 sensitive-domain roles (see ROADMAP.md).
+CREATE TABLE IF NOT EXISTS agent_traces (
+    id                  BIGSERIAL PRIMARY KEY,
+    role                TEXT,
+    query               TEXT NOT NULL,
+    detected_language   TEXT,
+    chunks_retrieved    INTEGER,
+    chunks_sent         INTEGER,
+    provider_used       TEXT,
+    fallback_used       BOOLEAN NOT NULL DEFAULT false,
+    prompt_tokens       INTEGER,
+    completion_tokens   INTEGER,
+    total_tokens        INTEGER,
+    latency_ms          INTEGER,
+    error               TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_traces_created_idx
+    ON agent_traces (created_at DESC);

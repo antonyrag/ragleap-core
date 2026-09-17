@@ -27,6 +27,7 @@ from core.employees import channel_roles as employee_channel_roles
 from core.employees import memory as employee_memory
 from core import workflows
 from core import autonomy
+from core import observability
 from core import queue
 
 logging.basicConfig(level=logging.INFO)
@@ -686,6 +687,19 @@ def execute_autonomous_action(req: AutonomyActionRequest):
 def get_autonomy_report():
     """Get today's Autonomous Loop activity report."""
     return {"report": autonomy.generate_autonomy_daily_report()}
+
+
+@app.get("/observability/report")
+def get_observability_report():
+    """
+    Get today's agent trace report (item #2 of the 9-pattern
+    agentic-architecture build). Real aggregation of core.chat.ask()
+    calls traced via core.observability.record_trace() - total requests,
+    error rate, average latency, breakdown by role and provider. Does
+    NOT cover core.chat.ask_stream() - see core/observability.py's
+    module docstring for why.
+    """
+    return {"report": observability.generate_observability_report()}
 
 
 @app.get("/autonomy/rejection-report")
