@@ -44,6 +44,16 @@ pip install ragleap-rag
 
 > ⭐ If this helps you, please consider starring the repo — it genuinely helps more people find it.
 
+Prefer Java? `ragleap-rag` is also on Maven Central:
+```xml
+<dependency>
+    <groupId>io.github.antonyrag</groupId>
+    <artifactId>ragleap-rag</artifactId>
+    <version>0.5.0</version>
+</dependency>
+```
+Independently versioned from the Python package above — see [`java/ragleap-rag`](java/ragleap-rag) for current scope.
+
 Add `ragleap-graph` too if you want Neo4j-backed knowledge graph retrieval:
 ```bash
 pip install ragleap-rag ragleap-graph
