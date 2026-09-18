@@ -46,6 +46,7 @@ def record_trace(
     total_tokens: Optional[int] = None,
     latency_ms: Optional[int] = None,
     error: Optional[str] = None,
+    reflection_concern: Optional[str] = None,
 ) -> bool:
     """
     Insert one row into agent_traces for a completed (or failed) call to
@@ -62,12 +63,12 @@ def record_trace(
                 "INSERT INTO agent_traces "
                 "(role, query, detected_language, chunks_retrieved, chunks_sent, "
                 "provider_used, fallback_used, prompt_tokens, completion_tokens, "
-                "total_tokens, latency_ms, error) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "total_tokens, latency_ms, error, reflection_concern) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     role, query, detected_language, chunks_retrieved, chunks_sent,
                     provider_used, fallback_used, prompt_tokens, completion_tokens,
-                    total_tokens, latency_ms, error,
+                    total_tokens, latency_ms, error, reflection_concern,
                 ),
             )
             conn.commit()
@@ -92,7 +93,7 @@ def generate_observability_report() -> str:
     try:
         cur = conn.cursor()
         cur.execute(
-            "SELECT role, provider_used, fallback_used, latency_ms, error "
+            "SELECT role, provider_used, fallback_used, latency_ms, error, reflection_concern "
             "FROM agent_traces WHERE created_at >= CURRENT_DATE"
         )
         rows = cur.fetchall()
@@ -106,14 +107,15 @@ def generate_observability_report() -> str:
         return "Observability Report - No traced requests today."
 
     total = len(rows)
-    errors = sum(1 for _, _, _, _, error in rows if error)
-    fallbacks = sum(1 for _, _, fallback_used, _, _ in rows if fallback_used)
-    latencies = [lat for _, _, _, lat, _ in rows if lat is not None]
+    errors = sum(1 for _, _, _, _, error, _ in rows if error)
+    fallbacks = sum(1 for _, _, fallback_used, _, _, _ in rows if fallback_used)
+    flagged = sum(1 for _, _, _, _, _, reflection_concern in rows if reflection_concern)
+    latencies = [lat for _, _, _, lat, _, _ in rows if lat is not None]
     avg_latency = sum(latencies) / len(latencies) if latencies else None
 
     by_role: Dict[str, int] = {}
     by_provider: Dict[str, int] = {}
-    for role, provider_used, _, _, _ in rows:
+    for role, provider_used, _, _, _, _ in rows:
         by_role[role or "(no role)"] = by_role.get(role or "(no role)", 0) + 1
         by_provider[provider_used or "(unknown)"] = by_provider.get(provider_used or "(unknown)", 0) + 1
 
@@ -121,6 +123,8 @@ def generate_observability_report() -> str:
     lines.append(f"Total traced requests: {total}")
     lines.append(f"Errors: {errors} ({100 * errors / total:.1f}%)")
     lines.append(f"Fallback provider used: {fallbacks} ({100 * fallbacks / total:.1f}%)")
+    if flagged:
+        lines.append(f"Flagged by self-correction check (item #3): {flagged} ({100 * flagged / total:.1f}%)")
     if avg_latency is not None:
         lines.append(f"Average latency: {avg_latency:.0f}ms")
     lines.append("")

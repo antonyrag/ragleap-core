@@ -14,6 +14,7 @@ from core.generation import GenerationService, SYSTEM_PROMPT as DEFAULT_SYSTEM_P
 from core.language import language_detector
 from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
+from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
 from core.observability import record_trace
 
 logger = logging.getLogger(__name__)
@@ -167,6 +168,24 @@ def ask(
     result["detected_language"] = detected_language
     result["role_memory_ids"] = role_memory_ids
 
+    # Item #3 of the 9-pattern agentic-architecture build (self-correction/
+    # reflection): a second, cheap LLM pass checking whether the answer is
+    # actually supported by the retrieved chunks. Deliberately scoped to
+    # ONLY the 7 sensitive-domain roles (legal/healthcare/tax/etc via
+    # SENSITIVE_DOMAIN_ROLES), not every request -- this doubles generation
+    # cost per call, which isn't justified for routine support/sales
+    # questions but is directly relevant to the still-open compliance
+    # questions on these specific roles (see ROADMAP.md). Only runs when
+    # a real answer was actually generated (provider_used is set).
+    reflection_concern = None
+    if role in SENSITIVE_DOMAIN_ROLES and result.get("provider_used"):
+        reflection_concern = generator.check_grounding(result["answer"], chunks, query)
+        if reflection_concern:
+            result["answer"] += (
+                "\n\nNote: part of this answer may not be fully supported by the "
+                "available documents -- please verify independently before relying on it."
+            )
+
     usage = result.get("usage") or {}
     record_trace(
         query=query, role=role, detected_language=detected_language,
@@ -176,6 +195,7 @@ def ask(
         total_tokens=usage.get("total_tokens"),
         latency_ms=int((time.monotonic() - _trace_start) * 1000),
         error=None if result.get("provider_used") else "all providers failed",
+        reflection_concern=reflection_concern,
     )
     return result
 
