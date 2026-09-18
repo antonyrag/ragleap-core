@@ -36,7 +36,7 @@ def _fetch_all_traces():
         cur.execute(
             "SELECT role, query, detected_language, chunks_retrieved, chunks_sent, "
             "provider_used, fallback_used, prompt_tokens, completion_tokens, "
-            "total_tokens, latency_ms, error FROM agent_traces ORDER BY id"
+            "total_tokens, latency_ms, error, reflection_concern FROM agent_traces ORDER BY id"
         )
         rows = cur.fetchall()
         cur.close()
@@ -57,7 +57,7 @@ def test_record_trace_inserts_a_row():
 
     rows = _fetch_all_traces()
     assert len(rows) == 1
-    role, query, lang, retrieved, sent, provider, fallback, ptok, ctok, ttok, latency, error = rows[0]
+    role, query, lang, retrieved, sent, provider, fallback, ptok, ctok, ttok, latency, error, reflection_concern = rows[0]
     assert role == "support"
     assert query == "what is the refund policy?"
     assert lang == "en"
@@ -70,6 +70,7 @@ def test_record_trace_inserts_a_row():
     assert ttok == 130
     assert latency == 850
     assert error is None
+    assert reflection_concern is None
 
 
 def test_record_trace_with_no_role_and_an_error():
@@ -78,10 +79,26 @@ def test_record_trace_with_no_role_and_an_error():
 
     rows = _fetch_all_traces()
     assert len(rows) == 1
-    role, query, *_rest, error = rows[0]
+    role, query, *_rest, error, reflection_concern = rows[0]
     assert role is None
     assert query == "hello"
     assert error == "embedding failed"
+    assert reflection_concern is None
+
+
+def test_record_trace_with_reflection_concern():
+    ok = observability.record_trace(
+        query="do I have a case?", role="legal_intake", provider_used="gemini",
+        reflection_concern="legal conclusion not present in source docs", latency_ms=900,
+    )
+    assert ok is True
+
+    rows = _fetch_all_traces()
+    assert len(rows) == 1
+    role, query, *_rest, error, reflection_concern = rows[0]
+    assert role == "legal_intake"
+    assert error is None
+    assert reflection_concern == "legal conclusion not present in source docs"
 
 
 def test_record_trace_never_raises_on_bad_connection(monkeypatch):
@@ -113,3 +130,15 @@ def test_report_aggregates_role_provider_and_error_rate():
     assert "sales: 1" in report
     assert "gemini: 2" in report
     assert "groq: 1" in report
+    assert "Flagged by self-correction check" not in report  # none of these had a concern
+
+
+def test_report_shows_reflection_flagged_count():
+    observability.record_trace(query="q1", role="legal_intake", provider_used="gemini", latency_ms=500)
+    observability.record_trace(
+        query="q2", role="legal_intake", provider_used="gemini",
+        reflection_concern="unsupported claim", latency_ms=600,
+    )
+
+    report = observability.generate_observability_report()
+    assert "Flagged by self-correction check (item #3): 1" in report

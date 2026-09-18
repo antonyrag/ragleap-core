@@ -213,6 +213,54 @@ Context:
 Question: {query}
 Answer:"""
 
+    def check_grounding(self, answer: str, chunks: List[Dict], query: str) -> Optional[str]:
+        """
+        Item #3 of the 9-pattern agentic-architecture build (self-
+        correction/reflection). A cheap, bounded second LLM pass checking
+        whether `answer` is actually supported by `chunks` -- NOT full
+        chain-of-thought or a revision/regeneration loop, just one
+        temperature=0 classification call.
+
+        Uses only self.primary_config (no fallback chain) -- this is a
+        secondary safety check on top of an already-generated answer,
+        not the primary generation path, so it isn't worth the
+        complexity of retrying across providers. If the check itself
+        fails for any reason (provider error, malformed response), it
+        is treated as inconclusive and silently skipped -- this must
+        never block or replace the actual answer, same best-effort
+        philosophy as core.observability.record_trace().
+
+        Returns None if the answer appears grounded (or if the check
+        was inconclusive), or a short string describing the concern if
+        an unsupported claim was found.
+        """
+        context = self._build_context(chunks)
+        prompt = f"""You are a strict fact-checker. Given the SOURCE CONTEXT and an ANSWER that was supposed to be based only on that context, determine if the ANSWER contains any claim that is NOT supported by the SOURCE CONTEXT.
+
+SOURCE CONTEXT:
+{context}
+
+QUESTION: {query}
+
+ANSWER TO CHECK:
+{answer}
+
+Respond with EXACTLY one line:
+- "GROUNDED" if every factual claim in the ANSWER is supported by the SOURCE CONTEXT (or the answer correctly says it doesn't have the information)
+- "NOT_GROUNDED: <short reason>" if the ANSWER contains a claim not supported by the SOURCE CONTEXT"""
+
+        try:
+            text, _usage = self._call_provider(self.primary_config, prompt, temperature=0.0, max_tokens=100)
+            text = (text or "").strip()
+            if text.upper().startswith("NOT_GROUNDED"):
+                if ":" in text:
+                    return text.split(":", 1)[1].strip() or "unsupported claim detected"
+                return "unsupported claim detected"
+            return None
+        except Exception as e:
+            logger.warning(f"Grounding check failed (non-fatal, treated as inconclusive): {e}")
+            return None
+
     def _call_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> Tuple[str, Optional[Dict]]:
         """Returns (answer_text, usage_dict_or_None). usage_dict has
         prompt_tokens/completion_tokens/total_tokens when the provider

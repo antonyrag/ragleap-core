@@ -205,3 +205,46 @@ def test_stream_no_notice_when_provider_fails_before_yielding():
     full = "".join(pieces)
     assert "cut short" not in full
     assert "all configured providers failed" in full
+
+
+# --- Self-correction/reflection: check_grounding() ---
+# Item #3 of the 9-pattern agentic-architecture build. _call_provider is
+# mocked directly, same pattern as every other test in this file.
+
+def test_check_grounding_returns_none_when_grounded():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("GROUNDED", None)):
+        concern = service.check_grounding("The refund window is 30 days.", [{"text": "Refunds within 30 days."}], "what is the refund policy?")
+    assert concern is None
+
+
+def test_check_grounding_returns_reason_when_not_grounded():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("NOT_GROUNDED: the 30-day figure is not in the source", None)):
+        concern = service.check_grounding("The refund window is 30 days.", [{"text": "We offer refunds."}], "what is the refund policy?")
+    assert concern == "the 30-day figure is not in the source"
+
+
+def test_check_grounding_generic_reason_when_no_colon():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("NOT_GROUNDED", None)):
+        concern = service.check_grounding("answer", [], "question")
+    assert concern == "unsupported claim detected"
+
+
+def test_check_grounding_returns_none_on_provider_failure():
+    """Best-effort: a failure in the check itself must never propagate
+    or block the caller - treated as inconclusive."""
+    service = _make_service()
+    with patch.object(service, "_call_provider", side_effect=RuntimeError("provider down")):
+        concern = service.check_grounding("answer", [], "question")
+    assert concern is None
+
+
+def test_check_grounding_uses_primary_config_not_fallback_chain():
+    service = _make_service(primary_provider="gemini")
+    with patch.object(service, "_call_provider", return_value=("GROUNDED", None)) as mock_call:
+        service.check_grounding("answer", [], "question")
+    called_config = mock_call.call_args[0][0]
+    assert called_config is service.primary_config
+    assert mock_call.call_args.kwargs.get("temperature") == 0.0

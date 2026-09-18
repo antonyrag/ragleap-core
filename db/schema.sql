@@ -265,3 +265,11 @@ CREATE TABLE IF NOT EXISTS agent_traces (
 );
 CREATE INDEX IF NOT EXISTS agent_traces_created_idx
     ON agent_traces (created_at DESC);
+
+-- Item #3 of the 9-pattern agentic-architecture build (self-correction/
+-- reflection): flags when a sensitive-domain role's answer was checked
+-- against retrieved context and found to contain an unsupported claim.
+-- NULL means either the check wasn't run (role not in
+-- SENSITIVE_DOMAIN_ROLES) or the answer was found grounded. See
+-- core/generation.py's GenerationService.check_grounding().
+ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS reflection_concern TEXT;

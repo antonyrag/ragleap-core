@@ -119,3 +119,92 @@ def test_ask_records_error_when_all_providers_failed():
     assert kwargs["error"] == "all providers failed"
     assert kwargs["provider_used"] is None
     assert kwargs["fallback_used"] is False  # missing key defaults falsy via bool(None)
+
+
+# --- Self-correction/reflection: only runs for SENSITIVE_DOMAIN_ROLES ---
+
+def test_ask_does_not_run_grounding_check_for_non_sensitive_role():
+    mock_gen_service = _mock_generation_service({
+        "answer": "answer text",
+        "sources": [],
+        "provider_used": "gemini",
+        "usage": None,
+        "chunks_sent": 0,
+        "fallback_used": False,
+    })
+    with patch.object(chat, "_prepare", return_value=([], "en", False)), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="some question"), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "record_trace") as mock_trace:
+        result = chat.ask("some question", role="support")
+
+    mock_gen_service.return_value.check_grounding.assert_not_called()
+    assert result["answer"] == "answer text"  # no caveat appended
+    assert mock_trace.call_args.kwargs["reflection_concern"] is None
+
+
+def test_ask_runs_grounding_check_for_sensitive_role_and_appends_caveat_when_flagged():
+    mock_gen_service = _mock_generation_service({
+        "answer": "You have a strong case.",
+        "sources": [],
+        "provider_used": "gemini",
+        "usage": None,
+        "chunks_sent": 1,
+        "fallback_used": False,
+    })
+    mock_gen_service.return_value.check_grounding.return_value = "legal conclusion not present in source docs"
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="do I have a case?"), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "record_trace") as mock_trace:
+        result = chat.ask("do I have a case?", role="legal_intake")
+
+    mock_gen_service.return_value.check_grounding.assert_called_once()
+    assert "may not be fully supported" in result["answer"]
+    assert result["answer"].startswith("You have a strong case.")
+    assert mock_trace.call_args.kwargs["reflection_concern"] == "legal conclusion not present in source docs"
+
+
+def test_ask_runs_grounding_check_for_sensitive_role_but_no_caveat_when_grounded():
+    mock_gen_service = _mock_generation_service({
+        "answer": "Consult a licensed attorney for advice specific to your situation.",
+        "sources": [],
+        "provider_used": "gemini",
+        "usage": None,
+        "chunks_sent": 1,
+        "fallback_used": False,
+    })
+    mock_gen_service.return_value.check_grounding.return_value = None
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="do I have a case?"), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "record_trace") as mock_trace:
+        result = chat.ask("do I have a case?", role="legal_intake")
+
+    mock_gen_service.return_value.check_grounding.assert_called_once()
+    assert "may not be fully supported" not in result["answer"]
+    assert mock_trace.call_args.kwargs["reflection_concern"] is None
+
+
+def test_ask_skips_grounding_check_when_all_providers_failed_even_for_sensitive_role():
+    """No point running a grounding check against an answer that's just
+    the generic 'all providers failed' message."""
+    mock_gen_service = _mock_generation_service({
+        "answer": "Sorry, I couldn't generate an answer.",
+        "sources": [],
+        "provider_used": None,
+        "usage": None,
+        "chunks_sent": 0,
+    })
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="do I have a case?"), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "record_trace") as mock_trace:
+        chat.ask("do I have a case?", role="healthcare_intake")
+
+    mock_gen_service.return_value.check_grounding.assert_not_called()
+    assert mock_trace.call_args.kwargs["reflection_concern"] is None
