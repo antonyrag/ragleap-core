@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ragleap-tools"
+version = "0.1.0"
+description = "Standalone, dependency-light tool implementations (calculator, file ops, datetime, unit conversion, JSON/CSV, text utilities) exposing OpenAI/Gemini-style function-calling schemas. No tool-calling execution loop - wire these into your own LLM tool-calling code, or into ragleap-agents when that ships. BYOK, no vendor lock-in."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Antony", email = "antony@ragleap.com" }
+]
+keywords = ["llm", "tool-calling", "function-calling", "agents", "calculator", "file-ops", "self-hosted", "byok"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8.0.0"]
+ingest = ["ragleap-rag>=0.12.0"]
+
+[project.urls]
+Homepage = "https://github.com/antonyrag/ragleap-core"
+Repository = "https://github.com/antonyrag/ragleap-core"
+Documentation = "https://packages.ragleap.com/docs/ragleap-tools.html"
+Issues = "https://github.com/antonyrag/ragleap-core/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragleap_tools"]
