@@ -129,6 +129,7 @@ def ask(
     max_tokens: Optional[int] = None,
     hybrid: bool = True,
     role: Optional[str] = None,
+    tot_mode: bool = False,
 ) -> dict:
     """
     Answer a question grounded in previously ingested documents.
@@ -166,7 +167,7 @@ def ask(
     reasoning_mode = role in SENSITIVE_DOMAIN_ROLES
     result = generator.generate_answer(
         generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt,
-        max_tokens=max_tokens, reasoning_mode=reasoning_mode,
+        max_tokens=max_tokens, reasoning_mode=reasoning_mode, tot_mode=tot_mode,
     )
     # Reasoning is for the audit trace only -- never returned to the caller.
     reasoning = result.pop("reasoning", None)
