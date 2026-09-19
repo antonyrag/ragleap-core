@@ -47,6 +47,7 @@ def record_trace(
     latency_ms: Optional[int] = None,
     error: Optional[str] = None,
     reflection_concern: Optional[str] = None,
+    reasoning: Optional[str] = None,
 ) -> bool:
     """
     Insert one row into agent_traces for a completed (or failed) call to
@@ -63,12 +64,12 @@ def record_trace(
                 "INSERT INTO agent_traces "
                 "(role, query, detected_language, chunks_retrieved, chunks_sent, "
                 "provider_used, fallback_used, prompt_tokens, completion_tokens, "
-                "total_tokens, latency_ms, error, reflection_concern) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "total_tokens, latency_ms, error, reflection_concern, reasoning) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     role, query, detected_language, chunks_retrieved, chunks_sent,
                     provider_used, fallback_used, prompt_tokens, completion_tokens,
-                    total_tokens, latency_ms, error, reflection_concern,
+                    total_tokens, latency_ms, error, reflection_concern, reasoning,
                 ),
             )
             conn.commit()

@@ -208,3 +208,38 @@ def test_ask_skips_grounding_check_when_all_providers_failed_even_for_sensitive_
 
     mock_gen_service.return_value.check_grounding.assert_not_called()
     assert mock_trace.call_args.kwargs["reflection_concern"] is None
+
+
+# --- Chain of thought (item #4): reasoning_mode only for SENSITIVE_DOMAIN_ROLES ---
+def test_ask_sensitive_role_uses_reasoning_mode_and_traces_reasoning():
+    mock_gen_service = _mock_generation_service({
+        "answer": "clean final answer", "sources": ["d"], "provider_used": "gemini",
+        "usage": {}, "chunks_sent": 1, "fallback_used": False,
+        "reasoning": "step by step notes",
+    })
+    mock_gen_service.return_value.check_grounding.return_value = None
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="q?"), \
+         patch.object(chat, "record_trace") as mock_trace:
+        result = chat.ask("q?", role="legal_intake")
+
+    assert mock_gen_service.return_value.generate_answer.call_args.kwargs["reasoning_mode"] is True
+    assert mock_trace.call_args.kwargs["reasoning"] == "step by step notes"
+    assert "reasoning" not in result
+    assert result["answer"] == "clean final answer"
+
+
+def test_ask_non_sensitive_uses_no_reasoning_mode():
+    mock_gen_service = _mock_generation_service({
+        "answer": "a", "sources": [], "provider_used": "gemini",
+        "usage": {}, "chunks_sent": 1, "fallback_used": False, "reasoning": None,
+    })
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "record_trace") as mock_trace:
+        chat.ask("q?")
+
+    assert mock_gen_service.return_value.generate_answer.call_args.kwargs["reasoning_mode"] is False
+    assert mock_trace.call_args.kwargs["reasoning"] is None

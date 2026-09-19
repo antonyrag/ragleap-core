@@ -142,3 +142,20 @@ def test_report_shows_reflection_flagged_count():
 
     report = observability.generate_observability_report()
     assert "Flagged by self-correction check (item #3): 1" in report
+
+
+def test_record_trace_reasoning_round_trips():
+    from core.employees._db import get_connection
+    q = "reasoning-roundtrip-test-query"
+    assert observability.record_trace(query=q, role="legal_intake", reasoning="because of X and Y", latency_ms=5)
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT reasoning FROM agent_traces WHERE query = %s ORDER BY id DESC LIMIT 1", (q,))
+        row = cur.fetchone()
+        cur.execute("DELETE FROM agent_traces WHERE query = %s", (q,))
+        conn.commit()
+        cur.close()
+    finally:
+        conn.close()
+    assert row[0] == "because of X and Y"

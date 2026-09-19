@@ -9,6 +9,7 @@ Native SDK providers: gemini, anthropic
 OpenAI-compatible providers (via openai SDK + custom base_url): everyone else.
 """
 import os
+import re
 import logging
 from typing import List, Dict, Iterator, Optional, Tuple
 
@@ -37,6 +38,7 @@ GEMINI_THINKING_BUDGET = int(os.environ.get("GEMINI_THINKING_BUDGET", "0"))
 TRUNCATED_FINISH_REASONS = {"MAX_TOKENS", "max_tokens", "length"}
 TRUNCATION_RETRY_MULTIPLIER = float(os.environ.get("TRUNCATION_RETRY_MULTIPLIER", "2.0"))
 TRUNCATION_MAX_RETRY_TOKENS = int(os.environ.get("TRUNCATION_MAX_RETRY_TOKENS", "4096"))
+REASONING_MODE_TOKEN_MULTIPLIER = float(os.environ.get("REASONING_MODE_TOKEN_MULTIPLIER", "2.0"))
 
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
@@ -141,6 +143,28 @@ def _resolve_provider_config(provider: str, required: bool = True) -> Optional[D
         )
 
 
+REASONING_SUFFIX = """
+
+Before answering, think through this step by step: identify the relevant facts from the context, note any gaps or ambiguity, and reason toward your conclusion. Write your reasoning under "REASONING:". Then write your final, user-facing answer under "FINAL ANSWER:" -- this final answer should be complete and self-contained (the user will only see this part), not just a one-line reference back to your reasoning."""
+
+
+def _split_reasoning_and_answer(text: str) -> Tuple[Optional[str], str]:
+    """Split model output into (reasoning, final_answer). If the FINAL ANSWER marker is
+    missing or the answer part is empty, fall back to (None, full text)."""
+    if not text:
+        return None, text
+    matches = list(re.finditer(r"final\s*answer\s*:", text, re.IGNORECASE))
+    if not matches:
+        return None, text
+    last = matches[-1]
+    answer = text[last.end():].strip()
+    if not answer:
+        return None, text
+    reasoning = text[:last.start()].strip()
+    reasoning = re.sub(r"^\s*reasoning\s*:", "", reasoning, flags=re.IGNORECASE).strip()
+    return (reasoning or None), answer
+
+
 class GenerationService:
     """
     Generates a grounded answer using the configured LLM_PROVIDER,
@@ -202,16 +226,19 @@ class GenerationService:
             parts.append(f"[Source {i}: {doc_name}]\n{text}")
         return "\n\n".join(parts)
 
-    def _build_prompt(self, query: str, chunks: List[Dict], system_prompt: Optional[str] = None) -> str:
+    def _build_prompt(self, query: str, chunks: List[Dict], system_prompt: Optional[str] = None, reasoning_mode: bool = False) -> str:
         context = self._build_context(chunks)
         instructions = system_prompt or SYSTEM_PROMPT
-        return f"""{instructions}
+        prompt = f"""{instructions}
 
 Context:
 {context}
 
 Question: {query}
 Answer:"""
+        if reasoning_mode:
+            prompt = prompt + REASONING_SUFFIX
+        return prompt
 
     def check_grounding(self, answer: str, chunks: List[Dict], query: str) -> Optional[str]:
         """
@@ -293,13 +320,15 @@ Respond with EXACTLY one line:
         temperature: Optional[float] = None,
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
+        reasoning_mode: bool = False,
     ) -> Dict:
         """
         Generate an answer to `query` grounded in the given `chunks`.
         Returns: {"answer": str, "sources": List[str], "provider_used": str,
                   "usage": {"prompt_tokens": int, "completion_tokens": int,
                             "total_tokens": int} or None,
-                  "chunks_sent": int, "fallback_used": bool}
+                  "chunks_sent": int, "fallback_used": bool,
+                  "reasoning": Optional[str]}
 
         Retrieved chunks are trimmed to MAX_CONTEXT_CHARS before building
         the prompt (see _trim_chunks_to_budget) — chunks_sent reports how
@@ -311,7 +340,9 @@ Respond with EXACTLY one line:
 
         trimmed_chunks = self._trim_chunks_to_budget(chunks)
         sources = list({c.get("document_name", "unknown") for c in trimmed_chunks})
-        prompt = self._build_prompt(query, trimmed_chunks, system_prompt)
+        prompt = self._build_prompt(query, trimmed_chunks, system_prompt, reasoning_mode)
+        if reasoning_mode:
+            max_tok = int(max_tok * REASONING_MODE_TOKEN_MULTIPLIER)
 
         chain = self._fallback_chain()
         last_error = None
@@ -335,6 +366,9 @@ Respond with EXACTLY one line:
                                 f"Truncation retry failed for '{config['provider']}': {retry_e}; "
                                 f"keeping original (possibly truncated) answer"
                             )
+                reasoning = None
+                if reasoning_mode:
+                    reasoning, answer_text = _split_reasoning_and_answer(answer_text)
                 if i > 0:
                     logger.info(f"Answer generated via fallback provider '{config['provider']}' (primary failed)")
                 return {
@@ -344,6 +378,7 @@ Respond with EXACTLY one line:
                     "usage": usage,
                     "chunks_sent": len(trimmed_chunks),
                     "fallback_used": i > 0,
+                    "reasoning": reasoning,
                 }
             except Exception as e:
                 last_error = e
@@ -357,6 +392,8 @@ Respond with EXACTLY one line:
             "provider_used": None,
             "usage": None,
             "chunks_sent": 0,
+            "fallback_used": False,
+            "reasoning": None,
         }
 
     def generate_answer_stream(
