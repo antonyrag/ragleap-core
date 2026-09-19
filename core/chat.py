@@ -161,9 +161,15 @@ def ask(
 
     effective_system_prompt, role_memory_ids = _build_system_prompt(role, query, system_prompt)
     generation_query = _augment_query_with_reminder(role, query)
+    # Item #4 (chain of thought): same single generation call, longer output,
+    # only for the 7 sensitive-domain roles (no extra API call, unlike item #3).
+    reasoning_mode = role in SENSITIVE_DOMAIN_ROLES
     result = generator.generate_answer(
-        generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt, max_tokens=max_tokens
+        generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt,
+        max_tokens=max_tokens, reasoning_mode=reasoning_mode,
     )
+    # Reasoning is for the audit trace only -- never returned to the caller.
+    reasoning = result.pop("reasoning", None)
     result["chunks_used"] = len(chunks)
     result["detected_language"] = detected_language
     result["role_memory_ids"] = role_memory_ids
@@ -196,6 +202,7 @@ def ask(
         latency_ms=int((time.monotonic() - _trace_start) * 1000),
         error=None if result.get("provider_used") else "all providers failed",
         reflection_concern=reflection_concern,
+        reasoning=reasoning,
     )
     return result
 

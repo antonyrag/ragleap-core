@@ -248,3 +248,73 @@ def test_check_grounding_uses_primary_config_not_fallback_chain():
     called_config = mock_call.call_args[0][0]
     assert called_config is service.primary_config
     assert mock_call.call_args.kwargs.get("temperature") == 0.0
+
+
+# --- Chain of thought (item #4): reasoning_mode ---
+from core import generation as _gen
+from core.generation import _split_reasoning_and_answer
+
+
+def test_split_reasoning_marker_present():
+    r, a = _split_reasoning_and_answer("REASONING: step one, step two.\n\nFINAL ANSWER: The refund window is 30 days.")
+    assert a == "The refund window is 30 days."
+    assert r == "step one, step two."
+
+
+def test_split_reasoning_marker_case_insensitive():
+    r, a = _split_reasoning_and_answer("reasoning: thinking here\nfinal answer: Yes, covered.")
+    assert a == "Yes, covered."
+    assert r == "thinking here"
+
+
+def test_split_reasoning_marker_absent_falls_back_to_full_text():
+    r, a = _split_reasoning_and_answer("Just a plain answer with no markers.")
+    assert r is None
+    assert a == "Just a plain answer with no markers."
+
+
+def test_split_reasoning_empty_answer_after_marker_falls_back():
+    text = "REASONING: something\nFINAL ANSWER:   "
+    r, a = _split_reasoning_and_answer(text)
+    assert r is None
+    assert a == text
+
+
+def test_generate_answer_reasoning_mode_true():
+    service = _make_service()
+    raw = "REASONING: chunk says 30 days.\nFINAL ANSWER: Refunds are allowed within 30 days."
+    with patch.object(service, "_call_provider", return_value=(raw, {"finish_reason": "stop"})) as mock_call:
+        result = service.generate_answer("refund?", [{"document_name": "d", "content": "30 days"}], reasoning_mode=True)
+    args = mock_call.call_args.args
+    assert "FINAL ANSWER:" in args[1]
+    assert args[3] == int(_gen.MAX_OUTPUT_TOKENS * _gen.REASONING_MODE_TOKEN_MULTIPLIER)
+    assert result["answer"] == "Refunds are allowed within 30 days."
+    assert result["reasoning"] == "chunk says 30 days."
+
+
+def test_generate_answer_reasoning_mode_false_unchanged():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("plain", {"finish_reason": "stop"})) as mock_call:
+        result = service.generate_answer("q?", [{"document_name": "d", "content": "c"}])
+    args = mock_call.call_args.args
+    assert "FINAL ANSWER:" not in args[1]
+    assert args[3] == _gen.MAX_OUTPUT_TOKENS
+    assert result["answer"] == "plain"
+    assert result["reasoning"] is None
+
+
+def test_generate_answer_reasoning_mode_no_marker_never_breaks():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("model ignored the format", {"finish_reason": "stop"})):
+        result = service.generate_answer("q?", [{"document_name": "d", "content": "c"}], reasoning_mode=True)
+    assert result["answer"] == "model ignored the format"
+    assert result["reasoning"] is None
+
+
+def test_generate_answer_all_providers_failed_has_reasoning_and_fallback_keys():
+    service = _make_service()
+    with patch.object(service, "_call_provider", side_effect=Exception("boom")):
+        result = service.generate_answer("q?", [{"document_name": "d", "content": "c"}], reasoning_mode=True)
+    assert result["provider_used"] is None
+    assert result["reasoning"] is None
+    assert result["fallback_used"] is False

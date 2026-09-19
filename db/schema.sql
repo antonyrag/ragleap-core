@@ -273,3 +273,4 @@ CREATE INDEX IF NOT EXISTS agent_traces_created_idx
 -- SENSITIVE_DOMAIN_ROLES) or the answer was found grounded. See
 -- core/generation.py's GenerationService.check_grounding().
 ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS reflection_concern TEXT;
+ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS reasoning TEXT;
