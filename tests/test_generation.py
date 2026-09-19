@@ -318,3 +318,89 @@ def test_generate_answer_all_providers_failed_has_reasoning_and_fallback_keys():
     assert result["provider_used"] is None
     assert result["reasoning"] is None
     assert result["fallback_used"] is False
+
+
+# --- Tree of thought (item #5): opt-in tot_mode ---
+_TOT_CHUNKS = [{"document_name": "d", "content": "c"}]
+
+
+def test_tot_picks_candidate_chosen_by_judge():
+    service = _make_service()
+    replies = [("cand one", None), ("cand two", None), ("cand three", None), ("2", None)]
+    with patch.object(service, "_call_provider", side_effect=replies) as mock_call:
+        result = service.tree_of_thought("q?", _TOT_CHUNKS, 0.3)
+    assert mock_call.call_count == 4
+    assert result["answer"] == "cand two"
+    assert "chosen=2" in result["reasoning"]
+
+
+def test_tot_garbage_judge_reply_uses_first_candidate():
+    service = _make_service()
+    replies = [("cand one", None), ("cand two", None), ("cand three", None), ("no idea", None)]
+    with patch.object(service, "_call_provider", side_effect=replies):
+        result = service.tree_of_thought("q?", _TOT_CHUNKS, 0.3)
+    assert result["answer"] == "cand one"
+    assert "by=default" in result["reasoning"]
+
+
+def test_tot_judge_failure_uses_first_candidate():
+    service = _make_service()
+    replies = [("cand one", None), ("cand two", None), ("cand three", None), Exception("judge down")]
+    with patch.object(service, "_call_provider", side_effect=replies):
+        result = service.tree_of_thought("q?", _TOT_CHUNKS, 0.3)
+    assert result["answer"] == "cand one"
+
+
+def test_tot_returns_none_when_fewer_than_two_candidates():
+    service = _make_service()
+    replies = [("only one", None), Exception("boom"), Exception("boom")]
+    with patch.object(service, "_call_provider", side_effect=replies):
+        assert service.tree_of_thought("q?", _TOT_CHUNKS, 0.3) is None
+
+
+def test_generate_answer_tot_mode_true_returns_tot_answer_and_reasoning():
+    service = _make_service()
+    replies = [("a1", None), ("a2", None), ("a3", None), ("3", None)]
+    with patch.object(service, "_call_provider", side_effect=replies):
+        result = service.generate_answer("q?", _TOT_CHUNKS, tot_mode=True)
+    assert result["answer"] == "a3"
+    assert result["provider_used"] == "testprovider"
+    assert result["reasoning"].startswith("TREE OF THOUGHT")
+
+
+def test_generate_answer_tot_mode_falls_back_to_normal_answer():
+    service = _make_service()
+    replies = [("x", None), Exception("boom"), Exception("boom"),
+               ("normal answer", {"finish_reason": "stop"})]
+    with patch.object(service, "_call_provider", side_effect=replies):
+        result = service.generate_answer("q?", _TOT_CHUNKS, tot_mode=True)
+    assert result["answer"] == "normal answer"
+    assert result["reasoning"] is None
+
+
+def test_generate_answer_tot_mode_false_never_calls_tree_of_thought():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("plain", {"finish_reason": "stop"})), \
+         patch.object(service, "tree_of_thought") as mock_tot:
+        service.generate_answer("q?", _TOT_CHUNKS)
+    mock_tot.assert_not_called()
+
+
+def test_tot_judge_call_gets_enough_token_budget():
+    service = _make_service()
+    replies = [("c1", None), ("c2", None), ("c3", None), ("2", None)]
+    with patch.object(service, "_call_provider", side_effect=replies) as mock_call:
+        service.tree_of_thought("q?", _TOT_CHUNKS, 0.3)
+    assert mock_call.call_args_list[-1].args[3] == _gen.TOT_JUDGE_MAX_TOKENS
+    assert _gen.TOT_JUDGE_MAX_TOKENS >= 100
+
+
+def test_tot_judge_empty_reply_is_retried_with_bigger_budget():
+    service = _make_service()
+    replies = [("c1", None), ("c2", None), ("c3", None), ("", None), ("3", None)]
+    with patch.object(service, "_call_provider", side_effect=replies) as mock_call:
+        result = service.tree_of_thought("q?", _TOT_CHUNKS, 0.3)
+    assert mock_call.call_count == 5
+    assert mock_call.call_args_list[-1].args[3] == _gen.TOT_JUDGE_MAX_TOKENS * 2
+    assert result["answer"] == "c3"
+    assert "by=judge" in result["reasoning"]

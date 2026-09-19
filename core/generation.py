@@ -39,6 +39,11 @@ TRUNCATED_FINISH_REASONS = {"MAX_TOKENS", "max_tokens", "length"}
 TRUNCATION_RETRY_MULTIPLIER = float(os.environ.get("TRUNCATION_RETRY_MULTIPLIER", "2.0"))
 TRUNCATION_MAX_RETRY_TOKENS = int(os.environ.get("TRUNCATION_MAX_RETRY_TOKENS", "4096"))
 REASONING_MODE_TOKEN_MULTIPLIER = float(os.environ.get("REASONING_MODE_TOKEN_MULTIPLIER", "2.0"))
+TOT_NUM_PATHS = int(os.environ.get("TOT_NUM_PATHS", "3"))
+# Judge needs headroom: thinking-style models can spend the whole budget
+# on internal reasoning and return an empty string (seen live on Groq at 20).
+TOT_JUDGE_MAX_TOKENS = int(os.environ.get("TOT_JUDGE_MAX_TOKENS", "1024"))
+TOT_CANDIDATE_TEMPERATURE = float(os.environ.get("TOT_CANDIDATE_TEMPERATURE", "0.8"))
 
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
@@ -288,6 +293,67 @@ Respond with EXACTLY one line:
             logger.warning(f"Grounding check failed (non-fatal, treated as inconclusive): {e}")
             return None
 
+    def tree_of_thought(self, query: str, chunks: List[Dict], temperature: float,
+                        system_prompt: Optional[str] = None,
+                        max_tokens: int = MAX_OUTPUT_TOKENS) -> Optional[Dict]:
+        """
+        Item #5 of the 9-pattern agentic build (tree of thought). Opt-in and
+        expensive: TOT_NUM_PATHS candidate answers (separate calls, different
+        approach hints) plus one pick call. Primary provider only, no fallback
+        chain, same best-effort philosophy as check_grounding(): returns None
+        if fewer than 2 candidates could be generated, and the caller then
+        falls back to the normal single answer. Never raises.
+        Returns {"answer": str, "reasoning": str} on success.
+        """
+        cfg = self.primary_config
+        base_prompt = self._build_prompt(query, chunks, system_prompt)
+        hints = [
+            "Answer using the most directly relevant passages from the context.",
+            "Answer cautiously: state only what the context explicitly supports, and say clearly what is missing.",
+            "Answer by first weighing any conflicting or ambiguous passages, then give the best-supported answer.",
+        ]
+        n = max(2, min(TOT_NUM_PATHS, len(hints)))
+        candidates = []
+        for hint in hints[:n]:
+            try:
+                text, _u = self._call_provider(
+                    cfg, base_prompt + "\n\nApproach: " + hint, TOT_CANDIDATE_TEMPERATURE, max_tokens
+                )
+                text = (text or "").strip()
+                if text:
+                    candidates.append(text)
+            except Exception as e:
+                logger.warning(f"Tree-of-thought candidate failed (non-fatal): {e}")
+        if len(candidates) < 2:
+            return None
+        listing = "\n\n".join(f"ANSWER {i + 1}:\n{c}" for i, c in enumerate(candidates))
+        pick_prompt = f"""You are a strict judge. Choose the ANSWER that is best supported by the SOURCE CONTEXT, invents no facts, and best addresses the QUESTION.
+
+SOURCE CONTEXT:
+{self._build_context(chunks)}
+
+QUESTION: {query}
+
+{listing}
+
+Reply with ONLY the number of the best answer."""
+        idx = 0
+        picked = "default"
+        try:
+            pick_text, _u = self._call_provider(cfg, pick_prompt, 0.0, TOT_JUDGE_MAX_TOKENS)
+            if not (pick_text or "").strip():
+                pick_text, _u = self._call_provider(cfg, pick_prompt, 0.0, TOT_JUDGE_MAX_TOKENS * 2)
+            m = re.search(r"\d+", pick_text or "")
+            if m and 1 <= int(m.group()) <= len(candidates):
+                idx = int(m.group()) - 1
+                picked = "judge"
+        except Exception as e:
+            logger.warning(f"Tree-of-thought pick failed (non-fatal, using first candidate): {e}")
+        reasoning = f"TREE OF THOUGHT (chosen={idx + 1}, by={picked})\n" + "\n".join(
+            f"[{i + 1}] {c[:800]}" for i, c in enumerate(candidates)
+        )
+        return {"answer": candidates[idx], "reasoning": reasoning}
+
     def _call_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> Tuple[str, Optional[Dict]]:
         """Returns (answer_text, usage_dict_or_None). usage_dict has
         prompt_tokens/completion_tokens/total_tokens when the provider
@@ -321,6 +387,7 @@ Respond with EXACTLY one line:
         system_prompt: Optional[str] = None,
         max_tokens: Optional[int] = None,
         reasoning_mode: bool = False,
+        tot_mode: bool = False,
     ) -> Dict:
         """
         Generate an answer to `query` grounded in the given `chunks`.
@@ -340,6 +407,18 @@ Respond with EXACTLY one line:
 
         trimmed_chunks = self._trim_chunks_to_budget(chunks)
         sources = list({c.get("document_name", "unknown") for c in trimmed_chunks})
+        if tot_mode:
+            tot = self.tree_of_thought(query, trimmed_chunks, temp, system_prompt, max_tok)
+            if tot is not None:
+                return {
+                    "answer": tot["answer"],
+                    "sources": sources,
+                    "provider_used": self.primary_config["provider"],
+                    "usage": None,
+                    "chunks_sent": len(trimmed_chunks),
+                    "fallback_used": False,
+                    "reasoning": tot["reasoning"],
+                }
         prompt = self._build_prompt(query, trimmed_chunks, system_prompt, reasoning_mode)
         if reasoning_mode:
             max_tok = int(max_tok * REASONING_MODE_TOKEN_MULTIPLIER)

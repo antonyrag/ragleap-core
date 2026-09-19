@@ -243,3 +243,19 @@ def test_ask_non_sensitive_uses_no_reasoning_mode():
 
     assert mock_gen_service.return_value.generate_answer.call_args.kwargs["reasoning_mode"] is False
     assert mock_trace.call_args.kwargs["reasoning"] is None
+
+
+# --- Tree of thought (item #5): tot_mode is opt-in, passed through ask() ---
+def test_ask_passes_tot_mode_through_and_defaults_off():
+    mock_gen_service = _mock_generation_service({
+        "answer": "a", "sources": [], "provider_used": "gemini",
+        "usage": {}, "chunks_sent": 1, "fallback_used": False, "reasoning": "TREE OF THOUGHT x",
+    })
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", mock_gen_service), \
+         patch.object(chat, "record_trace") as mock_trace:
+        chat.ask("q?", tot_mode=True)
+        assert mock_gen_service.return_value.generate_answer.call_args.kwargs["tot_mode"] is True
+        assert mock_trace.call_args.kwargs["reasoning"] == "TREE OF THOUGHT x"
+        chat.ask("q?")
+        assert mock_gen_service.return_value.generate_answer.call_args.kwargs["tot_mode"] is False
