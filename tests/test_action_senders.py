@@ -156,3 +156,21 @@ def test_autonomy_dispatch_reports_sent_or_failed_for_new_channels():
 
 def test_autonomy_unknown_channel_still_unsupported():
     assert "Unsupported channel" in autonomy._send_via_channel("carrier_pigeon", "x", "hi")
+
+
+def test_plain_address_rules():
+    ok = ["boss@acme.com", "a.b+c@sub.example.co.uk"]
+    bad = ["a@b", "@x.com", "x@", "a@@b.com", "a@b..com", "a@.com", "a@b.com.", "a b@x.com",
+           "a@b.com\nBcc: x@y.com", "a@b.com,c@d.com", "a@b.com;c@d.com", "<a@b.com>", "ü@b.com", ""]
+    for addr in ok:
+        assert a._is_plain_address(addr), addr
+    for addr in bad:
+        assert not a._is_plain_address(addr), addr
+
+
+def test_pathological_address_is_rejected_fast_and_length_capped():
+    import time
+    for evil in ("!@!." + "!." * 5000, "a" * 100000 + "@x.com", "a@" + "b." * 100000):
+        t0 = time.monotonic()
+        assert a._is_plain_address(evil) is False
+        assert time.monotonic() - t0 < 0.5

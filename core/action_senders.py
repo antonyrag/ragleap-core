@@ -104,14 +104,30 @@ def send_slack(target: str, content: str) -> bool:
         return False
 
 
-_EMAIL_RE = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$")
+_FORBIDDEN_ADDR_CHARS = set(" \t\r\n,;<>\"'()[]\\")
+
+
+def _is_plain_address(addr: str) -> bool:
+    """One plain local@domain.tld address. Deliberately regex-free (a regex here
+    was flagged by CodeQL as polynomial-ReDoS on model-influenced input) and
+    length-capped first, so it runs in linear time."""
+    if not addr or len(addr) > 254:
+        return False
+    for c in addr:
+        if c in _FORBIDDEN_ADDR_CHARS or ord(c) < 33 or ord(c) > 126:
+            return False
+    local, sep, domain = addr.partition("@")
+    if not sep or not local or len(local) > 64 or "@" in domain:
+        return False
+    labels = domain.split(".")
+    return len(labels) >= 2 and all(labels)
 
 
 def _recipient_allowed(addr: str) -> bool:
     """Exactly one plain address, and it must be on EMAIL_ALLOWED_RECIPIENTS
     (full addresses, or '@domain.com' entries matching that exact domain)."""
     addr = (addr or "").strip().lower()
-    if not _EMAIL_RE.match(addr):
+    if not _is_plain_address(addr):
         return False
     for entry in os.environ.get("EMAIL_ALLOWED_RECIPIENTS", "").split(","):
         entry = entry.strip().lower()
