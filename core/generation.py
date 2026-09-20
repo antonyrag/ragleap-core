@@ -44,6 +44,9 @@ TOT_NUM_PATHS = int(os.environ.get("TOT_NUM_PATHS", "3"))
 # on internal reasoning and return an empty string (seen live on Groq at 20).
 TOT_JUDGE_MAX_TOKENS = int(os.environ.get("TOT_JUDGE_MAX_TOKENS", "1024"))
 TOT_CANDIDATE_TEMPERATURE = float(os.environ.get("TOT_CANDIDATE_TEMPERATURE", "0.8"))
+# check_grounding() needs headroom too: an empty reply is treated as "grounded",
+# so a thinking-style model exhausting a tiny budget would silently disable the check.
+GROUNDING_CHECK_MAX_TOKENS = int(os.environ.get("GROUNDING_CHECK_MAX_TOKENS", "512"))
 
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
@@ -282,7 +285,11 @@ Respond with EXACTLY one line:
 - "NOT_GROUNDED: <short reason>" if the ANSWER contains a claim not supported by the SOURCE CONTEXT"""
 
         try:
-            text, _usage = self._call_provider(self.primary_config, prompt, temperature=0.0, max_tokens=100)
+            text, _usage = self._call_provider(self.primary_config, prompt, temperature=0.0, max_tokens=GROUNDING_CHECK_MAX_TOKENS)
+            if not (text or "").strip():
+                text, _usage = self._call_provider(
+                    self.primary_config, prompt, temperature=0.0, max_tokens=GROUNDING_CHECK_MAX_TOKENS * 2
+                )
             text = (text or "").strip()
             if text.upper().startswith("NOT_GROUNDED"):
                 if ":" in text:
