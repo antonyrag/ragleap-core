@@ -16,6 +16,7 @@ from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
 from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
 from core.employees.supervisor import route_task
+from core.employees.team import run_team
 from core.observability import record_trace
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,17 @@ def ask(
     _trace_start = time.monotonic()
 
     generator = GenerationService()
+    # Item #7 (sub-agent spawning): role="team" splits a multi-part request into
+    # sub-tasks, each answered via role="auto"; sub-agents only answer (no actions).
+    if role == "team":
+        return run_team(
+            query,
+            lambda q, **kw: ask(
+                q, top_k=top_k, temperature=temperature, system_prompt=system_prompt,
+                max_tokens=max_tokens, hybrid=hybrid, **kw
+            ),
+            generator, trusted=trusted,
+        )
     # Item #6 (supervisor): role="auto" lets the supervisor pick the role.
     # trusted=False (default) restricts it to the customer-facing safe roles.
     routed = None

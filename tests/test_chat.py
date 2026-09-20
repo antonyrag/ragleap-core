@@ -319,3 +319,30 @@ def test_ask_without_auto_never_calls_supervisor():
         result = chat.ask("q?")
     route.assert_not_called()
     assert "routed_role" not in result
+
+
+# --- Sub-agent spawning (item #7): role="team" ---
+def test_ask_team_delegates_to_run_team_and_skips_normal_pipeline():
+    gen = _mock_generation_service({"answer": "a", "provider_used": "gemini"})
+    fake = {"answer": "merged", "routing_method": "team", "team": []}
+    with patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "run_team", return_value=fake) as mock_team, \
+         patch.object(chat, "_prepare") as mock_prep:
+        result = chat.ask("prices and returns?", role="team")
+    assert result == fake
+    assert mock_team.call_args.args[0] == "prices and returns?"
+    assert mock_team.call_args.kwargs["trusted"] is False
+    mock_prep.assert_not_called()
+
+
+def test_ask_without_team_never_calls_run_team():
+    gen = _mock_generation_service({
+        "answer": "a", "sources": [], "provider_used": "gemini",
+        "usage": {}, "chunks_sent": 1, "fallback_used": False, "reasoning": None,
+    })
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "run_team") as mock_team, \
+         patch.object(chat, "record_trace"):
+        chat.ask("q?")
+    mock_team.assert_not_called()
