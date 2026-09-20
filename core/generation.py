@@ -47,6 +47,9 @@ TOT_CANDIDATE_TEMPERATURE = float(os.environ.get("TOT_CANDIDATE_TEMPERATURE", "0
 # check_grounding() needs headroom too: an empty reply is treated as "grounded",
 # so a thinking-style model exhausting a tiny budget would silently disable the check.
 GROUNDING_CHECK_MAX_TOKENS = int(os.environ.get("GROUNDING_CHECK_MAX_TOKENS", "512"))
+# Generic text returned to callers when every provider fails: the raw provider error
+# (quota details, project ids, key hints) is logged server-side only.
+GENERIC_FAILURE_MESSAGE = "Sorry, I couldn't generate an answer; all configured providers failed. Please try again later."
 
 LLM_FALLBACK_PROVIDERS = [
     p.strip().lower() for p in os.environ.get("LLM_FALLBACK_PROVIDERS", "").split(",") if p.strip()
@@ -473,7 +476,7 @@ Reply with ONLY the number of the best answer."""
 
         logger.error(f"All providers in the fallback chain failed. Last error: {last_error}")
         return {
-            "answer": f"Sorry, I couldn't generate an answer — all configured providers failed. Last error: {last_error}",
+            "answer": GENERIC_FAILURE_MESSAGE,
             "sources": [],
             "provider_used": None,
             "usage": None,
@@ -526,12 +529,13 @@ Reply with ONLY the number of the best answer."""
                 last_error = e
                 logger.warning(f"Provider '{config['provider']}' failed during streaming: {e}")
                 if yielded_anything:
-                    yield f"\n[Error: generation interrupted — {e}]"
+                    logger.error(f"Streaming generation interrupted: {e}")
+                    yield "\n[Error: generation interrupted]"
                     return
                 continue
 
         logger.error(f"All providers in the fallback chain failed during streaming. Last error: {last_error}")
-        yield f"Sorry, I couldn't generate an answer — all configured providers failed. Last error: {last_error}"
+        yield GENERIC_FAILURE_MESSAGE
 
     def _call_gemini(self, prompt: str, temperature: float, max_tokens: int, api_key: str, model: str) -> Tuple[str, Optional[Dict]]:
         import google.genai as genai

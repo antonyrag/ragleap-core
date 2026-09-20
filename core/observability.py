@@ -100,7 +100,8 @@ def generate_observability_report() -> str:
         rows = cur.fetchall()
         cur.close()
     except Exception as e:
-        return f"Report generation error: {e}"
+        logger.error(f"Observability report generation failed: {e}")
+        return "Report generation error; see server logs."
     finally:
         conn.close()
 

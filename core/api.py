@@ -219,7 +219,8 @@ async def upload_document(file: UploadFile = File(...)):
         raise
     except Exception as exc:
         logger.exception("Ingestion failed for %s", file.filename)
-        raise HTTPException(status_code=500, detail=f"Ingestion failed: {exc}") from exc
+        logger.error(f"Ingestion failed: {exc}")
+        raise HTTPException(status_code=500, detail="Ingestion failed. See server logs for details.") from exc
     finally:
         await file.close()
 
@@ -273,7 +274,8 @@ def chat(
         }
     except Exception as exc:
         logger.exception("Chat failed for question: %s", question)
-        raise HTTPException(status_code=500, detail=f"Chat failed: {exc}") from exc
+        logger.error(f"Chat failed: {exc}")
+        raise HTTPException(status_code=500, detail="Chat failed. See server logs for details.") from exc
 
 
 @app.post("/chat/stream")
@@ -304,7 +306,7 @@ def chat_stream(
                 yield piece
         except Exception as exc:
             logger.exception("Streaming chat failed for question: %s", question)
-            yield f"\n[Error: {exc}]"
+            yield "\n[Error: the request could not be completed]"
 
     return StreamingResponse(_generate(), media_type="text/plain")
 
@@ -457,7 +459,8 @@ def create_integration(req: DataSourceCreateRequest):
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         logger.exception("Failed to create integration")
-        raise HTTPException(status_code=500, detail=f"Failed to create integration: {exc}") from exc
+        logger.error(f"Failed to create integration: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to create integration. See server logs for details.") from exc
 
 
 @app.get("/integrations")
@@ -486,6 +489,9 @@ def sync_integration(data_source_id: str):
             else f"failed: {result.get('error', 'unknown error')}"
         )
         employee_learning.learn_from_integration_action(data_source.name, "sync", result_summary)
+    if not result.get("success") and result.get("error") != "Data source not found":
+        logger.error(f"Integration sync failed for {data_source_id}: {result.get('error')}")
+        result = {**result, "error": "Sync failed. See server logs for details."}
     return result
 
 
@@ -640,7 +646,8 @@ async def create_csv_integration(
         raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded.")
     except Exception as exc:
         logger.exception("CSV data source creation failed for %s", file.filename)
-        raise HTTPException(status_code=500, detail=f"Failed to create CSV data source: {exc}") from exc
+        logger.error(f"Failed to create CSV data source: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to create CSV data source. See server logs for details.") from exc
     finally:
         await file.close()
 
