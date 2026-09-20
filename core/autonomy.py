@@ -165,7 +165,8 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
         else:
             return f"Unsupported channel for autonomous send: {channel} (voice has no discrete send - see RFC #171)"
     except Exception as e:
-        return f"Send error: {e}"
+        logger.error(f"Autonomous send failed on {channel}: {e}")
+        return "Send error; see server logs."
 
 
 def request_approval(action_type: str, channel: str, target: str,

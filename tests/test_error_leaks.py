@@ -71,3 +71,33 @@ def test_api_http_errors_do_not_interpolate_exception_text():
                   "Failed to create CSV data source"):
         assert f'detail=f"{label}: {{exc}}"' not in src, label
     assert "detail=f" not in "".join(l for l in src.split("\n") if "{exc}" in l)
+
+
+def test_send_via_channel_exception_does_not_leak():
+    from core import action_senders
+    with patch.object(action_senders, "send_slack", side_effect=Exception(SECRET)):
+        out = autonomy._send_via_channel("slack", "x", "hi")
+    assert "SECRET" not in out and "quota" not in out and "sent" not in out
+
+
+def test_sync_endpoint_failure_returns_fresh_generic_dict():
+    from core.api import sync_integration, integrations_service
+    with patch.object(integrations_service, "sync_data_source",
+                      return_value={"success": False, "error": SECRET, "extra": "internal"}), \
+         patch.object(integrations_service, "get_data_source", return_value=None):
+        result = sync_integration("ds-1")
+    assert result == {"success": False, "error": "Sync failed. See server logs for details."}
+
+
+def test_sync_endpoint_success_returns_only_known_fields():
+    from core.api import sync_integration, integrations_service
+    with patch.object(integrations_service, "sync_data_source",
+                      return_value={"success": True, "records_synced": 3, "debug": "x"}), \
+         patch.object(integrations_service, "get_data_source", return_value=None):
+        result = sync_integration("ds-1")
+    assert result == {"success": True, "records_synced": 3}
+
+
+def test_api_does_not_copy_result_dict_on_sync_failure():
+    root = os.path.join(os.path.dirname(__file__), "..")
+    assert "{**result" not in open(os.path.join(root, "core", "api.py")).read()

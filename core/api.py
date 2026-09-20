@@ -489,10 +489,10 @@ def sync_integration(data_source_id: str):
             else f"failed: {result.get('error', 'unknown error')}"
         )
         employee_learning.learn_from_integration_action(data_source.name, "sync", result_summary)
-    if not result.get("success") and result.get("error") != "Data source not found":
-        logger.error(f"Integration sync failed for {data_source_id}: {result.get('error')}")
-        result = {**result, "error": "Sync failed. See server logs for details."}
-    return result
+    if result.get("success"):
+        return {"success": True, "records_synced": int(result.get("records_synced", 0))}
+    logger.error(f"Integration sync failed for {data_source_id}: {result.get('error')}")
+    return {"success": False, "error": "Sync failed. See server logs for details."}
 
 
 @app.get("/profile")
