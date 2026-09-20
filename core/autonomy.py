@@ -253,7 +253,8 @@ def execute_or_request(action_type: str, channel: str, target: str,
             return {"status": "executed", "result": result}
         except Exception as e:
             log_autonomous_action(action_type, channel, target, content, f"ERROR: {e}", approved=True, role=role)
-            return {"status": "error", "result": str(e)}
+            logger.error(f"Autonomous action {action_type} failed: {e}")
+            return {"status": "error", "result": "action failed; see server logs"}
 
     elif mode == "semi":
         action_id = str(uuid.uuid4())[:8].upper()
@@ -340,7 +341,8 @@ def generate_autonomy_daily_report() -> str:
         rows = cur.fetchall()
         cur.close()
     except Exception as e:
-        return f"Report generation error: {e}"
+        logger.error(f"Autonomy report generation failed: {e}")
+        return "Report generation error; see server logs."
     finally:
         conn.close()
 
@@ -385,7 +387,8 @@ def generate_rejection_pattern_report(min_days: int = 0) -> str:
         rows = cur.fetchall()
         cur.close()
     except Exception as e:
-        return f"Rejection pattern report error: {e}"
+        logger.error(f"Rejection pattern report failed: {e}")
+        return "Rejection pattern report error; see server logs."
     finally:
         conn.close()
 

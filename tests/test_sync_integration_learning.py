@@ -39,7 +39,10 @@ def test_failed_sync_records_learned_skill_with_error():
                        return_value=_make_data_source("HubSpot")), \
          patch.object(employee_learning, "learn_from_integration_action") as mock_learn:
         result = sync_integration("ds-1")
-    assert result == {"success": False, "error": "connection timeout"}
+    # Deliberate contract change: the raw connector error is no longer returned to the
+    # API caller (CodeQL py/stack-trace-exposure); learning still records the real reason.
+    assert result["success"] is False
+    assert "connection timeout" not in str(result)
     mock_learn.assert_called_once_with("HubSpot", "sync", "failed: connection timeout")
 
 
