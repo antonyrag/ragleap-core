@@ -150,6 +150,18 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
             from channels.discord.router import send_discord_message
             ok = send_discord_message(target, content)
             return f"Discord to {target}: {'sent' if ok else 'failed'}"
+        elif channel == "webhook":
+            from core.action_senders import send_webhook
+            ok = send_webhook(target, content)
+            return f"Webhook '{target}': {'sent' if ok else 'failed'}"
+        elif channel == "slack":
+            from core.action_senders import send_slack
+            ok = send_slack(target, content)
+            return f"Slack '{target}': {'sent' if ok else 'failed'}"
+        elif channel == "email":
+            from core.action_senders import send_email
+            ok = send_email(target, content)
+            return f"Email to {target}: {'sent' if ok else 'failed'}"
         else:
             return f"Unsupported channel for autonomous send: {channel} (voice has no discrete send - see RFC #171)"
     except Exception as e:
