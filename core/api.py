@@ -29,6 +29,7 @@ from core import workflows
 from core import autonomy
 from core import observability
 from core import queue
+from core.employees.sensitivity import is_sensitive_role
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ragleap-core.api")
@@ -533,7 +534,11 @@ def get_employee_role(role: str):
 @app.patch("/employees/{role}")
 def update_employee_role(role: str, req: RoleUpdateRequest):
     updates = {k: v for k, v in req.dict().items() if v is not None}
-    return employee_roles.upsert_role(role, **updates)
+    result = employee_roles.upsert_role(role, **updates)
+    # Tell the caller whether this role is treated as a sensitive domain (forced
+    # semi/off autonomy, reasoning and grounding checks).
+    result["sensitive_domain"] = is_sensitive_role(role)
+    return result
 
 
 @app.get("/channels/{channel}/role")

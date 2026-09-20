@@ -15,6 +15,7 @@ from core.language import language_detector
 from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
 from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
+from core.employees.sensitivity import is_sensitive_role
 from core.employees.supervisor import route_task
 from core.employees.team import run_team
 from core.employees.actions import maybe_act, describe_action
@@ -186,7 +187,9 @@ def ask(
     generation_query = _augment_query_with_reminder(role, query)
     # Item #4 (chain of thought): same single generation call, longer output,
     # only for the 7 sensitive-domain roles (no extra API call, unlike item #3).
-    reasoning_mode = role in SENSITIVE_DOMAIN_ROLES
+    # Runtime-created roles count too (name/tags markers), not just the built-in list.
+    role_is_sensitive = is_sensitive_role(role)
+    reasoning_mode = role_is_sensitive
     result = generator.generate_answer(
         generation_query, chunks, temperature=temperature, system_prompt=effective_system_prompt,
         max_tokens=max_tokens, reasoning_mode=reasoning_mode, tot_mode=tot_mode,
@@ -210,7 +213,7 @@ def ask(
     # questions on these specific roles (see ROADMAP.md). Only runs when
     # a real answer was actually generated (provider_used is set).
     reflection_concern = None
-    if role in SENSITIVE_DOMAIN_ROLES and result.get("provider_used"):
+    if role_is_sensitive and result.get("provider_used"):
         reflection_concern = generator.check_grounding(result["answer"], chunks, query)
         if reflection_concern:
             result["answer"] += (
