@@ -234,8 +234,8 @@ def execute_or_request(action_type: str, channel: str, target: str,
 
     if mode == "full" and role:
         try:
-            from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
-            if role in SENSITIVE_DOMAIN_ROLES:
+            from core.employees.sensitivity import is_sensitive_role
+            if is_sensitive_role(role):
                 logger.info(
                     f"Sensitive-domain role '{role}' forced full->semi for "
                     f"action_type={action_type} (SENSITIVE_DOMAIN_ROLES guardrail)"
