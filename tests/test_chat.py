@@ -346,3 +346,47 @@ def test_ask_without_team_never_calls_run_team():
          patch.object(chat, "record_trace"):
         chat.ask("q?")
     mock_team.assert_not_called()
+
+
+# --- LLM action loop (phase 2): allow_actions is opt-in and trusted-only ---
+def _action_gen():
+    return _mock_generation_service({
+        "answer": "base answer", "sources": [], "provider_used": "gemini",
+        "usage": {}, "chunks_sent": 1, "fallback_used": False, "reasoning": None,
+    })
+
+
+def _ask_with_actions(maybe_act_return, **kwargs):
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", _action_gen()), \
+         patch.object(chat, "maybe_act", return_value=maybe_act_return) as mock_act, \
+         patch.object(chat, "record_trace"):
+        result = chat.ask("q?", **kwargs)
+    return result, mock_act
+
+
+def test_ask_actions_off_by_default():
+    result, mock_act = _ask_with_actions({"status": "executed", "tool": "send_slack"})
+    mock_act.assert_not_called()
+    assert "action" not in result and result["answer"] == "base answer"
+
+
+def test_ask_allow_actions_trusted_runs_and_appends_note():
+    outcome = {"status": "pending_approval", "tool": "send_slack", "target": "slack", "action_id": "AB12CD34"}
+    result, mock_act = _ask_with_actions(outcome, allow_actions=True, trusted=True)
+    mock_act.assert_called_once()
+    assert result["action"] == outcome
+    assert "waiting for owner approval" in result["answer"] and result["answer"].startswith("base answer")
+
+
+def test_ask_allow_actions_untrusted_never_plans():
+    result, mock_act = _ask_with_actions({"status": "executed"}, allow_actions=True)
+    mock_act.assert_not_called()
+    assert result["action"]["status"] == "skipped"
+    assert "trusted caller" in result["answer"]
+
+
+def test_ask_no_action_proposed_leaves_answer_untouched():
+    result, mock_act = _ask_with_actions(None, allow_actions=True, trusted=True)
+    mock_act.assert_called_once()
+    assert "action" not in result and result["answer"] == "base answer"
