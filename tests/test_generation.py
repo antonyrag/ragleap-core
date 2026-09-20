@@ -404,3 +404,23 @@ def test_tot_judge_empty_reply_is_retried_with_bigger_budget():
     assert mock_call.call_args_list[-1].args[3] == _gen.TOT_JUDGE_MAX_TOKENS * 2
     assert result["answer"] == "c3"
     assert "by=judge" in result["reasoning"]
+
+
+# --- check_grounding token budget (empty-reply hardening) ---
+def test_check_grounding_uses_bigger_budget_and_flags_concern():
+    service = _make_service()
+    with patch.object(service, "_call_provider", return_value=("NOT_GROUNDED: invented claim", None)) as mock_call:
+        result = service.check_grounding("ans", _TOT_CHUNKS, "q?")
+    assert result == "invented claim"
+    assert mock_call.call_args.kwargs["max_tokens"] == _gen.GROUNDING_CHECK_MAX_TOKENS
+    assert _gen.GROUNDING_CHECK_MAX_TOKENS >= 300
+
+
+def test_check_grounding_empty_reply_is_retried_with_bigger_budget():
+    service = _make_service()
+    replies = [("", None), ("NOT_GROUNDED: unsupported", None)]
+    with patch.object(service, "_call_provider", side_effect=replies) as mock_call:
+        result = service.check_grounding("ans", _TOT_CHUNKS, "q?")
+    assert mock_call.call_count == 2
+    assert mock_call.call_args_list[-1].kwargs["max_tokens"] == _gen.GROUNDING_CHECK_MAX_TOKENS * 2
+    assert result == "unsupported"
