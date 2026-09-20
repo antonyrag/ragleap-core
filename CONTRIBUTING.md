@@ -61,6 +61,65 @@ look at the existing pattern first:
 
 Be respectful and constructive. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
+## Adding an AI Employee
+
+There are two ways to add an employee. Pick the one that fits.
+
+### A. A built-in role (ships with every install)
+
+Edit `core/employees/defaults.py`:
+
+1. Add the role name to `ROLE_CHOICES`.
+2. Add an entry to `DEFAULT_ROLES` with `role`, `display_name`, `channels`,
+   `skill_tags` and a real `personality` (at least a couple of sentences).
+3. Add the same role name to `ROLE_SKILL_TAGS` with the tags used to find its memory.
+4. If the role touches health, legal, tax, immigration, insurance or compliance
+   work, also add it to `SENSITIVE_DOMAIN_ROLES` and add a matching compliance
+   seed to `DEFAULT_COMPLIANCE_MEMORY_SEEDS` (one seed per sensitive role).
+
+Then run:
+
+```bash
+python3 -m pytest tests/test_role_definitions.py
+```
+
+These tests fail with a clear message if a list is out of sync, if a field is
+missing, or if a role carries a sensitive-domain tag (legal, compliance,
+healthcare, medical, clinical, immigration, regulatory) without being listed in
+`SENSITIVE_DOMAIN_ROLES`. If you have reviewed a role and it is genuinely not
+sensitive, list it in `REVIEWED_NOT_SENSITIVE` in that test file with a reason.
+
+### B. A custom role at runtime (no code change)
+
+```bash
+curl -X PATCH http://localhost:8000/employees/pizza_bot \
+  -H "Content-Type: application/json" \
+  -d '{"display_name": "Pizza Bot", "channels": ["whatsapp"],
+       "skill_tags": ["menu", "orders"], "personality": "You are the ordering assistant for..."}'
+```
+
+The response includes `sensitive_domain`. A runtime role whose name, display
+name or skill tags contain a marker word (legal, lawyer, medical, health, tax,
+immigration, insurance, compliance and similar) is treated as a sensitive domain
+automatically: the Autonomous Loop is forced to `semi` (owner approval) and the
+answer gets the reasoning and grounding checks. Owners can override in `.env`:
+`SENSITIVE_ROLES_EXTRA` forces a role sensitive, and `SENSITIVE_ROLES_REVIEWED_SAFE`
+exempts a runtime role that is a false positive. Built-in sensitive roles can never
+be exempted. This is a keyword check, not a legal classification, so review any role
+that touches regulated work.
+
+### Trying your role
+
+```python
+from core.chat import ask
+ask("your question", role="pizza_bot")          # a specific role
+ask("your question", role="auto")               # the supervisor picks the role
+```
+
+Untrusted callers (customer messages) can only be routed to the customer-facing
+roles support, sales and marketing. Actions such as webhooks, Slack and email run
+only for trusted callers and only through the approval gate in `core/autonomy.py`.
+
 ## Building a sensitive-domain AI Employee role
 
 If you're adding a new AI Employee role type that touches a sensitive
