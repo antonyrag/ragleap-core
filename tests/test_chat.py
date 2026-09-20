@@ -259,3 +259,63 @@ def test_ask_passes_tot_mode_through_and_defaults_off():
         assert mock_trace.call_args.kwargs["reasoning"] == "TREE OF THOUGHT x"
         chat.ask("q?")
         assert mock_gen_service.return_value.generate_answer.call_args.kwargs["tot_mode"] is False
+
+
+# --- Supervisor (item #6): role="auto" ---
+def _auto_mocks(routed_role, method="llm"):
+    gen = _mock_generation_service({
+        "answer": "a", "sources": [], "provider_used": "gemini",
+        "usage": {}, "chunks_sent": 1, "fallback_used": False, "reasoning": None,
+    })
+    gen.return_value.check_grounding.return_value = None
+    route = MagicMock(return_value={"role": routed_role, "reason": "r", "method": method})
+    return gen, route
+
+
+def test_ask_auto_uses_routed_role_and_defaults_to_untrusted():
+    gen, route = _auto_mocks("sales")
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "route_task", route), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="q?"), \
+         patch.object(chat, "record_trace") as mock_trace:
+        result = chat.ask("how much is it?", role="auto")
+    assert route.call_args.kwargs["trusted"] is False
+    assert mock_trace.call_args.kwargs["role"] == "sales"
+    assert result["routed_role"] == "sales" and result["routing_method"] == "llm"
+
+
+def test_ask_auto_trusted_flag_is_passed_through():
+    gen, route = _auto_mocks("manager")
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "route_task", route), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="q?"), \
+         patch.object(chat, "record_trace"):
+        chat.ask("summarize approvals", role="auto", trusted=True)
+    assert route.call_args.kwargs["trusted"] is True
+
+
+def test_ask_auto_routed_to_sensitive_role_gets_reasoning_mode():
+    gen, route = _auto_mocks("legal_intake")
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "route_task", route), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="q?"), \
+         patch.object(chat, "record_trace"):
+        chat.ask("q?", role="auto", trusted=True)
+    assert gen.return_value.generate_answer.call_args.kwargs["reasoning_mode"] is True
+
+
+def test_ask_without_auto_never_calls_supervisor():
+    gen, route = _auto_mocks("sales")
+    with patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "route_task", route), \
+         patch.object(chat, "record_trace"):
+        result = chat.ask("q?")
+    route.assert_not_called()
+    assert "routed_role" not in result

@@ -15,6 +15,7 @@ from core.language import language_detector
 from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
 from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
+from core.employees.supervisor import route_task
 from core.observability import record_trace
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,7 @@ def ask(
     hybrid: bool = True,
     role: Optional[str] = None,
     tot_mode: bool = False,
+    trusted: bool = False,
 ) -> dict:
     """
     Answer a question grounded in previously ingested documents.
@@ -145,6 +147,12 @@ def ask(
     _trace_start = time.monotonic()
 
     generator = GenerationService()
+    # Item #6 (supervisor): role="auto" lets the supervisor pick the role.
+    # trusted=False (default) restricts it to the customer-facing safe roles.
+    routed = None
+    if role == "auto":
+        routed = route_task(query, trusted=trusted, service=generator)
+        role = routed["role"]
     chunks, detected_language, embedding_failed = _prepare(query, top_k, hybrid)
 
     if embedding_failed:
@@ -174,6 +182,9 @@ def ask(
     result["chunks_used"] = len(chunks)
     result["detected_language"] = detected_language
     result["role_memory_ids"] = role_memory_ids
+    if routed:
+        result["routed_role"] = routed["role"]
+        result["routing_method"] = routed["method"]
 
     # Item #3 of the 9-pattern agentic-architecture build (self-correction/
     # reflection): a second, cheap LLM pass checking whether the answer is
