@@ -17,6 +17,7 @@ from core.employees import memory as employee_memory
 from core.employees.defaults import SENSITIVE_DOMAIN_ROLES
 from core.employees.supervisor import route_task
 from core.employees.team import run_team
+from core.employees.actions import maybe_act, describe_action
 from core.observability import record_trace
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,7 @@ def ask(
     role: Optional[str] = None,
     tot_mode: bool = False,
     trusted: bool = False,
+    allow_actions: bool = False,
 ) -> dict:
     """
     Answer a question grounded in previously ingested documents.
@@ -215,6 +217,19 @@ def ask(
                 "\n\nNote: part of this answer may not be fully supported by the "
                 "available documents -- please verify independently before relying on it."
             )
+
+    # Phase 2 of "broad actionable": opt-in, TRUSTED callers only. The model may propose
+    # one action, but it only runs through core.autonomy.execute_or_request() (modes,
+    # allowlists, approval, sensitive-role forcing). Never exposed on the HTTP /chat route.
+    if allow_actions and result.get("provider_used"):
+        if trusted:
+            action_outcome = maybe_act(query, result["answer"], generator, role)
+        else:
+            action_outcome = {"status": "skipped", "tool": None, "target": None,
+                              "detail": "actions require a trusted caller"}
+        if action_outcome:
+            result["action"] = action_outcome
+            result["answer"] += "\n\n" + describe_action(action_outcome)
 
     usage = result.get("usage") or {}
     record_trace(
