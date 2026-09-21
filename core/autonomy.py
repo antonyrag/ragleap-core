@@ -30,6 +30,7 @@ only ever forces full->semi, never semi/off->something looser, and
 role is optional throughout (existing callers with no role context
 keep working exactly as before).
 """
+import hmac
 import json
 import logging
 import os
@@ -329,6 +330,40 @@ def process_approval_response(message: str) -> Optional[str]:
         action_type, content, result, approved=True
     )
     return f"Action {action_id} approved and executed.\n{result}"
+
+
+def _norm_sender(channel: str, value) -> str:
+    """Comparable form of a sender id: whatsapp numbers lose the prefix, spaces, dashes and plus."""
+    v = str(value if value is not None else "").strip()
+    if channel == "whatsapp":
+        v = v.replace("whatsapp:", "").replace(" ", "").replace("-", "").lstrip("+")
+    return v.lower()
+
+
+def is_owner_sender(channel: str, sender) -> bool:
+    """True only when `sender` on `channel` is the owner configured as approval_channel /
+    approval_target. Fails closed: no configured target, a different channel, or any error
+    means False."""
+    try:
+        settings = get_autonomy_settings()
+        target = _norm_sender(settings.get("approval_channel"), settings.get("approval_target"))
+        if not target or settings.get("approval_channel") != channel:
+            return False
+        return hmac.compare_digest(_norm_sender(channel, sender).encode("utf-8"), target.encode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Owner check failed (treating sender as not the owner): {e}")
+        return False
+
+
+def process_approval_from(channel: str, sender, message: str) -> Optional[str]:
+    """Like process_approval_response, but only honours the reply when it comes from the
+    configured owner. Anyone else gets None (the message falls through to normal chat), so a
+    stranger cannot approve or reject actions, or learn whether an action id exists."""
+    if not is_owner_sender(channel, sender):
+        if re.match(r"^\s*(YES|NO)\s+[A-Za-z0-9]{8}\s*$", message or "", re.IGNORECASE):
+            logger.warning(f"Approval-style message from a non-owner sender on {channel} ignored")
+        return None
+    return process_approval_response(message)
 
 
 def generate_autonomy_daily_report() -> str:

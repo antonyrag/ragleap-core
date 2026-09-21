@@ -346,7 +346,7 @@ async def whatsapp_webhook(request: Request):
     (not JSON), with fields like 'Body' (message text) and 'From'
     (sender's phone, prefixed 'whatsapp:').
     """
-    from channels.whatsapp.router import handle_incoming_message, _verify_twilio_signature
+    from channels.whatsapp.router import handle_incoming_message, _verify_twilio_signature, unsigned_allowed
 
     form = await request.form()
     params = dict(form)
@@ -365,6 +365,11 @@ async def whatsapp_webhook(request: Request):
         if not _verify_twilio_signature(url, params, signature):
             logger.warning("WhatsApp webhook: invalid Twilio signature")
             raise HTTPException(status_code=403, detail="Invalid signature.")
+    elif not unsigned_allowed():
+        logger.warning("WhatsApp webhook: request without a Twilio signature rejected")
+        raise HTTPException(status_code=403, detail="Invalid signature.")
+    else:
+        logger.warning("WhatsApp webhook: unsigned request accepted because WHATSAPP_ALLOW_UNSIGNED=true (local testing only)")
 
     logger.info(f"WhatsApp webhook: message from {from_phone}: {incoming_msg[:50]}")
     handle_incoming_message(from_phone, incoming_msg)

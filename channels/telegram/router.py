@@ -14,7 +14,7 @@ import requests
 
 from core.chat import ask
 from core.workflows import call_n8n_workflows
-from core.autonomy import process_approval_response
+from core.autonomy import process_approval_from
 from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
 from core.employees.tools import TOOL_REGISTRY
 from core.employees.channel_roles import resolve_role
@@ -31,10 +31,11 @@ MAX_TELEGRAM_MESSAGE_LENGTH = 4096
 def _verify_webhook_secret(received_secret: str) -> bool:
     """Verify the X-Telegram-Bot-Api-Secret-Token header against our configured secret."""
     if not TELEGRAM_WEBHOOK_SECRET:
-        # No secret configured — skip verification (not recommended for production,
-        # but allows quick local testing).
-        logger.warning("TELEGRAM_WEBHOOK_SECRET not set — webhook signature not verified")
-        return True
+        if os.environ.get("TELEGRAM_ALLOW_UNSIGNED", "").strip().lower() == "true":
+            logger.warning("TELEGRAM_WEBHOOK_SECRET not set and TELEGRAM_ALLOW_UNSIGNED=true: webhook NOT verified (local testing only)")
+            return True
+        logger.error("TELEGRAM_WEBHOOK_SECRET is not set: webhook request rejected. Set it in .env and register the same secret_token with Telegram, or set TELEGRAM_ALLOW_UNSIGNED=true for local testing.")
+        return False
     if not received_secret:
         return False
     return hmac.compare_digest(received_secret, TELEGRAM_WEBHOOK_SECRET)
@@ -82,7 +83,7 @@ def handle_incoming_message(chat_id, message_text: str) -> str:
         return reply
 
     try:
-        approval_reply = process_approval_response(message_text)
+        approval_reply = process_approval_from("telegram", chat_id, message_text)
         if approval_reply is not None:
             send_telegram_message(chat_id, approval_reply)
             return approval_reply
