@@ -17,7 +17,7 @@ import requests
 
 from core.chat import ask
 from core.workflows import call_n8n_workflows
-from core.autonomy import process_approval_response
+from core.autonomy import process_approval_from
 from core.employees.feedback import record_last_reply, get_last_reply, detect_feedback_command
 from core.employees.tools import TOOL_REGISTRY
 from core.employees.channel_roles import resolve_role
@@ -53,6 +53,11 @@ def _verify_twilio_signature(url: str, params: dict, signature: str) -> bool:
     ).decode("utf-8")
 
     return hmac.compare_digest(computed, signature)
+
+
+def unsigned_allowed() -> bool:
+    """Explicit local-testing opt-out: WHATSAPP_ALLOW_UNSIGNED=true accepts requests without a Twilio signature."""
+    return os.environ.get("WHATSAPP_ALLOW_UNSIGNED", "").strip().lower() == "true"
 
 
 def send_whatsapp_message(to_phone: str, message_text: str) -> bool:
@@ -131,7 +136,7 @@ def handle_incoming_message(from_phone: str, message_text: str) -> str:
         return reply
 
     try:
-        approval_reply = process_approval_response(message_text)
+        approval_reply = process_approval_from("whatsapp", from_phone, message_text)
         if approval_reply is not None:
             send_whatsapp_message(from_phone, approval_reply)
             return approval_reply
