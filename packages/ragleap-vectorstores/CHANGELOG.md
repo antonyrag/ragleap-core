@@ -5,6 +5,56 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-21
+### Added
+- `OpenSearchBackend` - fifth vector backend, via OpenSearch's native k-NN
+  vector search. Available via the `opensearch` optional extra
+  (`pip install ragleap-vectorstores[opensearch]`).
+- Requires a real running OpenSearch instance - `opensearch_url=` is
+  mandatory, there is no embedded/local mode (unlike Chroma/LanceDB).
+- Unlike RedisBackend's SQLite sidecar, the document registry is a second
+  real OpenSearch index (`<index_name>_documents`), so sorting and paging
+  use OpenSearch's own query DSL.
+- Metadata filtering supports arbitrary term/range filters over any mapped
+  field (via `bool.filter`) - more flexible than Redis's document_id-only
+  limit. Every key in `metadata_filter` is applied: a nonexistent field
+  narrows results to zero rather than being silently ignored.
+- `init_schema()` is idempotent, and raises a clear `RuntimeError` if an
+  existing index has a different vector dimension.
+- Writes use `refresh=True` for immediate read-after-write consistency, at
+  the cost of indexing throughput.
+- `supports_sparse()` reports `False` - OpenSearch supports real BM25/hybrid
+  search, but it is not implemented here, so it is honestly reported as
+  unsupported. Hybrid search falls back to dense-only.
+- 16 new tests, all against a real OpenSearch instance (no mocks). Tests
+  skip cleanly (not fail) if `OPENSEARCH_TEST_URL` is not set.
+
+### Live-verified gotchas
+- The `nmslib` k-NN engine shown in most tutorials is deprecated and
+  REJECTED at index creation on OpenSearch 3.0+ (`mapper_parsing_exception`).
+  This backend uses `engine: "lucene"`.
+- With `space_type: "cosinesimil"` and the `lucene` engine, the returned
+  score is NOT raw cosine similarity. It is `(1 + cosine_similarity) / 2`,
+  mapping [-1, 1] onto [0, 1]. Verified against real numbers; used directly
+  as `similarity_score`, like Upstash and unlike Chroma/Redis.
+- `Indices` is not importable as `from opensearchpy.client import Indices`;
+  it is reached as the `.indices` attribute of an `OpenSearch` client.
+- `datetime.datetime.utcnow()` is deprecated on Python 3.12+ (a real
+  `DeprecationWarning` was observed on Python 3.14). The new backend uses
+  `datetime.datetime.now(datetime.UTC)`.
+
+### Known limitations
+- No bulk-insert path yet: `insert_chunk()` indexes one document per request.
+- `delete_document()` issues a `delete_by_query` on the chunks index plus a
+  direct delete on the registry index - two requests, not one atomic
+  operation.
+- Testing venue: the 16 OpenSearch tests were run against OpenSearch 3.8.0
+  in Docker on a local Windows machine (Python 3.14, opensearch-py 3.2.0).
+  They have not been run in CI or on Linux.
+- KNOWN ISSUE (not fixed in this release): the Chroma, LanceDB, Redis and
+  Upstash backends still call the deprecated `datetime.datetime.utcnow()`
+  in `insert_document()`. It emits a DeprecationWarning on Python 3.12+.
+
 ## [0.4.0] - 2026-09-09
 ### Added
 - `UpstashBackend` - fourth vector backend, via Upstash Vector's managed

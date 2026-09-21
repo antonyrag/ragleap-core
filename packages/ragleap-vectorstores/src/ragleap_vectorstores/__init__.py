@@ -8,7 +8,7 @@ the package.
 """
 from ragleap.vectorstores.base import VectorBackend
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 __all__ = ["VectorBackend", "__version__"]
 
@@ -35,3 +35,9 @@ try:
     __all__.append("UpstashBackend")
 except ImportError:
     pass  # upstash extra not installed - UpstashBackend simply unavailable, not an error
+
+try:
+    from ragleap_vectorstores.opensearch_backend import OpenSearchBackend
+    __all__.append("OpenSearchBackend")
+except ImportError:
+    pass  # opensearch extra not installed - OpenSearchBackend simply unavailable, not an error
