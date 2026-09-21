@@ -289,6 +289,12 @@ def ask_stream(
     until generation completes — callers needing those should use
     ask() instead.
     """
+    # Token budgets (core/budget.py): check before any embedding or model call is spent.
+    budget.set_role(role)
+    _blocked = budget.check_budget(role)
+    if _blocked:
+        yield budget.BUDGET_MESSAGE
+        return
     generator = GenerationService()
     chunks, detected_language, embedding_failed = _prepare(query, top_k, hybrid)
 

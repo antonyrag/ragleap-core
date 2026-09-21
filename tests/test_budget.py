@@ -206,3 +206,70 @@ def test_ask_auto_blocked_after_routing_when_role_cap_reached():
         r = chat.ask("q?", role="auto")
     assert r["budget_exceeded"] == {"scope": "role", "period": "day"}
     prep.assert_not_called()
+
+
+# --- streaming: ledger recording and budget check ---
+def _stream_service(chunks_of_text, fail_after=None):
+    s = object.__new__(GenerationService)
+    cfg = {"provider": "ollama", "api_key": "x", "model": "llama3", "base_url": None}
+    s.primary_config = cfg
+    s.provider = "ollama"
+    def fake_stream(config, prompt, temp, max_tok, holder):
+        for i, piece in enumerate(chunks_of_text):
+            if fail_after is not None and i == fail_after:
+                raise Exception("stream broke")
+            yield piece
+    s._stream_provider = fake_stream
+    s._fallback_chain = lambda: [cfg]
+    return s
+
+
+_SCHUNKS = [{"document_name": "d", "content": "c"}]
+
+
+def test_stream_records_estimated_usage_from_streamed_text():
+    s = _stream_service(["a" * 40, "b" * 40])
+    with patch("core.budget.record_usage") as rec:
+        out = list(s.generate_answer_stream("q?", _SCHUNKS))
+    assert out == ["a" * 40, "b" * 40]
+    rec.assert_called_once()
+    provider, model, prompt, text, usage = rec.call_args.args
+    assert (provider, model, text, usage) == ("ollama", "llama3", "a" * 40 + "b" * 40, None)
+    assert "q?" in prompt
+
+
+def test_stream_interrupted_still_records_what_was_spent():
+    s = _stream_service(["aaaa", "bbbb", "cccc"], fail_after=2)
+    with patch("core.budget.record_usage") as rec:
+        out = list(s.generate_answer_stream("q?", _SCHUNKS))
+    assert out[-1] == "\n[Error: generation interrupted]"
+    rec.assert_called_once()
+    assert rec.call_args.args[3] == "aaaabbbb"
+
+
+def test_stream_recording_failure_never_breaks_the_stream():
+    s = _stream_service(["hello"])
+    with patch("core.budget.record_usage", side_effect=Exception("boom")):
+        assert list(s.generate_answer_stream("q?", _SCHUNKS)) == ["hello"]
+
+
+def test_ask_stream_blocked_by_budget_makes_no_calls():
+    blocked = {"scope": "role", "role": "support", "period": "day", "limit": 10, "used": 20}
+    with patch.object(chat.budget, "check_budget", return_value=blocked) as chk, \
+         patch.object(chat, "GenerationService") as gen, patch.object(chat, "_prepare") as prep:
+        out = list(chat.ask_stream("q?", role="support"))
+    assert out == [budget.BUDGET_MESSAGE]
+    chk.assert_called_once_with("support")
+    gen.assert_not_called()
+    prep.assert_not_called()
+
+
+def test_ask_stream_not_blocked_streams_normally():
+    gen = MagicMock()
+    gen.return_value.generate_answer_stream.return_value = iter(["x", "y"])
+    with patch.object(chat.budget, "check_budget", return_value=None), \
+         patch.object(chat, "GenerationService", gen), \
+         patch.object(chat, "_prepare", return_value=([{"document_name": "d"}], "en", False)), \
+         patch.object(chat, "_build_system_prompt", return_value=(None, [])), \
+         patch.object(chat, "_augment_query_with_reminder", return_value="q?"):
+        assert list(chat.ask_stream("q?")) == ["x", "y"]
