@@ -216,10 +216,10 @@ class OpenSearchBackend(VectorBackend):
             body={
                 "filename": filename,
                 "metadata": json.dumps(metadata or {}),
-                # datetime.utcnow() is deprecated as of Python 3.12+ (confirmed
-                # via a real DeprecationWarning on Python 3.14 during test runs);
-                # datetime.now(datetime.UTC) is the current, non-deprecated form.
-                "uploaded_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                # utcnow() is deprecated on Python 3.12+, and datetime.UTC only
+                # exists on Python 3.11+ (this package supports 3.10), so use
+                # timezone.utc, which works on every supported version.
+                "uploaded_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             },
             refresh=True,
         )

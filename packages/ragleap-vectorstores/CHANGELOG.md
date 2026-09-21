@@ -5,6 +5,45 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-21
+### Fixed
+- REAL BUG in v0.5.0, reproduced with the published v0.5.0 wheel on Python
+  3.10.20: `OpenSearchBackend.insert_document()` raised `AttributeError:
+  module 'datetime' has no attribute 'UTC'`. `datetime.UTC` only exists on
+  Python 3.11+, but this package declares support for Python 3.10. Fixed by
+  using `datetime.timezone.utc`, which works on every supported version and
+  produces the identical timestamp. On Python 3.10, v0.5.0 could not ingest
+  documents into OpenSearch; Python 3.11+ was unaffected, and the other
+  methods do not use the affected call.
+
+### Correction
+- The v0.5.0 entry said the new backend used `datetime.now(datetime.UTC)` as
+  "the current, non-deprecated form". That form is not available on Python
+  3.10, which this package supports. The v0.5.0 tests ran only on Python 3.14
+  and the OpenSearch tests were skipped on the Python 3.10 VPS, so this went
+  unnoticed until now.
+
+### Changed
+- The Chroma, LanceDB, Redis and Upstash backends no longer call the
+  deprecated `datetime.datetime.utcnow()` (a DeprecationWarning on Python
+  3.12+) - this resolves the known issue listed under v0.5.0. They now use
+  `datetime.now(datetime.timezone.utc).replace(tzinfo=None)`, which produces
+  exactly the same naive-UTC string as before, so stored data and
+  `list_documents()` output are unchanged.
+
+### Added
+- `tests/test_datetime_compat.py`: always-run tests that need no live
+  infrastructure - an AST scan that fails if any backend uses `utcnow()` or
+  `datetime.UTC`, and a mocked-client test of
+  `OpenSearchBackend.insert_document()`.
+- `REDIS_TEST_URL` environment override in the Redis tests, so they can run
+  against a Redis Stack on any port (the previous hardcoded port 6380 can be
+  taken by other containers).
+
+### Not re-verified
+- The 16 live OpenSearch tests were not re-run for this patch (no OpenSearch
+  instance was available); the change touches only the timestamp expression.
+
 ## [0.5.0] - 2026-09-21
 ### Added
 - `OpenSearchBackend` - fifth vector backend, via OpenSearch's native k-NN

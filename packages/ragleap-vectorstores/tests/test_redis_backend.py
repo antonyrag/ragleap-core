@@ -12,11 +12,13 @@ init_schema() with the same RuntimeError users would see in production.
 """
 import uuid
 
+import os
+
 import pytest
 
 from ragleap_vectorstores.redis_backend import RedisBackend
 
-REDIS_TEST_URL = "redis://localhost:6380/0"
+REDIS_TEST_URL = os.environ.get("REDIS_TEST_URL", "redis://localhost:6380/0")
 # A separate, real production-shaped Redis with NO search module loaded -
 # used only by test_missing_search_module_raises() to prove the real error
 # path, exactly as encountered live on srv1477778's production Redis 6.0.16.
