@@ -215,7 +215,7 @@ class RedisBackend(VectorBackend):
         with self._lock:
             self._conn.execute(
                 "INSERT INTO documents (id, filename, metadata, uploaded_at) VALUES (?, ?, ?, ?)",
-                (document_id, filename, json.dumps(metadata or {}), datetime.datetime.utcnow().isoformat()),
+                (document_id, filename, json.dumps(metadata or {}), datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat()),
             )
             self._conn.commit()
 
