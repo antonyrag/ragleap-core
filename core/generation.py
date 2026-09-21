@@ -365,6 +365,18 @@ Reply with ONLY the number of the best answer."""
         return {"answer": candidates[idx], "reasoning": reasoning}
 
     def _call_provider(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> Tuple[str, Optional[Dict]]:
+        """Every LLM call goes through here, so each one is recorded in the usage ledger
+        (core.budget): provider-reported tokens, or an estimate when the provider reports
+        none (e.g. Ollama). Recording is best-effort and never breaks a call."""
+        text, usage = self._call_provider_raw(config, prompt, temperature, max_tokens)
+        try:
+            from core import budget  # lazy: avoids an import cycle
+            budget.record_usage(config.get("provider"), config.get("model"), prompt, text, usage)
+        except Exception as e:
+            logger.warning(f"Usage recording failed (non-fatal): {e}")
+        return text, usage
+
+    def _call_provider_raw(self, config: Dict, prompt: str, temperature: float, max_tokens: int) -> Tuple[str, Optional[Dict]]:
         """Returns (answer_text, usage_dict_or_None). usage_dict has
         prompt_tokens/completion_tokens/total_tokens when the provider
         reports them."""
