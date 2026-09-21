@@ -1,18 +1,26 @@
+# Security defaults: every published port is bound to 127.0.0.1 so a fresh install is NOT
+# reachable from the internet. Docker's own firewall rules bypass UFW, so publishing a port
+# as "5433:5432" opens it to the world even when ufw shows it closed. To reach a service
+# from another machine use an SSH tunnel (ssh -L 8000:localhost:8000 host) or a reverse proxy
+# that adds authentication. The API can be exposed deliberately with APP_BIND=0.0.0.0 in .env.
+# The Postgres password comes from POSTGRES_PASSWORD in .env (default kept for compatibility;
+# it only applies when the database volume is first created, see .env.example).
+
 services:
   db:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ragleap
-      POSTGRES_PASSWORD: ragleap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragleap}
       POSTGRES_DB: ragleap_core
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - ragleap_core_data:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ragleap"]
+      test: ["CMD-SHELL", "pg_isready -U ragleap -d ragleap_core"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,7 +34,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+      DATABASE_URL: postgresql://ragleap:${POSTGRES_PASSWORD:-ragleap}@db:5432/ragleap_core
     extra_hosts:
       # Lets the container reach services on the host (e.g. a local Ollama
       # instance) via host.docker.internal, matching Docker Desktop's
@@ -34,7 +42,7 @@ services:
       # by default. Requires Docker Engine >=20.10.
       - "host.docker.internal:host-gateway"
     ports:
-      - "8000:8000"
+      - "${APP_BIND:-127.0.0.1}:8000:8000"
 
   voice:
     profiles: ["voice", "full"]
@@ -46,9 +54,9 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+      DATABASE_URL: postgresql://ragleap:${POSTGRES_PASSWORD:-ragleap}@db:5432/ragleap_core
     ports:
-      - "8766:8765"
+      - "127.0.0.1:8766:8765"
     command: ["python3", "-m", "channels.voice.server"]
 
   neo4j:
@@ -59,8 +67,8 @@ services:
       NEO4J_AUTH: neo4j/ragleapgraph
       NEO4J_PLUGINS: '[]'
     ports:
-      - "7475:7474"
-      - "7688:7687"
+      - "127.0.0.1:7475:7474"
+      - "127.0.0.1:7688:7687"
     volumes:
       - ragleap_core_neo4j_data:/data
     healthcheck:
@@ -74,7 +82,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
     volumes:
       - ragleap_core_redis_data:/data
     healthcheck:
@@ -95,7 +103,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://ragleap:ragleap@db:5432/ragleap_core
+      DATABASE_URL: postgresql://ragleap:${POSTGRES_PASSWORD:-ragleap}@db:5432/ragleap_core
       REDIS_URL: redis://redis:6379/0
     extra_hosts:
       - "host.docker.internal:host-gateway"
