@@ -60,7 +60,7 @@ jobs:
         run: python3 scripts/translate_readme.py
 
       - name: Open PR with translations
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           base: main
           commit-message: "docs: update README translations"
