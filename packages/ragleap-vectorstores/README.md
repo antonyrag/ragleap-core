@@ -15,6 +15,7 @@ over time. See the
 | LanceDB | `lancedb` | Embedded/local via a directory path - no server required. Real upsert semantics via `merge_insert()`. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 | Redis | `redis` | Requires a real running server - Redis Stack, or plain Redis with the RediSearch module loaded (no embedded/local mode). `init_schema()` checks for the module and raises a clear error if it's missing. Metadata filtering only supports `document_id` (RediSearch requires predeclared schema fields). No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 | Upstash Vector | `upstash` | Managed serverless REST API - no embedded/local mode at all, and the index (fixed dimension, dense-vs-hybrid type) must already exist, created via the Upstash console; `init_schema()` verifies compatibility via `info()` rather than creating anything. Metadata filtering supports arbitrary multi-key filters natively (real SQL-like `filter=` string over a genuine JSON dict) - more flexible than Redis here. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
+| OpenSearch | `opensearch` | Requires a real running OpenSearch instance (no embedded/local mode); uses OpenSearch's native k-NN vector search with the `lucene` engine (the `nmslib` engine is rejected on OpenSearch 3.0+). The document registry is a second OpenSearch index. Metadata filtering supports arbitrary term/range filters over any mapped field. No native sparse/keyword search enabled yet (`supports_sparse()` is `False`); hybrid search falls back to dense-only. |
 
 ## Design
 
@@ -33,6 +34,10 @@ uv add ragleap-vectorstores[chroma]
 pip install ragleap-vectorstores[lancedb]
 # or, with uv
 uv add ragleap-vectorstores[lancedb]
+
+pip install ragleap-vectorstores[opensearch]
+# or, with uv
+uv add ragleap-vectorstores[opensearch]
 ```
 
 ## Usage
@@ -63,4 +68,13 @@ from ragleap_vectorstores import UpstashBackend
 # Requires a real Upstash Vector index, created via the Upstash console
 # (console.upstash.com) as a pure DENSE index - no embedded/local mode.
 backend = UpstashBackend(url="https://...upstash.io", token="...")
+```
+
+```python
+from ragleap_vectorstores import OpenSearchBackend
+
+# Requires a real running OpenSearch instance (e.g. http://localhost:9200) -
+# no embedded/local mode. Pass http_auth=("user", "password") and
+# use_ssl=True for a secured cluster.
+backend = OpenSearchBackend(opensearch_url="http://localhost:9200")
 ```

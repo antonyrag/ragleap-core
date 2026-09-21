@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-vectorstores"
-version = "0.4.0"
+version = "0.5.0"
 description = "Pluggable vector backends beyond ragleap-rag core's 6 (PgVector, FAISS, Pinecone, Weaviate, Qdrant, Milvus) - additional VectorBackend implementations as optional extras, no vendor lock-in, no bloated core dependency footprint."
 readme = "README.md"
 license = "MIT"
@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 authors = [
     { name = "Antony", email = "antony@ragleap.com" }
 ]
-keywords = ["rag", "vector-search", "vector-database", "ragleap", "chroma", "chromadb", "lancedb", "redis", "redisearch", "upstash", "embeddings", "similarity-search"]
+keywords = ["rag", "vector-search", "vector-database", "ragleap", "chroma", "chromadb", "lancedb", "redis", "redisearch", "upstash", "opensearch", "embeddings", "similarity-search"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -33,6 +33,7 @@ chroma = ["chromadb>=1.0.0"]
 lancedb = ["lancedb>=0.15.0", "pyarrow>=14.0.0"]
 redis = ["redis>=5.0.0", "numpy>=1.24.0"]
 upstash = ["upstash-vector>=0.8.0"]
+opensearch = ["opensearch-py>=3.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/antonyrag/ragleap-core"
