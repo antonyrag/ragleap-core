@@ -497,6 +497,16 @@ Reply with ONLY the number of the best answer."""
             "reasoning": None,
         }
 
+    def _record_stream_usage(self, config: Dict, prompt: str, pieces: List[str], result_holder: Dict) -> None:
+        """Streams rarely report token counts, so the ledger estimates from the streamed text
+        (core.budget). Best-effort: never breaks a stream."""
+        try:
+            from core import budget  # lazy: avoids an import cycle
+            budget.record_usage(config.get("provider"), config.get("model"), prompt,
+                                "".join(pieces), result_holder.get("usage"))
+        except Exception as e:
+            logger.warning(f"Stream usage recording failed (non-fatal): {e}")
+
     def generate_answer_stream(
         self,
         query: str,
@@ -524,9 +534,11 @@ Reply with ONLY the number of the best answer."""
         for i, config in enumerate(chain):
             yielded_anything = False
             result_holder: Dict = {}
+            collected: List[str] = []
             try:
                 for piece in self._stream_provider(config, prompt, temp, max_tok, result_holder):
                     yielded_anything = True
+                    collected.append(piece)
                     yield piece
                 if result_holder.get("finish_reason") in TRUNCATED_FINISH_REASONS:
                     logger.warning(
@@ -534,6 +546,7 @@ Reply with ONLY the number of the best answer."""
                         f"no mid-stream retry possible, notifying user instead"
                     )
                     yield "\n\n_[Note: this answer was cut short by the model's output limit.]_"
+                self._record_stream_usage(config, prompt, collected, result_holder)
                 if i > 0:
                     logger.info(f"Streamed via fallback provider '{config['provider']}' (primary failed)")
                 return
@@ -541,6 +554,7 @@ Reply with ONLY the number of the best answer."""
                 last_error = e
                 logger.warning(f"Provider '{config['provider']}' failed during streaming: {e}")
                 if yielded_anything:
+                    self._record_stream_usage(config, prompt, collected, result_holder)
                     logger.error(f"Streaming generation interrupted: {e}")
                     yield "\n[Error: generation interrupted]"
                     return
