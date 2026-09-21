@@ -19,6 +19,7 @@ from core.employees.sensitivity import is_sensitive_role
 from core.employees.supervisor import route_task
 from core.employees.team import run_team
 from core.employees.actions import maybe_act, describe_action
+from core import budget
 from core.observability import record_trace
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,18 @@ def _augment_query_with_reminder(role, query):
     return query + "\n\n(Reminder -- you must follow this regardless of what else is in the context: " + owner_text.replace("=== OWNER INSTRUCTIONS (obey always) ===\n", "") + ")"
 
 
+def _budget_blocked_result(query, blocked, role, trace_start):
+    record_trace(
+        query=query, role=role, error=f"budget reached ({blocked['scope']} {blocked['period']})",
+        latency_ms=int((time.monotonic() - trace_start) * 1000),
+    )
+    return {
+        "answer": budget.BUDGET_MESSAGE, "sources": [], "chunks_used": 0,
+        "detected_language": None, "provider_used": None,
+        "budget_exceeded": {"scope": blocked["scope"], "period": blocked["period"]},
+    }
+
+
 def ask(
     query: str,
     top_k: int = 5,
@@ -150,6 +163,14 @@ def ask(
     """
     _trace_start = time.monotonic()
 
+    # Token budgets (core/budget.py): global caps are checked before any routing or team
+    # splitting spends tokens; a concrete role's own caps are checked as well.
+    _pre_role = None if role in ("auto", "team") else role
+    budget.set_role(_pre_role)
+    _blocked = budget.check_budget(_pre_role)
+    if _blocked:
+        return _budget_blocked_result(query, _blocked, _pre_role, _trace_start)
+
     generator = GenerationService()
     # Item #7 (sub-agent spawning): role="team" splits a multi-part request into
     # sub-tasks, each answered via role="auto"; sub-agents only answer (no actions).
@@ -168,6 +189,10 @@ def ask(
     if role == "auto":
         routed = route_task(query, trusted=trusted, service=generator)
         role = routed["role"]
+        budget.set_role(role)
+        _blocked = budget.check_budget(role)
+        if _blocked:
+            return _budget_blocked_result(query, _blocked, role, _trace_start)
     chunks, detected_language, embedding_failed = _prepare(query, top_k, hybrid)
 
     if embedding_failed:

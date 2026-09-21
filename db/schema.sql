@@ -274,3 +274,20 @@ CREATE INDEX IF NOT EXISTS agent_traces_created_idx
 -- core/generation.py's GenerationService.check_grounding().
 ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS reflection_concern TEXT;
 ALTER TABLE agent_traces ADD COLUMN IF NOT EXISTS reasoning TEXT;
+
+-- Usage ledger for per-role / global budgets (core/budget.py). One row per LLM call.
+-- estimated = true when the provider reported no token counts (e.g. Ollama) and the
+-- numbers are ~4 characters per token from the prompt and reply text.
+CREATE TABLE IF NOT EXISTS llm_usage (
+    id                BIGSERIAL PRIMARY KEY,
+    role              TEXT,
+    provider          TEXT,
+    model             TEXT,
+    prompt_tokens     INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    total_tokens      INTEGER NOT NULL DEFAULT 0,
+    estimated         BOOLEAN NOT NULL DEFAULT false,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS llm_usage_created_idx ON llm_usage (created_at DESC);
+CREATE INDEX IF NOT EXISTS llm_usage_role_created_idx ON llm_usage (role, created_at DESC);
