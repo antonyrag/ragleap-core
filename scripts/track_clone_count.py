@@ -72,7 +72,7 @@ def format_message(total: int) -> str:
 def write_badge(badge_path: str, total: int, since: str) -> None:
     badge = {
         "schemaVersion": 1,
-        "label": f"clones since {since}",
+        "label": f"github clones (since {since})",
         "message": format_message(total),
         "color": "blue",
     }
