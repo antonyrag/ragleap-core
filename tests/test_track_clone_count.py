@@ -78,7 +78,7 @@ def test_write_badge_roundtrip(tmp_path):
     badge = json.loads(p.read_text())
     assert badge["schemaVersion"] == 1
     assert badge["message"] == "4.6k"
-    assert badge["label"] == "clones since 2026-09-21"
+    assert badge["label"] == "github clones (since 2026-09-21)"
     assert badge["color"] == "blue"
 
 
