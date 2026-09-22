@@ -10,6 +10,7 @@
 [![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
 [![PyPI ragleap-graph](https://img.shields.io/pypi/v/ragleap-graph?label=ragleap-graph)](https://pypi.org/project/ragleap-graph/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-graph?label=downloads)](https://pypi.org/project/ragleap-graph/)
 [![PyPI ragleap-vectorstores](https://img.shields.io/pypi/v/ragleap-vectorstores?label=ragleap-vectorstores)](https://pypi.org/project/ragleap-vectorstores/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-vectorstores?label=downloads)](https://pypi.org/project/ragleap-vectorstores/)
+[![PyPI ragleap-tools](https://img.shields.io/pypi/v/ragleap-tools?label=ragleap-tools)](https://pypi.org/project/ragleap-tools/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-tools?label=downloads)](https://pypi.org/project/ragleap-tools/)
 [![PyPI ragleap-ops](https://img.shields.io/pypi/v/ragleap-ops?label=ragleap-ops)](https://pypi.org/project/ragleap-ops/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-ops?label=downloads)](https://pypi.org/project/ragleap-ops/)
 [![PyPI ragleap-app-chart](https://img.shields.io/pypi/v/ragleap-app-chart?label=ragleap-app-chart)](https://pypi.org/project/ragleap-app-chart/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-app-chart?label=downloads)](https://pypi.org/project/ragleap-app-chart/)
 [![PyPI ragleap-observability](https://img.shields.io/pypi/v/ragleap-observability?label=ragleap-observability)](https://pypi.org/project/ragleap-observability/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-observability?label=downloads)](https://pypi.org/project/ragleap-observability/)
@@ -64,6 +65,13 @@ Add `ragleap-vectorstores` too if you want pluggable vector backends beyond ragl
 pip install ragleap-rag ragleap-vectorstores[chroma]
 # or, with uv
 uv add ragleap-rag ragleap-vectorstores[chroma]
+```
+
+Add `ragleap-tools` too if you want ready-made tools for LLM tool-calling (calculator, sandboxed file ops, date/time, unit conversion, JSON/CSV parsing, text utilities):
+```bash
+pip install ragleap-rag ragleap-tools
+# or, with uv
+uv add ragleap-rag ragleap-tools
 ```
 
 Deploying to Kubernetes? `ragleap-ops` ships live-tested manifests and a Helm chart for the full stack:
@@ -529,6 +537,7 @@ pip install --index-url https://packages.ragleap.com/simple/ ragleap-rag
 - **`ragleap-rag`** — the chunking → embedding → retrieval → generation pipeline as a library. Pluggable embeddings (12+ providers), 6 vector backends (FAISS, PgVector, Pinecone, Weaviate, Qdrant, Milvus), cross-encoder reranking, and more.
 - **`ragleap-graph`** — Neo4j-backed knowledge graph retrieval, usable standalone or alongside `ragleap-rag`.
 - **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. First backend: Chroma, embedded/local via chromadb's `PersistentClient` — no server required. Install with `pip install ragleap-vectorstores[chroma]` or `uv add ragleap-vectorstores[chroma]`.
+- **`ragleap-tools`** — standalone, dependency-light tools for LLM tool-calling. 12 stateless tools (calculator, date/time, unit conversion, JSON/CSV parsing, text utilities), sandboxed file ops (symlink-escape protected), and optional `ragleap-rag`-backed document ingestion. Does not own a tool-calling execution loop — provides `Tool` objects for your own loop or `ragleap-agents` once it ships. Install with `pip install ragleap-tools` or `uv add ragleap-tools`.
 - **`ragleap-ops`** — Kubernetes deployment manifests for RagLeap Core, live-tested end-to-end on a real cluster. Install with `pip install ragleap-ops` or `uv add ragleap-ops`.
 - **`ragleap-app-chart`** — generic, reusable Helm chart for deploying arbitrary services to Kubernetes, not RagLeap-specific. Point it at your own app via a `services:` list. Install with `pip install ragleap-app-chart` or `uv add ragleap-app-chart`.
 - **`ragleap-observability`** — Prometheus + `postgres_exporter` for `ragleap-ops`, live-verified end-to-end against a real cluster (real connection confirmed, real non-zero metrics returned). Grafana/Loki/AlertManager not yet built. Install with `pip install ragleap-observability` or `uv add ragleap-observability`.
