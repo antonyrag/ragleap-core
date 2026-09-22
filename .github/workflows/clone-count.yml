@@ -1,0 +1,44 @@
+name: Track Repo Clone Count
+
+# GitHub's traffic API only returns a rolling 14-day window with no history
+# endpoint -- see scripts/track_clone_count.py's module docstring for why this
+# runs daily and accumulates into a committed state file rather than querying
+# on demand. workflow_dispatch lets you trigger a catch-up run manually (e.g.
+# right after this workflow is first merged, so the badge isn't empty for a day).
+on:
+  schedule:
+    - cron: "17 3 * * *"  # once daily; odd minute to avoid GitHub's peak-time scheduling delays
+  workflow_dispatch:
+
+# Needed to commit the updated badge/state files back to main.
+permissions:
+  contents: write
+
+jobs:
+  track-clones:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Update clone count
+        env:
+          GH_TRAFFIC_TOKEN: ${{ secrets.CLONE_TRAFFIC_TOKEN }}
+          REPO: antonyrag/ragleap-core
+        run: python3 scripts/track_clone_count.py
+
+      - name: Commit updated badge and state, if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet .github/badges/; then
+            echo "No change in clone counts today; nothing to commit."
+          else
+            git add .github/badges/clone-count.json .github/badges/clone-history.json
+            git commit -m "chore: update repo clone count badge"
+            git push
+          fi
