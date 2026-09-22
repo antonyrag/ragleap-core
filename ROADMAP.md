@@ -91,7 +91,7 @@ Also open: rotating a previously-exposed `GEMINI_API_KEY` ([#155](../../issues/1
 The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Nothing in this phase has shipped code yet — statuses below are honest planning labels, not commitments with dates. The canonical, most-current version of this list lives in the [wiki Roadmap](https://github.com/antonyrag/ragleap-core/wiki/Roadmap); this section mirrors it for repo-local visibility.
 
 - [ ] `ragleap-vectorstores` (NEXT) — pluggable vector backends beyond what already ships inside `ragleap-rag` core (6 backends today)
-- [ ] `ragleap-tools` (NEXT) — built-in tools: search, code exec, calculators, file ops
+- [x] `ragleap-tools` — SHIPPED v0.1.0. Stateless tools + sandboxed file ops for LLM tool-calling (search/code-exec/HTTP-fetch/connectors deliberately deferred to their own security-focused design passes)
 - [ ] `ragleap-integrations` (NEXT) — MCP-native connectors + curated native integrations, building on the existing WhatsApp/Telegram/Discord/Voice channel code
 - [ ] `ragleap-agents` (AFTER) — role-based crews, tool-calling, human-in-the-loop approval gates
 - [ ] `ragleap-flows` (AFTER) — low-code orchestration + HITL checkpoints, bootstrapped from the existing n8n integration
