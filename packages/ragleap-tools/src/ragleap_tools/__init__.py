@@ -14,10 +14,14 @@ v0.1.0 - 7 tools:
   word_count, text_case_transform, ingest_document (needs the
   optional ragleap-rag dependency: pip install ragleap-tools[ingest])
 
+New (unreleased): search_documents - wraps ragleap-rag's retrieve()
+for hybrid vector+keyword search over already-ingested documents.
+Same optional ragleap-rag dependency as ingest_document.
+
 Deliberately out of scope for now (each needs its own security-focused
-design pass, not a rushed inclusion here): code execution, web search,
-HTTP fetch, and database/business-system connectors (SQL, CRM,
-payment processors, etc.) - the last of those specifically because
+design pass, not a rushed inclusion here): code execution, web search
+(external), HTTP fetch, and database/business-system connectors (SQL,
+CRM, payment processors, etc.) - the last of those specifically because
 some of the connectors this ecosystem already has elsewhere (e.g. a
 live payment processor) would be a materially different risk if
 exposed to LLM tool-calling without deliberate guardrails.
@@ -29,6 +33,7 @@ from ragleap_tools.datetime_tools import ADD_TO_DATE_TOOL, CURRENT_DATETIME_TOOL
 from ragleap_tools.file_ops import FileOpsConfig, make_file_tools
 from ragleap_tools.ingest import IngestConfig, make_ingest_tool
 from ragleap_tools.json_csv import PARSE_CSV_TOOL, PARSE_JSON_TOOL
+from ragleap_tools.search import SearchConfig, make_search_tool
 from ragleap_tools.text_utils import REGEX_EXTRACT_TOOL, TEXT_CASE_TRANSFORM_TOOL, WORD_COUNT_TOOL
 from ragleap_tools.unit_conversion import CONVERT_LENGTH_TOOL, CONVERT_TEMPERATURE_TOOL, CONVERT_WEIGHT_TOOL
 
@@ -70,5 +75,7 @@ __all__ = [
     "make_file_tools",
     "IngestConfig",
     "make_ingest_tool",
+    "SearchConfig",
+    "make_search_tool",
     "__version__",
 ]
