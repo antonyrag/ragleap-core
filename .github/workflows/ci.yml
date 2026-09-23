@@ -173,7 +173,7 @@ jobs:
         working-directory: packages/ragleap-tools
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[test]"
+          pip install -e ".[test,ingest]"
       - name: Run ragleap-tools test suite
         working-directory: packages/ragleap-tools
         run: |
