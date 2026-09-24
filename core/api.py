@@ -10,8 +10,9 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import hmac
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
 from core.ingest import ingest_document
@@ -82,6 +83,39 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Opt-in API-key auth. Unset (default) means the API has NO authentication --
+# fine for local-only use (127.0.0.1, the compose default), dangerous if this
+# port is ever reachable from anywhere else. Applied as global middleware
+# (not per-route Depends()) so any NEW endpoint added later is protected by
+# default automatically, rather than relying on every future route remembering
+# to opt in -- that "forget one route" failure mode is exactly the kind of gap
+# that led to this middleware existing in the first place.
+RAGLEAP_API_KEY = os.environ.get("RAGLEAP_API_KEY", "").strip()
+API_KEY_EXEMPT_PATHS = {"/health"}
+API_KEY_EXEMPT_PREFIXES = ("/webhook/",)  # these verify platform signatures themselves
+
+if not RAGLEAP_API_KEY:
+    logger.warning(
+        "RAGLEAP_API_KEY is not set -- this API has NO authentication. Anyone who can "
+        "reach this port can call every endpoint, including changing autonomy settings "
+        "and creating employee roles. Set RAGLEAP_API_KEY in .env for any deployment "
+        "reachable beyond localhost."
+    )
+
+
+@app.middleware("http")
+async def require_api_key(request: Request, call_next):
+    if not RAGLEAP_API_KEY:
+        return await call_next(request)
+    path = request.url.path
+    if path in API_KEY_EXEMPT_PATHS or path.startswith(API_KEY_EXEMPT_PREFIXES):
+        return await call_next(request)
+    supplied = request.headers.get("x-api-key", "")
+    if not supplied or not hmac.compare_digest(supplied, RAGLEAP_API_KEY):
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid API key."})
+    return await call_next(request)
+
 
 ALLOWED_EXTENSIONS = {".txt", ".pdf", ".docx"}
 MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB
