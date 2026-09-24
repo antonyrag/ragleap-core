@@ -14,12 +14,22 @@ tool does not know or assume the exact field set ragleap-rag's vector
 backends populate, so reshaping them risks silently dropping or
 renaming a field a caller depends on. Whatever retrieve() returns is
 exactly what this tool returns.
+
+v0.1.1: added an optional filename= parameter. metadata_filter (used
+internally by retrieve()) matches exact-equality against whatever
+metadata dict was passed at ingest time - it does NOT match against
+document_id/document_name, which are separate stored columns.
+filename= only works for documents ingested via this package's own
+ingest_document tool (v0.1.1+, which now stores {"filename": ...} as
+metadata) - documents ingested any other way won't have that metadata
+key and won't be matched, unless the caller's own ingestion code
+happens to set the same key.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from ragleap_tools.base import Tool, ToolResult
 
@@ -47,14 +57,18 @@ def search_documents(
     query: str,
     top_k: int = 5,
     rerank: bool = False,
+    filename: Optional[str] = None,
 ) -> ToolResult:
     if RagLeap is None:
         return ToolResult(
             success=False,
             error="ragleap-rag is not installed. Install it with: pip install ragleap-tools[ingest]",
         )
+    metadata_filter = {"filename": filename} if filename else None
     try:
-        chunks = config.rag.retrieve(query, top_k=top_k, hybrid=True, rerank=rerank)
+        chunks = config.rag.retrieve(
+            query, top_k=top_k, hybrid=True, rerank=rerank, metadata_filter=metadata_filter
+        )
         return ToolResult(success=True, result={"chunks": chunks, "count": len(chunks)})
     except Exception as e:
         # retrieve() has no documented raise contract (unlike
@@ -77,7 +91,11 @@ def make_search_tool(config: SearchConfig) -> Tool:
             "across whichever vector backend is configured. Returns the "
             "top matching chunks, not a generated answer - use this when "
             "you need source passages to reason over yourself rather than "
-            "a synthesized response."
+            "a synthesized response. Optionally pass filename= to scope "
+            "the search to a single document previously ingested via the "
+            "ingest_document tool (only works for documents ingested that "
+            "way - it won't match documents added through some other path "
+            "that didn't set the same metadata)."
         ),
         parameters={
             "type": "object",
@@ -93,10 +111,19 @@ def make_search_tool(config: SearchConfig) -> Tool:
                     "description": "Apply cross-encoder reranking for higher precision (slower).",
                     "default": False,
                 },
+                "filename": {
+                    "type": "string",
+                    "description": (
+                        "Optional. Scope the search to only this document "
+                        "(must match the filename it was ingested under via "
+                        "ingest_document). Omit to search across all "
+                        "ingested documents."
+                    ),
+                },
             },
             "required": ["query"],
         },
-        handler=lambda query, top_k=5, rerank=False: search_documents(
-            config, query, top_k=top_k, rerank=rerank
+        handler=lambda query, top_k=5, rerank=False, filename=None: search_documents(
+            config, query, top_k=top_k, rerank=rerank, filename=filename
         ),
     )

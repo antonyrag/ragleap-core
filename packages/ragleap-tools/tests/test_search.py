@@ -19,7 +19,7 @@ class FakeRagLeap:
 
     def retrieve(self, query, top_k=5, hybrid=True, rerank=False, metadata_filter=None):
         self.retrieve_calls.append(
-            {"query": query, "top_k": top_k, "hybrid": hybrid, "rerank": rerank}
+            {"query": query, "top_k": top_k, "hybrid": hybrid, "rerank": rerank, "metadata_filter": metadata_filter}
         )
         if self._raise_error is not None:
             raise self._raise_error
@@ -45,7 +45,7 @@ def test_search_documents_passes_through_top_k_and_rerank():
     search_documents(config, "query", top_k=10, rerank=True)
 
     assert rag.retrieve_calls == [
-        {"query": "query", "top_k": 10, "hybrid": True, "rerank": True}
+        {"query": "query", "top_k": 10, "hybrid": True, "rerank": True, "metadata_filter": None}
     ]
 
 
@@ -109,3 +109,48 @@ def test_make_search_tool_has_valid_gemini_schema():
 
     assert schema["name"] == "search_documents"
     assert "parameters" in schema
+
+
+def test_search_documents_passes_filename_as_metadata_filter():
+    rag = FakeRagLeap(chunks=[])
+    config = SearchConfig(rag=rag)
+
+    search_documents(config, "query", filename="report.pdf")
+
+    assert rag.retrieve_calls == [
+        {"query": "query", "top_k": 5, "hybrid": True, "rerank": False, "metadata_filter": {"filename": "report.pdf"}}
+    ]
+
+
+def test_search_documents_without_filename_passes_no_metadata_filter():
+    """Confirms the default (no filename=) path is unchanged - the
+    real regression risk this test guards against is filename=None
+    somehow producing metadata_filter={"filename": None}, which would
+    silently break every existing caller that doesn't pass filename=."""
+    rag = FakeRagLeap(chunks=[])
+    config = SearchConfig(rag=rag)
+
+    search_documents(config, "query")
+
+    assert rag.retrieve_calls[0]["metadata_filter"] is None
+
+
+def test_make_search_tool_schema_includes_optional_filename():
+    config = SearchConfig(rag=FakeRagLeap())
+    tool = make_search_tool(config)
+    schema = tool.to_openai_schema()
+
+    props = schema["function"]["parameters"]["properties"]
+    assert "filename" in props
+    assert schema["function"]["parameters"]["required"] == ["query"]
+
+
+def test_make_search_tool_call_with_filename_passes_through():
+    rag = FakeRagLeap(chunks=[{"text": "scoped result"}])
+    config = SearchConfig(rag=rag)
+    tool = make_search_tool(config)
+
+    result = tool.call(query="test", filename="notes.txt")
+
+    assert result.success is True
+    assert result.result["chunks"] == [{"text": "scoped result"}]

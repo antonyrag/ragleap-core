@@ -14,9 +14,13 @@ v0.1.0 - 7 tools:
   word_count, text_case_transform, ingest_document (needs the
   optional ragleap-rag dependency: pip install ragleap-tools[ingest])
 
-New (unreleased): search_documents - wraps ragleap-rag's retrieve()
-for hybrid vector+keyword search over already-ingested documents.
-Same optional ragleap-rag dependency as ingest_document.
+v0.1.1 - search_documents: wraps ragleap-rag's retrieve() for hybrid
+vector+keyword search over already-ingested documents. Same optional
+ragleap-rag dependency as ingest_document. Accepts an optional
+filename= to scope search to one document (requires that document
+was ingested via this package's ingest_document tool, which as of
+v0.1.1 now stores filename as metadata - previously it stored none,
+silently making per-document filtering impossible).
 
 Deliberately out of scope for now (each needs its own security-focused
 design pass, not a rushed inclusion here): code execution, web search
@@ -37,7 +41,7 @@ from ragleap_tools.search import SearchConfig, make_search_tool
 from ragleap_tools.text_utils import REGEX_EXTRACT_TOOL, TEXT_CASE_TRANSFORM_TOOL, WORD_COUNT_TOOL
 from ragleap_tools.unit_conversion import CONVERT_LENGTH_TOOL, CONVERT_TEMPERATURE_TOOL, CONVERT_WEIGHT_TOOL
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 # Tools with no config/state needed - usable directly.
 STATELESS_TOOLS = [

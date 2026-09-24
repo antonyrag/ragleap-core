@@ -7,18 +7,26 @@ pipeline. ragleap-rag is an optional dependency, same pattern as
 ragleap_graph.extraction's optional GenerationService import: users
 who only need the other 6 tools (calculator, file ops, etc.) don't
 need ragleap-rag installed at all.
+
+v0.1.1: now passes metadata={"filename": filename} to ingest_text() -
+previously passed no metadata at all, which silently made every
+document ingested through this tool unfilterable by
+ragleap_tools.search's filename= parameter (metadata_filter matches
+against the metadata dict, not the document_id/document_name
+columns). Backward compatible: existing callers get a new capability,
+nothing about the tool's signature or return shape changed.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from ragleap_tools.base import Tool, ToolResult
 
 try:
     # ragleap-rag is an optional dependency for this tool only - the
-    # other 6 tools in this package need nothing beyond the stdlib.
+    # other tools in this package need nothing beyond the stdlib.
     from ragleap import RagLeap
 except ImportError:  # pragma: no cover - exercised when ragleap-rag absent
     RagLeap = None  # type: ignore[assignment,misc]
@@ -43,7 +51,7 @@ def ingest_document(config: IngestConfig, filename: str, text: str) -> ToolResul
             error="ragleap-rag is not installed. Install it with: pip install ragleap-tools[ingest]",
         )
     try:
-        result = config.rag.ingest_text(filename, text)
+        result = config.rag.ingest_text(filename, text, metadata={"filename": filename})
         return ToolResult(
             success=True,
             result={"document_id": result.document_id, "chunks_stored": result.chunks_stored},
@@ -62,7 +70,9 @@ def make_ingest_tool(config: IngestConfig) -> Tool:
             "Ingest a piece of text as a new document into the RAG index "
             "(chunks, embeds, and stores it for later retrieval). Supports "
             "any of ragleap-rag's 28 real ingestion formats if the text was "
-            "already extracted from one of those formats by the caller."
+            "already extracted from one of those formats by the caller. "
+            "Stores the filename as metadata, so search_documents' filename= "
+            "parameter can later scope retrieval to just this document."
         ),
         parameters={
             "type": "object",
