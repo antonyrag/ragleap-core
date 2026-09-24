@@ -54,7 +54,7 @@ and symlink-based escapes are rejected (verified via real security
 tests, not just documented), not just naive string-prefix checking.
 There is no unsandboxed mode.
 
-## Document ingestion (optional, needs ragleap-rag)
+## Document ingestion and search (optional, needs ragleap-rag)
 
 ```bash
 pip install ragleap-tools[ingest]
@@ -62,19 +62,36 @@ pip install ragleap-tools[ingest]
 
 ```python
 from ragleap import RagLeap, ProviderConfig, EmbeddingConfig
-from ragleap_tools import IngestConfig, make_ingest_tool
+from ragleap_tools import IngestConfig, make_ingest_tool, SearchConfig, make_search_tool
 
 rag = RagLeap(database_url="...", primary=ProviderConfig(...), embedder=EmbeddingConfig(...))
 ingest_tool = make_ingest_tool(IngestConfig(rag=rag))
+search_tool = make_search_tool(SearchConfig(rag=rag))
 ```
 
-Wraps `ragleap-rag`'s already-tested `ingest_text()` - no new ingestion
-logic, just a tool schema on top of the real 28-format-capable
-pipeline. `ragleap-rag` owns the actual ingestion; this is a thin
-adapter, same pattern `ragleap-graph` uses for its own optional
+`ingest_document` wraps `ragleap-rag`'s already-tested `ingest_text()` -
+no new ingestion logic, just a tool schema on top of the real
+28-format-capable pipeline. As of v0.1.1, it stores the filename as
+metadata (`{"filename": filename}`), enabling the per-document search
+below - v0.1.0 did not pass any metadata, which silently made
+per-document filtering impossible.
+
+`search_documents` wraps `ragleap-rag`'s already-tested `retrieve()`
+for hybrid vector+keyword search over previously ingested documents.
+Chunk dicts are returned unmodified - this tool doesn't assume
+`ragleap-rag`'s exact field set. Pass an optional `filename=` to scope
+the search to a single document previously ingested via
+`ingest_document`:
+
+```python
+result = search_tool.call(query="what was the Q3 revenue?", filename="q3-report.pdf")
+```
+
+`ragleap-rag` owns the actual ingestion and retrieval logic; these are
+thin adapters, same pattern `ragleap-graph` uses for its own optional
 `ragleap-rag` dependency.
 
-## Deliberately out of scope for v0.1.0
+## Deliberately out of scope
 
 Each of these needs its own security-focused design pass, not a
 rushed inclusion here:
@@ -94,7 +111,7 @@ rushed inclusion here:
 
 ## Status
 
-v0.1.0. 51 tests, all passing, including real security verification
+v0.1.1. 69 tests, all passing, including real security verification
 for the two risk-sensitive tools (calculator's code-injection
 rejection, file ops' path-traversal and symlink-escape rejection) -
 not just documented as safe, actually tested against real attack
