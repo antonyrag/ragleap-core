@@ -3,9 +3,11 @@ package com.ragleap.rag.vectorstore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIf;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.net.URI;
+import java.time.Duration;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -33,10 +35,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * container) without any risk of collision, since our collection namespace
  * never overlaps theirs.
  */
+@EnabledIf("qdrantIsReachable")
 class QdrantBackendTest {
 
     private static final String QDRANT_URL = "http://localhost:6333";
     private static final int DIM = 4;
+
+    /**
+     * Skips this entire test class when no Qdrant instance is reachable
+     * at QDRANT_URL, rather than failing - this suite hits a real running
+     * Qdrant instance (this project has no mocked-Qdrant-client fallback,
+     * unlike the Python suite, which mocks the client entirely). Local/VPS
+     * runs with Qdrant up execute for real; CI runners with no Qdrant
+     * service configured skip cleanly instead of erroring on every test.
+     */
+    static boolean qdrantIsReachable() {
+        try {
+            HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+            HttpRequest req = HttpRequest.newBuilder().uri(URI.create(QDRANT_URL + "/")).GET().build();
+            HttpResponse<Void> response = client.send(req, HttpResponse.BodyHandlers.discarding());
+            return response.statusCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
 
     private QdrantBackend backend;
     private String collectionName;
