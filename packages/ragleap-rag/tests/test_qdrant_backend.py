@@ -109,7 +109,7 @@ def test_search_dense_returns_chunks_with_text_from_sqlite(tmp_path):
 
     mock_point = MagicMock()
     mock_point.id = qdrant_id
-    mock_point.score = 0.95
+    mock_point.score = 0.95  # raw cosine similarity, as Qdrant actually returns
     mock_response = MagicMock()
     mock_response.points = [mock_point]
     backend._client.query_points.return_value = mock_response
@@ -118,7 +118,8 @@ def test_search_dense_returns_chunks_with_text_from_sqlite(tmp_path):
 
     assert len(results) == 1
     assert results[0]["text"] == "real text"
-    assert results[0]["similarity_score"] == 0.95
+    # normalized via (x + 1) / 2: raw 0.95 -> 0.975
+    assert results[0]["similarity_score"] == 0.975
 
 
 def test_search_dense_skips_orphaned_points(tmp_path):
@@ -152,6 +153,53 @@ def test_delete_document_calls_delete_with_point_ids(tmp_path):
     deleted = backend.delete_document("doc1")
     assert deleted is True
     backend._client.delete.assert_called_once_with(collection_name=backend.collection_name, points_selector=[qdrant_id])
+
+
+def test_search_dense_normalizes_cosine_similarity_to_unit_range(tmp_path):
+    """
+    Regression test for the similarity_score normalization fix. Qdrant
+    with Distance.COSINE returns raw cosine similarity in [-1, 1]
+    (live-verified against a real Qdrant instance: identical=1.0,
+    orthogonal=0.0, opposite=-1.0). This confirms the (x + 1) / 2
+    transform at its boundaries and midpoint, matching
+    pgvector/weaviate/milvus's normalized-range convention.
+    """
+    backend = _make_backend(tmp_path)
+    backend._dimensions = 2
+    backend._client = MagicMock()
+
+    ids = {}
+    for key, text in [("doc1:0", "identical vector"), ("doc1:1", "orthogonal vector"), ("doc1:2", "opposite vector")]:
+        qid = backend._deterministic_uuid(key)
+        ids[key] = qid
+        backend._conn.execute(
+            "INSERT INTO chunks (vector_key, qdrant_id, document_id, document_name, chunk_index, text, token_count, metadata) "
+            "VALUES (?, ?, 'doc1', 'test.txt', ?, ?, 5, '{}')",
+            (key, qid, int(key.split(":")[1]), text),
+        )
+    backend._conn.commit()
+
+    def _mock_point(key, score):
+        p = MagicMock()
+        p.id = ids[key]
+        p.score = score
+        return p
+
+    mock_response = MagicMock()
+    mock_response.points = [
+        _mock_point("doc1:0", 1.0),
+        _mock_point("doc1:1", 0.0),
+        _mock_point("doc1:2", -1.0),
+    ]
+    backend._client.query_points.return_value = mock_response
+
+    results = backend.search_dense(embedding=[0.1, 0.2], top_k=5)
+
+    assert len(results) == 3
+    by_text = {r["text"]: r["similarity_score"] for r in results}
+    assert by_text["identical vector"] == 1.0
+    assert by_text["orthogonal vector"] == 0.5
+    assert by_text["opposite vector"] == 0.0
 
 
 def test_supports_sparse_is_false(tmp_path):

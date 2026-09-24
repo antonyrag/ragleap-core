@@ -1,13 +1,23 @@
 """
 Qdrant-backed vector storage for ragleap-rag.
 
-**NOT LIVE-VERIFIED** - no Qdrant instance (cloud or local) was
-available to test against during development (same honest caveat as
-PineconeBackend/WeaviateBackend/mistral/cohere/voyage). Code-complete
-against the actual installed qdrant-client==1.18.0 package's real
-source code (every method signature and pydantic model field used
-below was introspected directly, not assumed from documentation).
-Treat as best-effort until confirmed live.
+LIVE-VERIFIED against a real Qdrant instance (qdrant/qdrant:latest,
+via a real smoke test: init_schema, insert_document, insert_chunk x3,
+search_dense with and without metadata_filter, list_documents,
+get_document_filename, delete_document - all against real infra, not
+mocks). Also introspected against the actual installed
+qdrant-client==1.18.0 package's real source code (every method
+signature and pydantic model field used below was verified directly,
+not assumed from documentation).
+
+REAL BUG FOUND AND FIXED via this live test: search_dense() previously
+returned Qdrant's raw Distance.COSINE score directly as
+similarity_score. Live-verified against real vectors (identical=1.0,
+orthogonal=0.0, opposite=-1.0): this is RAW cosine similarity in
+[-1, 1], not normalized like pgvector/weaviate/milvus's [0, 1]
+convention - the same inconsistency already found and fixed once in
+this codebase for MilvusBackend, previously missed here. Fixed with
+the identical (x + 1) / 2 transform used there.
 
 Design notes (same reasoning as PineconeBackend/WeaviateBackend):
 - persist_directory= is REQUIRED - a remote/cloud Qdrant instance
@@ -190,8 +200,16 @@ class QdrantBackend(VectorBackend):
                 logger.warning(f"QdrantBackend: point '{point.id}' has no matching local text row, skipping")
                 continue
             document_id, document_name, chunk_index, text = row
+            # Qdrant with Distance.COSINE returns RAW cosine similarity in
+            # [-1, 1] (live-verified: identical=1.0, orthogonal=0.0,
+            # opposite=-1.0), not normalized like pgvector/weaviate/milvus's
+            # [0, 1] convention. Normalized here via the same (x + 1) / 2
+            # transform already used in MilvusBackend for the identical
+            # inconsistency, so callers filtering similarity_score behave
+            # consistently across every backend.
+            similarity_score = round((float(point.score) + 1) / 2, 4)
             results.append({
-                "chunk_id": str(point.id), "text": text, "similarity_score": round(float(point.score), 4),
+                "chunk_id": str(point.id), "text": text, "similarity_score": similarity_score,
                 "document_id": document_id, "document_name": document_name, "chunk_index": chunk_index,
             })
         return results

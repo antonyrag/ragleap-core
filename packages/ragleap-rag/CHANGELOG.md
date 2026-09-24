@@ -5,6 +5,38 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.7] - 2026-09-23
+### Fixed
+- REAL BUG in QdrantBackend, live-verified against a real Qdrant
+  instance (identical vectors scored 1.0, orthogonal 0.0, opposite
+  -1.0): `search_dense()` returned Qdrant's raw `Distance.COSINE`
+  score directly as `similarity_score`, which is raw cosine similarity
+  in `[-1, 1]` - unlike `pgvector`/`weaviate_backend.py`/
+  `milvus_backend.py`, which all normalize to `[0, 1]`. A caller
+  filtering `similarity_score > 0.5` behaved correctly for those three
+  backends and silently misbehaved for Qdrant's negative scores - the
+  same inconsistency already found and fixed once in this codebase for
+  `MilvusBackend` (v0.11.0), previously missed here. Fixed with the
+  identical `(x + 1) / 2` transform.
+
+### Changed
+- `QdrantBackend` is now genuinely live-verified: a real smoke test
+  against a real Qdrant instance (init_schema, insert_document,
+  insert_chunk, search_dense with and without metadata_filter,
+  list_documents, get_document_filename, delete_document) passed after
+  the score-normalization fix. The module docstring's
+  "NOT LIVE-VERIFIED" claim is corrected.
+- New `tests/test_qdrant_backend_live.py`: always-available live-gated
+  tests (skip cleanly when `QDRANT_TEST_URL` is unset), same pattern as
+  the OpenSearch/Upstash live tests in `ragleap-vectorstores` - so this
+  class of bug (mock-only tests encoding a wrong assumption) can't
+  regress silently again.
+
+### Not yet verified
+- WeaviateBackend, MilvusBackend, and PineconeBackend remain
+  code-complete but not live-verified (no Weaviate/Milvus/Pinecone
+  instance tested against in this release). See the tracking issue.
+
 ## [0.12.6] - 2026-09-13
 
 ### Fixed
