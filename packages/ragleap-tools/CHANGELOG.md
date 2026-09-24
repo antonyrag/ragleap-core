@@ -5,6 +5,38 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-24
+
+### Added
+
+- `search_documents` tool (`SearchConfig`, `make_search_tool`) wrapping
+  `ragleap-rag`'s already-tested `retrieve()` for hybrid vector+keyword
+  search over previously ingested documents. Chunk dicts are returned
+  unmodified - this tool doesn't assume `ragleap-rag`'s exact field
+  set. Optional `filename=` parameter scopes search to a single
+  document.
+
+### Fixed
+
+- `ingest_document` now passes `metadata={"filename": filename}` to
+  `ingest_text()`. Previously passed no metadata at all, which
+  silently made every document ingested through this tool unfilterable
+  by anything using `metadata_filter` (it matches against the metadata
+  dict, not the `document_id`/`document_name` columns) - including the
+  new `search_documents`' `filename=` parameter, which depends on this.
+  Backward compatible: existing callers gain a capability, nothing
+  about the tool's signature or return shape changed.
+
+### Verified
+
+- 69 tests, all passing (was 51 in v0.1.0). New coverage: 8 tests for
+  `search_documents` (including the `filename=` metadata-filter path,
+  asserted against the fake's actually-recorded `metadata_filter`
+  value, not just call-succeeded), 6 tests for `ingest_document`
+  (a real gap backfilled - v0.1.0 shipped this tool with zero direct
+  test coverage; the metadata-threading regression this release fixes
+  is exactly the kind of bug that gap would have hidden).
+
 ## [0.1.0] - 2026-09-16
 
 ### Added
