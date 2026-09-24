@@ -6,7 +6,7 @@
 
     <groupId>io.github.antonyrag</groupId>
     <artifactId>ragleap-rag</artifactId>
-    <version>0.6.0</version>
+    <version>0.7.0</version>
     <packaging>jar</packaging>
 
     <name>ragleap-rag (Java port)</name>
