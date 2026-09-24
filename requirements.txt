@@ -33,3 +33,4 @@ ShopifyAPI>=12.5.0
 gspread>=6.0.0
 stripe>=8.0.0
 fast-langdetect>=1.0.1
+pytest-asyncio
