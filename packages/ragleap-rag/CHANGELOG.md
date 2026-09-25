@@ -5,6 +5,34 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.8] - 2026-09-24
+
+### Fixed
+
+- `ingest()` now accepts an optional `metadata: Optional[Dict] = None`
+  parameter, threaded through to `ingest_text()`. This was a real,
+  unexplained inconsistency: `ingest_url()` and `ingest_image()` -
+  `ingest()`'s two siblings for raw-input ingestion - both already had
+  this parameter. `ingest()` silently dropped the ability to attach
+  metadata at ingest time. Discovered downstream while fixing the same
+  gap in `ragleap-tools`' `ingest_document` tool (v0.1.1) - any caller
+  using `ingest()` directly, arguably the most common entry point since
+  it's the one that does format auto-detection, hit the identical
+  problem. Backward compatible: defaults to `None`, no existing caller
+  (including `ragleap-graph`) is affected. See
+  `docs/design/ingest-metadata-parameter.md` for the full writeup,
+  including a note for `ragleap-agents`/`ragleap-integrations`/
+  `ragleap-flows` on the (currently unenforced) `{"filename": ...}`
+  metadata-key convention this enables.
+
+### Verified
+
+- 2 new live tests against real Postgres in `tests/test_ingestion.py`:
+  metadata is actually stored and retrievable via `ingest()` (not just
+  "call succeeds"), and the default no-`metadata=` path is unchanged.
+  Full suite: 255 passed, 10 skipped (unchanged skip count - no live
+  credentials needed for this fix).
+
 ## [0.12.7] - 2026-09-23
 ### Fixed
 - REAL BUG in QdrantBackend, live-verified against a real Qdrant

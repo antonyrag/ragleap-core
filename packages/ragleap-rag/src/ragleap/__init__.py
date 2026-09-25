@@ -168,14 +168,14 @@ class RagLeap:
         stats["enabled"] = True
         return stats
 
-    def ingest(self, filename: str, raw_bytes: bytes) -> IngestResult:
+    def ingest(self, filename: str, raw_bytes: bytes, metadata: Optional[Dict] = None) -> IngestResult:
         """
         Extract text (from .txt/.pdf/.docx bytes), chunk, embed, and
         store it. Returns an IngestResult with the new document_id and
         chunk count.
         """
         text = extract_text(filename, raw_bytes)
-        return self.ingest_text(filename, text)
+        return self.ingest_text(filename, text, metadata=metadata)
 
     def ingest_url(self, url: str, metadata: Optional[Dict] = None) -> IngestResult:
         """

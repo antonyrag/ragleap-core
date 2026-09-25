@@ -67,3 +67,30 @@ def test_ingest_text_stores_metadata(rag, database_url):
     conn.close()
 
     assert stored_metadata == {"tenant": "acme"}
+
+
+def test_ingest_stores_metadata(rag, database_url):
+    """Regression test for the real gap ingest() had: it silently
+    dropped metadata entirely, unlike its siblings ingest_url() and
+    ingest_image() which both already threaded it through."""
+    result = rag.ingest(filename="report.txt", raw_bytes=b"real content for a metadata-threading plumbing test", metadata={"filename": "report.txt"})
+
+    import psycopg2
+    conn = psycopg2.connect(database_url)
+    cur = conn.cursor()
+    cur.execute("SELECT metadata FROM documents WHERE id = %s", (result.document_id,))
+    stored_metadata = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+
+    assert stored_metadata == {"filename": "report.txt"}
+
+
+def test_ingest_without_metadata_still_works(rag):
+    """Confirms the default (no metadata=) path is unchanged - the
+    real regression risk is metadata=None breaking existing callers
+    that never pass it."""
+    result = rag.ingest(filename="plain.txt", raw_bytes=b"just plain text content for testing")
+
+    assert result.document_id
+    assert result.chunks_stored >= 1
