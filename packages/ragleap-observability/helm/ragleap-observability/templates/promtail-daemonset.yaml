@@ -1,15 +1,9 @@
-{{- if .Values.promtail.enabled }}
+﻿{{- if .Values.promtail.enabled }}
 apiVersion: v1
 kind: Namespace
 metadata:
   name: ragleap-observability-agents
   labels:
-    # Deliberately NOT baseline/restricted -- Promtail structurally
-    # needs hostPath to read node-level container logs, which baseline
-    # PodSecurityStandards forbids. Isolated into its own namespace
-    # rather than relaxing ragleap-core's namespace-wide PSS guarantee
-    # for every other workload, per the standard pattern of isolating
-    # host-level log/metrics collectors from application namespaces.
     pod-security.kubernetes.io/enforce: privileged
 ---
 apiVersion: v1
@@ -21,30 +15,31 @@ data:
   promtail-config.yaml: |
     server:
       http_listen_port: 9080
-      log_level: debug
+      log_level: info
     positions:
       filename: /run/promtail/positions.yaml
     clients:
       - url: http://ragleap-loki.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.loki.port }}/loki/api/v1/push
-    # DIAGNOSTIC: static file scrape, no kubernetes_sd_configs at all.
-    # The kubernetes_sd-based config above (now disabled) consistently
-    # showed 0/0 active targets despite: RBAC confirmed correct via
-    # `kubectl auth can-i`, the discovery provider confirmed starting
-    # in debug logs, and two different __path__ patterns tried and
-    # confirmed correct against real `ls /var/log/pods/` output. This
-    # static config isolates whether the problem is in the
-    # kubernetes_sd/relabel pipeline specifically, or something more
-    # fundamental like the hostPath mount itself.
     scrape_configs:
-      - job_name: static-pod-logs
-        static_configs:
-          - targets:
-              - localhost
-            labels:
-              job: static-pod-logs
-              __path__: /var/log/pods/*/*/*.log
+      - job_name: kubernetes-pods
         pipeline_stages:
           - cri: {}
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            target_label: container
+          - action: replace
+            source_labels:
+              - __meta_kubernetes_pod_uid
+              - __meta_kubernetes_pod_container_name
+            separator: /
+            target_label: __path__
+            replacement: /var/log/pods/*$1/*.log
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -91,17 +86,16 @@ spec:
         app: ragleap-promtail
     spec:
       serviceAccountName: ragleap-promtail
-      # Promtail genuinely needs root -- confirmed via `docker run
-      # --entrypoint sh grafana/promtail:3.3.0 -c id` (uid=0), not
-      # assumed. It reads node-level container log files from
-      # /var/log/pods, which requires elevated host access -- this is
-      # a structural requirement of what a log-shipping DaemonSet
-      # does, not a bug to force non-root on.
       containers:
         - name: promtail
           image: {{ .Values.promtail.image }}
           args:
             - "-config.file=/etc/promtail/promtail-config.yaml"
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: config
               mountPath: /etc/promtail
