@@ -12,4 +12,10 @@ data:
         access: proxy
         url: http://ragleap-prometheus:9090
         isDefault: true
+      {{- if .Values.loki.enabled }}
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://ragleap-loki:{{ .Values.loki.port }}
+      {{- end }}
 {{- end }}

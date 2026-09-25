@@ -38,3 +38,13 @@ grafana:
   # real credentials to values.yaml. This is a placeholder only used if
   # no real secret is supplied.
   port: 3000
+
+loki:
+  enabled: true
+  image: grafana/loki:3.3.0
+  port: 3100
+  retention: 168h   # 7 days -- UNVERIFIED, size for real retention needs
+
+promtail:
+  enabled: true
+  image: grafana/promtail:3.3.0

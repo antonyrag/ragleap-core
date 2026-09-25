@@ -1,0 +1,111 @@
+{{- if .Values.loki.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ragleap-loki-config
+data:
+  loki-config.yaml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    common:
+      path_prefix: /loki
+      storage:
+        filesystem:
+          chunks_directory: /loki/chunks
+          rules_directory: /loki/rules
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    limits_config:
+      retention_period: {{ .Values.loki.retention }}
+      ingestion_rate_mb: 16
+      ingestion_burst_size_mb: 32
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ragleap-loki-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi   # UNVERIFIED -- size for real retention needs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-loki
+  labels:
+    app: ragleap-loki
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragleap-loki
+  template:
+    metadata:
+      labels:
+        app: ragleap-loki
+    spec:
+      securityContext:
+        fsGroup: 10001
+      containers:
+        - name: loki
+          image: {{ .Values.loki.image }}
+          args:
+            - "-config.file=/etc/loki/loki-config.yaml"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: {{ .Values.loki.port }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki
+            - name: data
+              mountPath: /loki
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: {{ .Values.loki.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: {{ .Values.loki.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: ragleap-loki-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: ragleap-loki-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragleap-loki
+  labels:
+    app: ragleap-loki
+spec:
+  selector:
+    app: ragleap-loki
+  ports:
+    - port: {{ .Values.loki.port }}
+      targetPort: {{ .Values.loki.port }}
+{{- end }}
