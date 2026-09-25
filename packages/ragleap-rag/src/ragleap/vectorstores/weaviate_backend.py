@@ -10,6 +10,27 @@ introspected directly, not assumed from documentation) - the current
 GA Python client (v3 is deprecated). Treat as best-effort until
 confirmed live.
 
+REAL GAP FOUND AND FIXED via live-testing against a real local Weaviate
+instance: init_schema()'s else branch called weaviate.connect_to_local()
+with no arguments, and that function's real installed signature
+(weaviate-client==4.22.0) hardcodes host="localhost", port=8080,
+grpc_port=50051 with no way to override them through this backend's
+constructor - so any self-hosted Weaviate not on the exact default port
+was unreachable. Fixed by adding optional local_host=/local_port=/
+local_grpc_port= constructor parameters, defaulting to connect_to_local()'s
+own defaults so existing behavior is unchanged when unset.
+
+REAL BUG FOUND AND FIXED via the same live-testing: Configure.Vectors.self_provided()
+with no name= creates a NAMED vector called "default" (confirmed via
+the real collection config: vector_config={'default': _NamedVectorConfig(...)}),
+not the legacy unnamed vector space. Empirically confirmed via three
+live test cases against a real Weaviate instance: passing a plain list
+to data.insert(vector=...) with no target_vector on the query returned
+0 results; adding target_vector="default" to the query ALONE still
+returned 0; only passing vector={"default": [...]} to insert AND
+target_vector="default" to the query together returned matches. Both
+insert_chunk() and search_dense() are fixed to use the named vector.
+
 Design notes (same reasoning as PineconeBackend):
 - persist_directory= is REQUIRED - a Weaviate Cloud instance persists
   vectors remotely regardless of local process state, so a persistent
@@ -41,12 +62,21 @@ logger = logging.getLogger(__name__)
 
 
 class WeaviateBackend(VectorBackend):
+    # Configure.Vectors.self_provided() with no name= creates a named
+    # vector called "default" (live-verified against the real installed
+    # weaviate-client==4.22.0) - both insert and query must reference it
+    # explicitly, or search_dense() silently returns zero results.
+    _VECTOR_NAME = "default"
+
     def __init__(
         self,
         persist_directory: str,
         cluster_url: Optional[str] = None,
         api_key: Optional[str] = None,
         collection_name: str = "RagleapChunk",
+        local_host: Optional[str] = None,
+        local_port: Optional[int] = None,
+        local_grpc_port: Optional[int] = None,
     ):
         try:
             import weaviate  # noqa: F401
@@ -65,6 +95,13 @@ class WeaviateBackend(VectorBackend):
 
         self.cluster_url = cluster_url or os.environ.get("WEAVIATE_CLUSTER_URL")
         self.api_key = api_key or os.environ.get("WEAVIATE_API_KEY")
+        # No self-hosted equivalent of WEAVIATE_CLUSTER_URL existed before -
+        # connect_to_local()'s real defaults (host="localhost", port=8080,
+        # grpc_port=50051) are only overridable here, not via env vars, to
+        # match how cluster_url/api_key are the two Cloud-facing settings.
+        self.local_host = local_host or "localhost"
+        self.local_port = local_port or 8080
+        self.local_grpc_port = local_grpc_port or 50051
         # collection_name must start with an uppercase letter per Weaviate's
         # naming convention - normalize rather than fail confusingly later.
         self.collection_name = collection_name[0].upper() + collection_name[1:] if collection_name else "RagleapChunk"
@@ -113,7 +150,9 @@ class WeaviateBackend(VectorBackend):
             auth = Auth.api_key(self.api_key) if self.api_key else None
             self._client = weaviate.connect_to_weaviate_cloud(cluster_url=self.cluster_url, auth_credentials=auth)
         else:
-            self._client = weaviate.connect_to_local()
+            self._client = weaviate.connect_to_local(
+                host=self.local_host, port=self.local_port, grpc_port=self.local_grpc_port,
+            )
 
         if not self._client.collections.exists(self.collection_name):
             logger.info(f"WeaviateBackend: creating collection '{self.collection_name}' (dimensions={dimensions})")
@@ -165,7 +204,7 @@ class WeaviateBackend(VectorBackend):
                 "document_id": document_id, "document_name": document_name,
                 "chunk_index": chunk_index, **(metadata or {}),
             }
-            self._collection.data.insert(properties=properties, vector=embedding, uuid=weaviate_uuid)
+            self._collection.data.insert(properties=properties, vector={self._VECTOR_NAME: embedding}, uuid=weaviate_uuid)
 
     def search_dense(self, embedding: List[float], top_k: int, metadata_filter: Optional[Dict] = None) -> List[Dict]:
         if not embedding or self._collection is None:
@@ -176,6 +215,7 @@ class WeaviateBackend(VectorBackend):
 
         response = self._collection.query.near_vector(
             near_vector=embedding, limit=top_k,
+            target_vector=self._VECTOR_NAME,
             filters=self._build_filter(metadata_filter),
             return_metadata=["distance"],
         )
