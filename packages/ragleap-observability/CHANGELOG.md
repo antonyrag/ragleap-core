@@ -36,3 +36,4 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Neo4j Prometheus support genuinely unverified -- Community Edition support is unresolved and conflicting across external sources. `neo4jExporter` stays disabled until independently live-verified.
 - The original `kubernetes_sd_configs` job initially showed 0 active targets in isolation before the HOSTNAME and regex fixes above were found; that specific diagnostic path is now resolved, but AlertManager, SLO/SLI dashboards, and a recurring log-shipping health check remain unbuilt -- correctly sequenced after this release, per the project's own build order.
 - Loki's retention (`168h` / 7 days) is unverified for real storage-sizing needs; flagged in `values.yaml` as a placeholder to revisit.
+
