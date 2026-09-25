@@ -90,7 +90,7 @@ pip install ragleap-app-chart
 uv add ragleap-app-chart
 ```
 
-Want metrics for your `ragleap-ops` deployment? `ragleap-observability` ships Prometheus + `postgres_exporter`, live-verified end-to-end against a real cluster:
+Want metrics and logs for your `ragleap-ops` deployment? `ragleap-observability` ships Prometheus, Grafana, Loki + Promtail, live-verified end-to-end against a real cluster:
 
 ```bash
 pip install ragleap-observability
@@ -540,9 +540,9 @@ pip install --index-url https://packages.ragleap.com/simple/ ragleap-rag
 - **`ragleap-tools`** — standalone, dependency-light tools for LLM tool-calling. 12 stateless tools (calculator, date/time, unit conversion, JSON/CSV parsing, text utilities), sandboxed file ops (symlink-escape protected), and optional `ragleap-rag`-backed document ingestion. Does not own a tool-calling execution loop — provides `Tool` objects for your own loop or `ragleap-agents` once it ships. Install with `pip install ragleap-tools` or `uv add ragleap-tools`.
 - **`ragleap-ops`** — Kubernetes deployment manifests for RagLeap Core, live-tested end-to-end on a real cluster. Install with `pip install ragleap-ops` or `uv add ragleap-ops`.
 - **`ragleap-app-chart`** — generic, reusable Helm chart for deploying arbitrary services to Kubernetes, not RagLeap-specific. Point it at your own app via a `services:` list. Install with `pip install ragleap-app-chart` or `uv add ragleap-app-chart`.
-- **`ragleap-observability`** — Prometheus + `postgres_exporter` for `ragleap-ops`, live-verified end-to-end against a real cluster (real connection confirmed, real non-zero metrics returned). Grafana/Loki/AlertManager not yet built. Install with `pip install ragleap-observability` or `uv add ragleap-observability`.
+- **`ragleap-observability`** — Prometheus, Grafana, Loki + Promtail for `ragleap-ops`, live-verified end-to-end against a real cluster (real connection confirmed, real non-zero metrics returned; 21+ real log streams with correct namespace/pod/container labels). AlertManager not yet built. Install with `pip install ragleap-observability` or `uv add ragleap-observability`.
 
-All six are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
+All seven are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
 
 ## Supported LLM Providers (BYOK)
 
