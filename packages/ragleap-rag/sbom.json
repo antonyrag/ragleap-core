@@ -1158,7 +1158,7 @@
       "version": "2026.9.0"
     },
     {
-      "bom-ref": "google-auth==2.58.0",
+      "bom-ref": "google-auth==2.58.1",
       "description": "Google Authentication Library",
       "externalReferences": [
         {
@@ -1182,9 +1182,9 @@
           "value": "requests"
         }
       ],
-      "purl": "pkg:pypi/google-auth@2.58.0",
+      "purl": "pkg:pypi/google-auth@2.58.1",
       "type": "library",
-      "version": "2.58.0"
+      "version": "2.58.1"
     },
     {
       "bom-ref": "google-genai==2.25.0",
@@ -4366,7 +4366,7 @@
       "dependsOn": [
         "anyio==4.15.1",
         "docstring_parser==0.18.0",
-        "google-auth==2.58.0",
+        "google-auth==2.58.1",
         "httpx2==2.13.1",
         "jiter==0.17.0",
         "pydantic==2.13.5",
@@ -4531,13 +4531,13 @@
         "requests==2.34.2",
         "urllib3==2.8.0"
       ],
-      "ref": "google-auth==2.58.0"
+      "ref": "google-auth==2.58.1"
     },
     {
       "dependsOn": [
         "anyio==4.15.1",
         "distro==1.9.0",
-        "google-auth==2.58.0",
+        "google-auth==2.58.1",
         "httpx==0.28.1",
         "pillow==12.3.0",
         "protobuf==6.33.6",
@@ -5188,9 +5188,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.12.7"
+      "version": "0.12.8"
     },
-    "timestamp": "2026-09-24T09:57:00.047915+00:00",
+    "timestamp": "2026-09-25T10:30:23.449715+00:00",
     "tools": {
       "components": [
         {
@@ -5294,7 +5294,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:89e443fe-0c0e-4732-8588-b73dec0fe694",
+  "serialNumber": "urn:uuid:40c864af-b720-4d23-a9bd-4f68d6c8e405",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
