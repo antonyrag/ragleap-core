@@ -1,14 +1,34 @@
 """
 Weaviate-backed vector storage for ragleap-rag.
 
-**NOT LIVE-VERIFIED** - no Weaviate instance (cloud or local) was
-available to test against during development (same honest caveat as
-PineconeBackend/mistral/cohere/voyage). Code-complete against the
-actual installed weaviate-client==4.22.0 package's real source code
-(every method signature and return-type field used below was
-introspected directly, not assumed from documentation) - the current
-GA Python client (v3 is deprecated). Treat as best-effort until
-confirmed live.
+LIVE-VERIFIED against a real Weaviate instance (cr.weaviate.io/semitechnologies/weaviate:1.27.0,
+via a real smoke test: init_schema, insert_document, insert_chunk x3,
+search_dense with and without metadata_filter, list_documents,
+get_document_filename, delete_document - all against real infra, not
+mocks). Also introspected against the actual installed
+weaviate-client (4.22.0 during initial development, 4.23.1 during
+live verification) package's real source code - the current GA Python
+client (v3 is deprecated).
+
+TWO REAL BUGS FOUND AND FIXED via this live test:
+1. init_schema()'s else branch called weaviate.connect_to_local() with
+   no arguments; that function's real signature hardcodes
+   host="localhost", port=8080, grpc_port=50051 with no override -
+   any self-hosted Weaviate not on the exact default port was
+   unreachable. Fixed by adding optional local_host=/local_port=/
+   local_grpc_port= constructor parameters.
+2. Configure.Vectors.self_provided() with no name= creates a NAMED
+   vector called "default" (confirmed via the real collection config),
+   not the legacy unnamed vector space - insert_chunk() and
+   search_dense() both needed to reference it explicitly
+   (vector={"default": [...]}, target_vector="default"), or
+   search_dense() silently returned zero results. Additionally, the
+   existing distance-to-similarity conversion (1.0 - distance)
+   produced raw cosine similarity in [-1, 1] (live-verified: identical/
+   orthogonal/opposite vectors scored 1.0/0.0/-1.0) instead of
+   pgvector's [0, 1] convention (1 - distance/2) - the same class of
+   bug already found and fixed for MilvusBackend and QdrantBackend.
+   Fixed to match pgvector's exact formula.
 
 REAL GAP FOUND AND FIXED via live-testing against a real local Weaviate
 instance: init_schema()'s else branch called weaviate.connect_to_local()
@@ -230,12 +250,17 @@ class WeaviateBackend(VectorBackend):
                 logger.warning(f"WeaviateBackend: object '{obj.uuid}' has no matching local text row, skipping")
                 continue
             document_id, document_name, chunk_index, text = row
-            # Weaviate returns distance (lower = more similar), not a
-            # similarity score directly - convert to a similarity-style
-            # score for consistency with the other backends, which all
-            # return higher-is-better values.
+            # Weaviate's cosine distance ranges [0, 2] (0=identical,
+            # 2=opposite) - live-verified: identical/orthogonal/opposite
+            # vectors returned distance 0.0/1.0/2.0. The previous
+            # `1.0 - distance` conversion produced raw cosine similarity
+            # in [-1, 1] (1.0/0.0/-1.0), inconsistent with pgvector's own
+            # `1 - distance/2` convention and the [0, 1] range every other
+            # backend uses (the same class of bug already found and fixed
+            # for MilvusBackend and QdrantBackend). Matching pgvector's
+            # exact formula here for consistency across the ecosystem.
             distance = obj.metadata.distance if obj.metadata and obj.metadata.distance is not None else None
-            similarity_score = round(1.0 - distance, 4) if distance is not None else None
+            similarity_score = round(1.0 - distance / 2, 4) if distance is not None else None
             results.append({
                 "chunk_id": str(obj.uuid), "text": text, "similarity_score": similarity_score,
                 "document_id": document_id, "document_name": document_name, "chunk_index": chunk_index,
