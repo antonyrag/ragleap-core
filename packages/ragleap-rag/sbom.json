@@ -1031,7 +1031,7 @@
       "version": "1.15.1"
     },
     {
-      "bom-ref": "filelock==4.0.3",
+      "bom-ref": "filelock==4.0.4",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1064,9 +1064,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@4.0.3",
+      "purl": "pkg:pypi/filelock@4.0.4",
       "type": "library",
-      "version": "4.0.3"
+      "version": "4.0.4"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -4503,7 +4503,7 @@
       "ref": "faiss-cpu==1.15.1"
     },
     {
-      "ref": "filelock==4.0.3"
+      "ref": "filelock==4.0.4"
     },
     {
       "ref": "flatbuffers==25.12.19"
@@ -4628,7 +4628,7 @@
         "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
-        "filelock==4.0.3",
+        "filelock==4.0.4",
         "fsspec==2026.9.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -5031,7 +5031,7 @@
     },
     {
       "dependsOn": [
-        "filelock==4.0.3",
+        "filelock==4.0.4",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -5188,9 +5188,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.12.8"
+      "version": "0.12.9"
     },
-    "timestamp": "2026-09-25T10:30:23.449715+00:00",
+    "timestamp": "2026-09-26T19:05:48.978886+00:00",
     "tools": {
       "components": [
         {
@@ -5294,7 +5294,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:40c864af-b720-4d23-a9bd-4f68d6c8e405",
+  "serialNumber": "urn:uuid:c975e393-3490-45a2-abaa-5fa27bac00fc",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
