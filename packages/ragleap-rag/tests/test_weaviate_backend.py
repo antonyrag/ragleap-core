@@ -67,7 +67,11 @@ def test_insert_chunk_calls_data_insert_with_correct_args(tmp_path):
 
     backend._collection.data.insert.assert_called_once()
     call_kwargs = backend._collection.data.insert.call_args.kwargs
-    assert call_kwargs["vector"] == [0.1, 0.2]
+    # live-verified: Configure.Vectors.self_provided() with no name=
+    # creates a NAMED vector called "default", not the legacy unnamed
+    # vector - insert must use {"default": [...]} or search silently
+    # returns zero results (confirmed empirically against real Weaviate).
+    assert call_kwargs["vector"] == {"default": [0.1, 0.2]}
     assert call_kwargs["properties"]["document_id"] == "doc1"
     assert call_kwargs["properties"]["tenant"] == "acme"
     assert "uuid" in call_kwargs
@@ -91,16 +95,23 @@ def test_search_dense_converts_distance_to_similarity_score(tmp_path):
 
     mock_obj = MagicMock()
     mock_obj.uuid = weaviate_uuid
-    mock_obj.metadata.distance = 0.2  # distance 0.2 -> similarity 0.8
+    mock_obj.metadata.distance = 0.2  # cosine distance 0.2 -> similarity 0.9 (1 - distance/2)
     mock_response = MagicMock()
     mock_response.objects = [mock_obj]
     backend._collection.query.near_vector.return_value = mock_response
 
     results = backend.search_dense(embedding=[0.1, 0.2], top_k=5)
 
+    backend._collection.query.near_vector.assert_called_once()
+    query_kwargs = backend._collection.query.near_vector.call_args.kwargs
+    assert query_kwargs["target_vector"] == "default"
+
     assert len(results) == 1
     assert results[0]["text"] == "real text"
-    assert results[0]["similarity_score"] == 0.8
+    # live-verified formula: 1.0 - distance / 2, matching pgvector's own
+    # convention - NOT the old 1.0 - distance, which produced raw cosine
+    # similarity in [-1, 1] instead of the [0, 1] range every backend uses.
+    assert results[0]["similarity_score"] == 0.9
 
 
 def test_search_dense_skips_orphaned_objects(tmp_path):
@@ -134,6 +145,54 @@ def test_delete_document_calls_delete_by_id_for_each_chunk(tmp_path):
     deleted = backend.delete_document("doc1")
     assert deleted is True
     backend._collection.data.delete_by_id.assert_called_once_with(weaviate_uuid)
+
+
+def test_search_dense_normalizes_cosine_distance_to_unit_range(tmp_path):
+    """
+    Regression test for the similarity_score normalization fix.
+    Weaviate's cosine distance ranges [0, 2] (live-verified against a
+    real Weaviate instance: identical/orthogonal/opposite vectors
+    returned distance 0.0/1.0/2.0). This confirms the 1.0 - distance/2
+    transform at its boundaries, matching pgvector/milvus/qdrant's
+    normalized-range convention.
+    """
+    backend = _make_backend(tmp_path)
+    backend._dimensions = 2
+    backend._collection = MagicMock()
+
+    ids = {}
+    for key, text, dist in [("doc1:0", "identical vector", 0.0), ("doc1:1", "orthogonal vector", 1.0), ("doc1:2", "opposite vector", 2.0)]:
+        wid = backend._deterministic_uuid(key)
+        ids[key] = (wid, dist)
+        backend._conn.execute(
+            "INSERT INTO chunks (vector_key, weaviate_uuid, document_id, document_name, chunk_index, text, token_count, metadata) "
+            "VALUES (?, ?, 'doc1', 'test.txt', ?, ?, 5, '{}')",
+            (key, wid, int(key.split(":")[1]), text),
+        )
+    backend._conn.commit()
+
+    def _mock_obj(key, text):
+        wid, dist = ids[key]
+        o = MagicMock()
+        o.uuid = wid
+        o.metadata.distance = dist
+        return o
+
+    mock_response = MagicMock()
+    mock_response.objects = [
+        _mock_obj("doc1:0", "identical vector"),
+        _mock_obj("doc1:1", "orthogonal vector"),
+        _mock_obj("doc1:2", "opposite vector"),
+    ]
+    backend._collection.query.near_vector.return_value = mock_response
+
+    results = backend.search_dense(embedding=[0.1, 0.2], top_k=5)
+
+    assert len(results) == 3
+    by_text = {r["text"]: r["similarity_score"] for r in results}
+    assert by_text["identical vector"] == 1.0
+    assert by_text["orthogonal vector"] == 0.5
+    assert by_text["opposite vector"] == 0.0
 
 
 def test_supports_sparse_is_false(tmp_path):

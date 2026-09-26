@@ -5,6 +5,57 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.9] - 2026-09-26
+### Fixed
+- REAL BUG in WeaviateBackend, live-verified against a real Weaviate
+  instance: `init_schema()`'s else branch called
+  `weaviate.connect_to_local()` with no arguments. That function's real
+  installed signature (weaviate-client==4.22.0/4.23.1) hardcodes
+  `host="localhost"`, `port=8080`, `grpc_port=50051` with no override
+  through this backend's own constructor - so any self-hosted Weaviate
+  not on the exact default port was unreachable (Weaviate Cloud via
+  `cluster_url=` was unaffected). Fixed by adding optional
+  `local_host=`/`local_port=`/`local_grpc_port=` constructor
+  parameters, defaulting to `connect_to_local()`'s own defaults so
+  existing behavior is unchanged when unset.
+- REAL BUG in WeaviateBackend, found via the same live test:
+  `Configure.Vectors.self_provided()` with no `name=` creates a NAMED
+  vector called `"default"` (confirmed via the real collection config:
+  `vector_config={'default': _NamedVectorConfig(...)}`), not the legacy
+  unnamed vector space. `insert_chunk()` passed a plain list to
+  `data.insert(vector=...)` and `search_dense()` called
+  `near_vector()` with no `target_vector=` - empirically confirmed via
+  three live test cases that BOTH sides needed to change together
+  (neither alone fixed it): `search_dense()` silently returned zero
+  results for every query. Fixed by using `vector={"default": [...]}`
+  on insert and `target_vector="default"` on query.
+- REAL BUG in WeaviateBackend, found while fixing the above: the
+  existing `1.0 - distance` distance-to-similarity conversion produced
+  raw cosine similarity in `[-1, 1]` (live-verified: identical/
+  orthogonal/opposite vectors scored 1.0/0.0/-1.0), not `pgvector`'s
+  `[0, 1]` convention (`1 - distance/2`) - the same class of bug
+  already found and fixed for `MilvusBackend` and `QdrantBackend`
+  (this release). Fixed to match `pgvector`'s exact formula
+  (`1.0 - distance / 2`).
+
+### Changed
+- `WeaviateBackend` is now genuinely live-verified: a real smoke test
+  against a real Weaviate instance (init_schema, insert_document,
+  insert_chunk, search_dense with and without metadata_filter,
+  list_documents, get_document_filename, delete_document) passed after
+  all three fixes above. The module docstring's "NOT LIVE-VERIFIED"
+  claim is corrected.
+- New `tests/test_weaviate_backend_live.py`: always-available
+  live-gated tests (skip cleanly when `WEAVIATE_TEST_URL` is unset),
+  same pattern as the OpenSearch/Upstash/Qdrant live tests, so this
+  class of bug (mock-only tests encoding wrong assumptions) can't
+  regress silently again.
+
+### Not yet verified
+- MilvusBackend and PineconeBackend remain code-complete but not
+  live-verified (no Milvus or Pinecone instance tested against). See
+  the tracking issue.
+
 ## [0.12.8] - 2026-09-24
 
 ### Fixed
