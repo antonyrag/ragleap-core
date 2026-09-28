@@ -252,3 +252,56 @@ jobs:
         env:
           RAGLEAP_JAVA_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ragleap_java_test
         run: mvn -B test
+
+  ragleap-vectorstores-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.10 is the package's declared minimum (requires-python >=3.10)
+        # and the exact version that exposed a real Python-version bug
+        # missed by CI running only 3.11/3.12 elsewhere - keeping it in
+        # the matrix is the point of this job, not an oversight.
+        python-version: ['3.10', '3.12']
+    services:
+      redis:
+        image: redis/redis-stack-server:latest
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # test_missing_search_module_raises() hardcodes REDIS_NO_SEARCH_URL to
+      # redis://localhost:6379/2 (mirroring real production Redis 6.0.16 on
+      # srv1477778, which has no RediSearch module) - a plain Redis on 6379
+      # satisfies that without touching test code. Redis Stack's own
+      # RediSearch module additionally refuses to create indexes on any db
+      # other than 0 ("Cannot create index on db != 0"), which is the real
+      # error this two-service split avoids.
+      redis-no-search:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install ragleap-vectorstores with test deps
+        working-directory: packages/ragleap-vectorstores
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test,chroma,lancedb,redis]"
+      - name: Run ragleap-vectorstores test suite
+        working-directory: packages/ragleap-vectorstores
+        env:
+          REDIS_TEST_URL: redis://localhost:6380/0
+        run: |
+          python -m pytest tests/ -v
