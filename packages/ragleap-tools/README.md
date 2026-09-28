@@ -91,6 +91,36 @@ result = search_tool.call(query="what was the Q3 revenue?", filename="q3-report.
 thin adapters, same pattern `ragleap-graph` uses for its own optional
 `ragleap-rag` dependency.
 
+## Web search (BYOK, no extra dependencies)
+
+```python
+from ragleap_tools import WebSearchConfig, TavilySearchProvider, make_web_search_tool
+
+provider = TavilySearchProvider(api_key="...")  # or SerperSearchProvider(api_key="...")
+search_tool = make_web_search_tool(WebSearchConfig(provider=provider))
+
+result = search_tool.call(query="latest pgvector release", num_results=5)
+# result.result == {"results": [{"title": ..., "url": ..., "snippet": ...}, ...], "count": 5}
+```
+
+Bring your own key: you construct the provider you want with your own
+`api_key`. There is no default provider and no environment-variable
+fallback. Uses only the standard library (`urllib.request`), so
+`ragleap-tools` still has zero required dependencies. `SearchProvider`
+is a small abstract class - implement `search(query, num_results)` to
+plug in any other search engine.
+
+`num_results` is chosen by the model and costs your API quota, so it is
+clamped to 1-20.
+
+Honest limitations: request shapes for both reference providers were
+checked against their current public docs, but **neither has been
+called against a live account** - treat them as best-effort until
+confirmed by someone with a real key. Results are text from arbitrary
+third-party pages, so treat them as untrusted input: this tool does not
+screen them for prompt injection. There is no caching, rate limiting
+or deduplication.
+
 ## Deliberately out of scope
 
 Each of these needs its own security-focused design pass, not a
@@ -98,9 +128,6 @@ rushed inclusion here:
 
 - **Code execution** - a real sandboxing/resource-limit design
   decision, not something to bolt on alongside a calculator.
-- **Web search** - needs a pluggable-provider decision (this
-  ecosystem's BYOK philosophy applies here too), not a single
-  hardcoded provider.
 - **HTTP fetch** - letting an LLM request arbitrary URLs carries real
   SSRF risk, same care level as code execution.
 - **Database/business-system connectors** (SQL, CRM, payment
@@ -111,7 +138,7 @@ rushed inclusion here:
 
 ## Status
 
-v0.1.1. 69 tests, all passing, including real security verification
+v0.2.0. 85 tests, all passing, including real security verification
 for the two risk-sensitive tools (calculator's code-injection
 rejection, file ops' path-traversal and symlink-escape rejection) -
 not just documented as safe, actually tested against real attack

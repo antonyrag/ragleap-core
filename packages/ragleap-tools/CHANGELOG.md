@@ -5,6 +5,47 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-28
+
+### Added
+
+- `search_web` tool (`WebSearchConfig`, `make_web_search_tool`) with a
+  pluggable `SearchProvider` abstraction and two reference providers,
+  `TavilySearchProvider` and `SerperSearchProvider`. Bring-your-own-key:
+  `api_key` is required at construction, with no environment-variable
+  fallback and no default provider. Standard library only
+  (`urllib.request`) - `ragleap-tools` still has zero required
+  dependencies. Results are normalized to `{"title", "url", "snippet"}`.
+- `num_results` is model-controlled and costs the caller's paid API
+  quota, so `search_web()` clamps it to 1-20 (in the tool, not the
+  providers, so custom providers get it too) and rejects non-integer
+  values without calling the provider. See
+  `docs/design/web-search-tool.md`.
+
+### Changed
+
+- Web search is no longer listed as out of scope. Code execution, HTTP
+  fetch and database/business-system connectors remain deferred.
+
+### Known limitations
+
+- Neither provider has been called against a live account. Request
+  shapes were checked against each provider's current public docs; an
+  earlier draft sent Tavily's key in the request body, which is not what
+  its current docs show, and was corrected to a Bearer header before
+  release. Treat both as best-effort until confirmed live.
+- Search results are untrusted third-party text; nothing screens them
+  for prompt injection.
+- No caching, rate limiting or result deduplication.
+
+### Verified
+
+- 85 tests passing (was 69). 16 new: the provider request-building
+  tests mock `urllib.request.urlopen` so each provider's real payload
+  and headers are exercised (including that Tavily's key is in the
+  header and absent from the body), plus the `num_results` clamp and
+  the package exports.
+
 ## [0.1.1] - 2026-09-24
 
 ### Added
