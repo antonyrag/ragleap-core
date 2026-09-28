@@ -1031,7 +1031,7 @@
       "version": "1.15.1"
     },
     {
-      "bom-ref": "filelock==4.0.4",
+      "bom-ref": "filelock==4.0.5",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1064,9 +1064,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@4.0.4",
+      "purl": "pkg:pypi/filelock@4.0.5",
       "type": "library",
-      "version": "4.0.4"
+      "version": "4.0.5"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -1102,11 +1102,26 @@
       "version": "25.12.19"
     },
     {
-      "bom-ref": "fqdn==1.5.1",
-      "description": "Validates fully-qualified domain names against RFC 1123, so that they are acceptable to modern bowsers",
+      "bom-ref": "fqdn==1.6.0",
+      "description": "Validates fully-qualified domain names against RFC 1123, so that they are acceptable to modern browsers",
       "externalReferences": [
         {
-          "comment": "from packaging metadata: Home-page",
+          "comment": "from packaging metadata Project-URL: Issues",
+          "type": "issue-tracker",
+          "url": "https://github.com/ypcrts/fqdn/issues"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Changelog",
+          "type": "release-notes",
+          "url": "https://github.com/ypcrts/fqdn/blob/develop/CHANGELOG.md"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Repository",
+          "type": "vcs",
+          "url": "https://github.com/ypcrts/fqdn"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Homepage",
           "type": "website",
           "url": "https://github.com/ypcrts/fqdn"
         }
@@ -1115,14 +1130,14 @@
         {
           "license": {
             "acknowledgement": "declared",
-            "name": "License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)"
+            "id": "MPL-2.0"
           }
         }
       ],
       "name": "fqdn",
-      "purl": "pkg:pypi/fqdn@1.5.1",
+      "purl": "pkg:pypi/fqdn@1.6.0",
       "type": "library",
-      "version": "1.5.1"
+      "version": "1.6.0"
     },
     {
       "bom-ref": "fsspec==2026.9.0",
@@ -4503,13 +4518,13 @@
       "ref": "faiss-cpu==1.15.1"
     },
     {
-      "ref": "filelock==4.0.4"
+      "ref": "filelock==4.0.5"
     },
     {
       "ref": "flatbuffers==25.12.19"
     },
     {
-      "ref": "fqdn==1.5.1"
+      "ref": "fqdn==1.6.0"
     },
     {
       "dependsOn": [
@@ -4628,7 +4643,7 @@
         "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
-        "filelock==4.0.4",
+        "filelock==4.0.5",
         "fsspec==2026.9.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -4675,7 +4690,7 @@
     {
       "dependsOn": [
         "attrs==26.1.0",
-        "fqdn==1.5.1",
+        "fqdn==1.6.0",
         "idna==3.20",
         "isoduration==20.11.0",
         "jsonpointer==3.1.1",
@@ -5031,7 +5046,7 @@
     },
     {
       "dependsOn": [
-        "filelock==4.0.4",
+        "filelock==4.0.5",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -5190,7 +5205,7 @@
       "type": "library",
       "version": "0.12.9"
     },
-    "timestamp": "2026-09-26T19:05:48.978886+00:00",
+    "timestamp": "2026-09-28T11:21:37.091858+00:00",
     "tools": {
       "components": [
         {
@@ -5294,7 +5309,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:c975e393-3490-45a2-abaa-5fa27bac00fc",
+  "serialNumber": "urn:uuid:6b98db9e-955e-49cd-adf9-d7d54ae9d5a8",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
