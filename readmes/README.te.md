@@ -4,7 +4,7 @@
 
 # RagLeap Core
 
-**自主 AI 代理人 — 不只是 RAG。**
+**స్వయంప్రతిపత్తి AI ఏజెంట్లు — కేవలం RAG మాత్రమే కాదు.**
 
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](../LICENSE) [![46 AI Employees](https://img.shields.io/badge/46-AI%20Employees-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Autonomous](https://img.shields.io/badge/Autonomous-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-brightgreen)](https://github.com/antonyrag/ragleap-core)
 [![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
@@ -13,17 +13,17 @@
 
 </div>
 
-RagLeap Core 是 RagLeap 背後的開源引擎 — 一個自託管的代理系統，在您自己的伺服器上從您自己的文件經營您的業務，無任何供應商鎖定。
+RagLeap Core అనేది RagLeap వెనక ఉన్న ఓపెన్-సోర్స్ ఇంజిన్ — ఎలాంటి వెండర్ లాక్-ఇన్ లేకుండా మీ సొంత సర్వర్‌లో మీ సొంత డాక్యుమెంట్‌ల నుండి మీ వ్యాపారాన్ని నిర్వహించే స్వయం-హోస్ట్ చేయబడిన, ఏజెంటిక్ సిస్టమ్.
 
-**46 個角色型 AI 員工：** 9 個核心通才角色（AI 經理、秘書、執行長、業務、支援、人資、財務、行銷、營運）以及 37 個垂直特定的全球角色。
+**46 పాత్ర-ఆధారిత AI ఉద్యోగులు:** 9 కోర్ జనరలిస్ట్ పాత్రలు (AI మేనేజర్, సెక్రెటరీ, CEO, సేల్స్, సపోర్ట్, HR, ఫైనాన్స్, మార్కెటింగ్, ఆపరేషన్స్) మరియు 37 వర్టికల్-స్పెసిఫిక్ గ్లోబల్ పాత్రలు.
 
-**它的功能：**
-- 自學習、結果加權的記憶
-- 自動觸發工作流程和升級
-- 完全 / 半自主模式
-- 思考-行動-決策循環，不只是檢索
+**ఇది ఏమి చేస్తుంది:**
+- స్వయం-అభ్యాసం, ఫలితం-బరువుల జ్ఞాపకశక్తి
+- ఆటో-ట్రిగర్ వర్క్‌ఫ్లోలు మరియు ఎస్కలేషన్
+- పూర్తి / అర్ధ-స్వయంప్రతిపత్తి మోడ్‌లు
+- ఆలోచించు-వ్యవహరించు-నిర్ణయించు లూప్
 
-[Quickstart](#快速開始) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
+[Quickstart](#త్వరిత-ప్రారంభం) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
 
 ---
 
@@ -35,7 +35,7 @@ RagLeap Core 是 RagLeap 背後的開源引擎 — 一個自託管的代理系�
 pip install ragleap-rag
 ```
 
-> ⭐ 如果對您有幫助，請考慮給儲存庫加星 — 這真的能幫助更多人找到它。
+> ⭐ ఇది సహాయపడితే, దయచేసి repo కి ఒక స్టార్ ఇవ్వడాన్ని పరిగణించండి.
 
 Prefer Java? `ragleap-rag` is also on Maven Central:
 ```xml
@@ -56,7 +56,7 @@ Add `ragleap-vectorstores` for pluggable vector backends:
 pip install ragleap-rag ragleap-vectorstores[chroma]
 ```
 
-## 功能
+## లక్షణాలు
 
 | | |
 |---|---|
@@ -77,9 +77,9 @@ pip install ragleap-rag ragleap-vectorstores[chroma]
 | 🛠️ **Build your own AI Employee** | Define a fully custom role via `PATCH /employees/{role}` |
 | 🔗 **n8n workflow automation** | Fire a webhook after the AI replies on WhatsApp/Telegram/Discord |
 
-## 快速開始
+## త్వరిత ప్రారంభం
 
-**最快的試用方式** — 一條命令檢查 Docker、複製儲存庫並為您設定 `.env`：
+**దాన్ని ప్రయత్నించడానికి అత్యంత వేగవంతమైన మార్గం** — ఒక కమాండ్ Docker ని తనిఖీ చేస్తుంది, repo ని క్లోన్ చేస్తుంది మరియు మీ కోసం `.env` ని సెట్ చేస్తుంది:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install.sh | bash
