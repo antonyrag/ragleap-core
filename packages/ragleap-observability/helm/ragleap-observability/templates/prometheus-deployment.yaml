@@ -1,4 +1,4 @@
-{{- if .Values.prometheus.enabled }}
+﻿{{- if .Values.prometheus.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -17,6 +17,8 @@ metadata:
     app: ragleap-prometheus
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: ragleap-prometheus
@@ -45,6 +47,8 @@ spec:
               mountPath: /etc/prometheus
             - name: data
               mountPath: /prometheus
+            - name: rules
+              mountPath: /etc/prometheus/rules
           readinessProbe:
             httpGet:
               path: /-/ready
@@ -64,6 +68,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: ragleap-prometheus-data
+        - name: rules
+          configMap:
+            name: ragleap-prometheus-rules
 ---
 apiVersion: v1
 kind: Service
@@ -78,3 +85,4 @@ spec:
     - port: 9090
       targetPort: 9090
 {{- end }}
+

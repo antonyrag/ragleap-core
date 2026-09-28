@@ -1,4 +1,4 @@
-{{- if .Values.prometheus.enabled }}
+﻿{{- if .Values.prometheus.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,6 +7,14 @@ data:
   prometheus.yml: |
     global:
       scrape_interval: {{ .Values.prometheus.scrapeInterval }}
+    {{- if .Values.alertmanager.enabled }}
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['ragleap-alertmanager:{{ .Values.alertmanager.port }}']
+    rule_files:
+      - /etc/prometheus/rules/alerts.yml
+    {{- end }}
     scrape_configs:
       - job_name: 'ragleap-postgres'
         static_configs:

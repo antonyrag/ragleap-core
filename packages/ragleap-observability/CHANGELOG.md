@@ -5,6 +5,31 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-27
+
+### Added
+
+- AlertManager deployment (Deployment, Service, ConfigMap), wired end-to-end to Prometheus (`alerting:` block + `rule_files:`). No real notification receiver configured yet -- the default route points at a placeholder webhook URL that will fail every send, stated plainly in `values.yaml`. Alert routing, grouping, and silencing all work for real; delivery to a human does not, until a real Slack/email/PagerDuty receiver is configured.
+- First real alerting rule: `PostgresExporterDown` (`up{job="ragleap-postgres"} == 0` for 5m), targeting an actual live, proven service in this cluster rather than a synthetic example.
+- New `ragleap-prometheus-rules` ConfigMap, mounted into Prometheus alongside its existing config/data volumes.
+
+### Fixed
+
+- **Prometheus's Deployment had no explicit rollout strategy, defaulting to Kubernetes' standard RollingUpdate.** Its ReadWriteOnce PVC holds Prometheus's TSDB data directory, which only one process can lock at a time. The first real rollout since this Deployment was created (triggered by this AlertManager work) surfaced the conflict immediately: the new pod tried to start alongside the still-running old pod and failed with `opening storage failed: lock DB directory: resource temporarily unavailable`, crash-looping until the old pod was manually cleaned up. This was a latent bug from the original Prometheus deployment, not something this AlertManager change introduced -- it simply had never been exercised by a real rollout before. Fixed by setting `strategy: type: Recreate`, which fully terminates the old pod before starting the new one.
+
+### Verified
+
+- Prometheus's `/api/v1/rules` confirms the `PostgresExporterDown` rule loaded correctly (health: ok, real evaluation timestamp).
+- Prometheus's `/api/v1/alertmanagers` confirms AlertManager genuinely registered as an active target (`http://ragleap-alertmanager:9093/api/v2/alerts`), zero dropped.
+- AlertManager's own `/-/ready` returns OK.
+
+### Known limitations
+
+- No real AlertManager receiver configured -- alerts are correctly routed and grouped but not delivered to any human yet.
+- AlertManager's state (silences, notification log) uses emptyDir, not a PVC -- lost on pod restart. Acceptable for a first pass; revisit if silences need to survive restarts.
+- **No canary or blue-green deployment strategy exists anywhere in this project.** Every Kubernetes Deployment uses either the Kubernetes default RollingUpdate (implicit, not deliberately built) or, as of this release, an explicit Recreate strategy for Prometheus specifically (necessary due to its single-writer TSDB storage, not a general pattern). Canary/blue-green would need a dedicated tool (Argo Rollouts, Flagger) or service-mesh/Ingress traffic-splitting, both of which depend on GitOps tooling (step 14 of the master plan, ArgoCD/Flux) that has not been started. This is not an oversight -- it is the natural consequence of GitOps being correctly sequenced later, not a gap in this specific release.
+- SLO/SLI dashboards remain unbuilt -- correctly sequenced after alerting exists, per the project's own build order.
+
 ## [0.2.1] - 2026-09-25
 
 ### Fixed
@@ -25,8 +50,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - `postgres-exporter` had `runAsNonRoot: true` with no `runAsUser` set. The image's Dockerfile sets its user by name (`nobody`) rather than a numeric UID, which Kubernetes cannot verify against `runAsNonRoot` without an explicit numeric value -- failed on real cluster with `container has runAsNonRoot and image has non-numeric user (nobody), cannot verify user is non-root`. Fixed with `runAsUser: 65534`, confirmed via `docker run --rm --entrypoint id`.
-- **Cross-namespace DNS lookup failure in Promtail's Loki client.** The client URL used a bare service name (`ragleap-loki`), which only resolves via CoreDNS's `kubernetes` plugin within the querying pod's own namespace. Since Promtail runs in `ragleap-observability-agents` and Loki runs in `ragleap-core`, every push failed with `dial tcp: lookup ragleap-loki ... server misbehaving`. Symptom looked exactly like a CoreDNS health problem but a full CoreDNS restart did not fix it. Fixed by switching to `ragleap-loki.{{ .Release.Namespace }}.svc.cluster.local`.
-- **`kubernetes_sd_configs` produced 0 active targets despite correct discovery.** Root-caused through several layers: (1) Promtail auto-injects a node-scoping field selector built from `$HOSTNAME`, which without an explicit override defaults to the pod's own name rather than the real node name -- fixed by setting `HOSTNAME` via the Downward API. (2) A hand-built multi-capture-group regex for `__path__` matched real on-disk paths exactly by hand, yet Promtail's own `/ready` endpoint still reported "unable to find any logs to tail" -- replaced with Grafana's own canonical production pattern (`__meta_kubernetes_pod_uid` + `__meta_kubernetes_pod_container_name` joined by a literal `/` separator, default single-capture regex, wrapped in `/var/log/pods/*$1/*.log`). Also added the `cri: {}` pipeline stage needed to correctly parse Kubernetes' CRI log line format.
+- Cross-namespace DNS lookup failure in Promtail's Loki client. The client URL used a bare service name (`ragleap-loki`), which only resolves via CoreDNS's `kubernetes` plugin within the querying pod's own namespace. Since Promtail runs in `ragleap-observability-agents` and Loki runs in `ragleap-core`, every push failed with `dial tcp: lookup ragleap-loki ... server misbehaving`. Symptom looked exactly like a CoreDNS health problem but a full CoreDNS restart did not fix it. Fixed by switching to `ragleap-loki.{{ .Release.Namespace }}.svc.cluster.local`.
+- `kubernetes_sd_configs` produced 0 active targets despite correct discovery. Root-caused through several layers: (1) Promtail auto-injects a node-scoping field selector built from `$HOSTNAME`, which without an explicit override defaults to the pod's own name rather than the real node name -- fixed by setting `HOSTNAME` via the Downward API. (2) A hand-built multi-capture-group regex for `__path__` matched real on-disk paths exactly by hand, yet Promtail's own `/ready` endpoint still reported "unable to find any logs to tail" -- replaced with Grafana's own canonical production pattern (`__meta_kubernetes_pod_uid` + `__meta_kubernetes_pod_container_name` joined by a literal `/` separator, default single-capture regex, wrapped in `/var/log/pods/*$1/*.log`). Also added the `cri: {}` pipeline stage needed to correctly parse Kubernetes' CRI log line format.
 - A missing newline silently corrupted the ConfigMap's YAML document boundary, merging the ConfigMap and the next resource together -- caused a silent `helm upgrade` "success" that never actually created the ConfigMap, an "unknown field \"data\"" warning, and a downstream Promtail crash-loop.
 - Loki's default ingestion rate limit (4 MB/s) was too low for the burst of historical log replay generated every time Promtail's `positions.yaml` reset. Fixed by raising `ingestion_rate_mb: 16` / `ingestion_burst_size_mb: 32`.
 - Removed the temporary `static-pod-logs` diagnostic scrape job -- it silently starved the real `kubernetes-pods` job of every file it touched since `positions.yaml` keys purely by file path, not by job.
