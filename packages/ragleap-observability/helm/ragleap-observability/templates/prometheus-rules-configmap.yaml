@@ -1,0 +1,19 @@
+﻿{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ragleap-prometheus-rules
+data:
+  alerts.yml: |
+    groups:
+      - name: ragleap-core
+        rules:
+          - alert: PostgresExporterDown
+            expr: up{job="ragleap-postgres"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "postgres-exporter target down"
+              description: "Prometheus has not successfully scraped ragleap-postgres for 5 minutes. Either the exporter pod is down or ragleap-db itself is unreachable."
+{{- end }}

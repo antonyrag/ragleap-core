@@ -48,3 +48,15 @@ loki:
 promtail:
   enabled: true
   image: grafana/promtail:3.3.0
+
+alertmanager:
+  enabled: true
+  image: prom/alertmanager:v0.27.0
+  port: 9093
+  # No real receiver configured yet -- the default route logs to a
+  # webhook receiver pointed at a placeholder URL that will fail
+  # every send. This is intentional and stated plainly: AlertManager
+  # is wired end-to-end (Prometheus -> AlertManager -> receiver
+  # attempt) and alert routing/grouping/silencing all work for real,
+  # but nothing will actually notify a human until a real receiver
+  # (Slack webhook, email, PagerDuty, etc.) is configured here.

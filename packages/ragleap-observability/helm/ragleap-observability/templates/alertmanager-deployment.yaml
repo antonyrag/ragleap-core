@@ -1,0 +1,94 @@
+﻿{{- if .Values.alertmanager.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ragleap-alertmanager-config
+data:
+  alertmanager.yml: |
+    route:
+      receiver: default-webhook
+      group_by: ['alertname']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    receivers:
+      - name: default-webhook
+        # PLACEHOLDER -- replace with a real Slack/email/PagerDuty
+        # receiver before relying on this for real notifications.
+        # As configured, every send to this URL will fail; alerts
+        # are still correctly routed, grouped, and visible in
+        # AlertManager's own UI/API, just not delivered anywhere.
+        webhook_configs:
+          - url: 'http://localhost:1/replace-with-real-receiver'
+            send_resolved: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ragleap-alertmanager
+  labels:
+    app: ragleap-alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ragleap-alertmanager
+  template:
+    metadata:
+      labels:
+        app: ragleap-alertmanager
+    spec:
+      securityContext:
+        fsGroup: 65534
+      containers:
+        - name: alertmanager
+          image: {{ .Values.alertmanager.image }}
+          args:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 9093
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager
+            - name: data
+              mountPath: /alertmanager
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9093
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9093
+            initialDelaySeconds: 15
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: ragleap-alertmanager-config
+        - name: data
+          # emptyDir, not a PVC -- silence/notification state loss on
+          # pod restart is an accepted, documented limitation for this
+          # first pass. Revisit if silences need to survive restarts.
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ragleap-alertmanager
+  labels:
+    app: ragleap-alertmanager
+spec:
+  selector:
+    app: ragleap-alertmanager
+  ports:
+    - port: 9093
+      targetPort: 9093
+{{- end }}
