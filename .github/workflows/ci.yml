@@ -267,6 +267,22 @@ jobs:
       redis:
         image: redis/redis-stack-server:latest
         ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      # test_missing_search_module_raises() hardcodes REDIS_NO_SEARCH_URL to
+      # redis://localhost:6379/2 (mirroring real production Redis 6.0.16 on
+      # srv1477778, which has no RediSearch module) - a plain Redis on 6379
+      # satisfies that without touching test code. Redis Stack's own
+      # RediSearch module additionally refuses to create indexes on any db
+      # other than 0 ("Cannot create index on db != 0"), which is the real
+      # error this two-service split avoids.
+      redis-no-search:
+        image: redis:7-alpine
+        ports:
           - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
@@ -286,6 +302,6 @@ jobs:
       - name: Run ragleap-vectorstores test suite
         working-directory: packages/ragleap-vectorstores
         env:
-          REDIS_TEST_URL: redis://localhost:6379/0
+          REDIS_TEST_URL: redis://localhost:6380/0
         run: |
           python -m pytest tests/ -v
