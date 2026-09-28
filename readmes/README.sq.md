@@ -4,7 +4,7 @@
 
 # RagLeap Core
 
-**自主 AI 代理人 — 不只是 RAG。**
+**Agjentë AI Autonomë — Jo Vetëm RAG.**
 
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](../LICENSE) [![46 AI Employees](https://img.shields.io/badge/46-AI%20Employees-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Autonomous](https://img.shields.io/badge/Autonomous-brightgreen)](https://github.com/antonyrag/ragleap-core) [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-brightgreen)](https://github.com/antonyrag/ragleap-core)
 [![PyPI ragleap-rag](https://img.shields.io/pypi/v/ragleap-rag?label=ragleap-rag)](https://pypi.org/project/ragleap-rag/) [![Downloads](https://img.shields.io/pepy/dt/ragleap-rag?label=downloads)](https://pypi.org/project/ragleap-rag/)
@@ -13,17 +13,17 @@
 
 </div>
 
-RagLeap Core 是 RagLeap 背後的開源引擎 — 一個自託管的代理系統，在您自己的伺服器上從您自己的文件經營您的業務，無任何供應商鎖定。
+RagLeap Core është motori me burim të hapur pas RagLeap — një sistem agjentic me vetë-prijem që menaxhon biznesin tuaj nga dokumentet tuaja në serverin tuaj, pa asnjë varësi nga shitësi.
 
-**46 個角色型 AI 員工：** 9 個核心通才角色（AI 經理、秘書、執行長、業務、支援、人資、財務、行銷、營運）以及 37 個垂直特定的全球角色。
+**46 punonjës AI të bazuar në role:** 9 role kryesore generaliste (Menaxher AI, Sekretar, CEO, Shitje, Mbështetje, HR, Financa, Marketing, Operacione) plus 37 role globale specifike vertikale.
 
-**它的功能：**
-- 自學習、結果加權的記憶
-- 自動觸發工作流程和升級
-- 完全 / 半自主模式
-- 思考-行動-決策循環，不只是檢索
+**Çfarë bën:**
+- Kujtesë vetë-mësuese, e ponderuar nga rezultatet
+- Aktivizues automatikë të rrjedhës së punës dhe eskalimit
+- Mënyrat e autonomisë së plotë / gjysmë
+- Cikli mendo-vepro-vendos, jo vetëm rikthim
 
-[Quickstart](#快速開始) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
+[Quickstart](#fillim-i-shpejtë) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
 
 ---
 
@@ -35,7 +35,7 @@ RagLeap Core 是 RagLeap 背後的開源引擎 — 一個自託管的代理系�
 pip install ragleap-rag
 ```
 
-> ⭐ 如果對您有幫助，請考慮給儲存庫加星 — 這真的能幫助更多人找到它。
+> ⭐ Nëse kjo ju ndihmon, konsideroni t'i jepni depos një yll.
 
 Prefer Java? `ragleap-rag` is also on Maven Central:
 ```xml
@@ -56,7 +56,7 @@ Add `ragleap-vectorstores` for pluggable vector backends:
 pip install ragleap-rag ragleap-vectorstores[chroma]
 ```
 
-## 功能
+## Veçoritë
 
 | | |
 |---|---|
@@ -77,9 +77,9 @@ pip install ragleap-rag ragleap-vectorstores[chroma]
 | 🛠️ **Build your own AI Employee** | Define a fully custom role via `PATCH /employees/{role}` |
 | 🔗 **n8n workflow automation** | Fire a webhook after the AI replies on WhatsApp/Telegram/Discord |
 
-## 快速開始
+## Fillim i shpejtë
 
-**最快的試用方式** — 一條命令檢查 Docker、複製儲存庫並為您設定 `.env`：
+**Mënyra më e shpejtë për ta provuar** — një komandë kontrollon Docker, klonon depon dhe konfigon `.env` për ju:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install.sh | bash
