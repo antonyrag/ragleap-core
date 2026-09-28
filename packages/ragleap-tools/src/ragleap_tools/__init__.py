@@ -22,9 +22,13 @@ was ingested via this package's ingest_document tool, which as of
 v0.1.1 now stores filename as metadata - previously it stored none,
 silently making per-document filtering impossible).
 
+v0.2.0 - search_web: pluggable, bring-your-own-key web search
+(SearchProvider ABC; Tavily and Serper reference providers), standard
+library only - no new dependency. See docs/design/web-search-tool.md.
+
 Deliberately out of scope for now (each needs its own security-focused
-design pass, not a rushed inclusion here): code execution, web search
-(external), HTTP fetch, and database/business-system connectors (SQL,
+design pass, not a rushed inclusion here): code execution,
+HTTP fetch, and database/business-system connectors (SQL,
 CRM, payment processors, etc.) - the last of those specifically because
 some of the connectors this ecosystem already has elsewhere (e.g. a
 live payment processor) would be a materially different risk if
@@ -40,8 +44,15 @@ from ragleap_tools.json_csv import PARSE_CSV_TOOL, PARSE_JSON_TOOL
 from ragleap_tools.search import SearchConfig, make_search_tool
 from ragleap_tools.text_utils import REGEX_EXTRACT_TOOL, TEXT_CASE_TRANSFORM_TOOL, WORD_COUNT_TOOL
 from ragleap_tools.unit_conversion import CONVERT_LENGTH_TOOL, CONVERT_TEMPERATURE_TOOL, CONVERT_WEIGHT_TOOL
+from ragleap_tools.web_search import (
+    SearchProvider,
+    SerperSearchProvider,
+    TavilySearchProvider,
+    WebSearchConfig,
+    make_web_search_tool,
+)
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
 # Tools with no config/state needed - usable directly.
 STATELESS_TOOLS = [
@@ -81,5 +92,10 @@ __all__ = [
     "make_ingest_tool",
     "SearchConfig",
     "make_search_tool",
+    "SearchProvider",
+    "TavilySearchProvider",
+    "SerperSearchProvider",
+    "WebSearchConfig",
+    "make_web_search_tool",
     "__version__",
 ]
