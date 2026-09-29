@@ -435,9 +435,7 @@ document, and query-level detection confirmed working via both the API
 and CLI.
 
 **Known limitations:**
-- `langdetect` covers roughly 55 languages — noticeably fewer than the
-  hosted platform's 222+, which layers additional detection and
-  per-user language preferences on top
+- `langdetect` covers roughly 55 languages
 - Short queries in closely-related languages can be misdetected (in
   testing, a short French query was detected as Italian) — this is an
   inherent limitation of statistical detection on short text, not
@@ -502,8 +500,7 @@ credential encryption (checked as actual ciphertext in the database,
 not just assumed) all confirmed working.
 
 **Known limitations:**
-- 9 of the 18 source types listed in the hosted platform's UI have
-  real connectors here. CSV Upload, Snowflake, BigQuery, WooCommerce,
+- 9 source types have real connectors here. CSV Upload, Snowflake, BigQuery, WooCommerce,
   Airtable, Notion, Razorpay, Slack, and Gmail are good-first-issue
   candidates for anyone wanting to add one
 - Sync is on-demand only (`POST /integrations/{id}/sync`) — no
