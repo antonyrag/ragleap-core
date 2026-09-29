@@ -31,11 +31,11 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted, agentic
 - Full / semi autonomy modes
 - Think-act-decide loop, not just retrieval
 
-[Quickstart](#quickstart) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Hosted Version](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
+[Quickstart](#quickstart) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
 
 ---
 
-> **Not to be confused with `install.ragleap.com`** — that's a separate, paid, license-gated self-hosted product (Free tier with a license key, up to Enterprise). `ragleap-core` (this repo) is MIT-licensed, completely free, and never requires a license key. If you cloned this repo, you're in the right place for a genuinely free, open-source RAG engine.
+> **Open source, self-hosted.** `ragleap-core` (this repo) is MIT-licensed, completely free, and never requires a license key. A managed cloud version of RagLeap is planned; for now, RagLeap is open source only.
 
 ## Install
 
@@ -128,8 +128,6 @@ RagLeap Core is a document-grounded chat engine. Upload your documents, ask ques
 
 WhatsApp, Telegram, and Discord bots are included in this repo too — single-tenant, .env-configured channel adapters that answer from the same document knowledge base. It is the foundation of [RagLeap](https://ragleap.com), a hosted AI business manager that adds Voice calling, multi-tenancy, a persistent memory system, and an executive-assistant layer on top of this same core engine.
 
-**If RagLeap (hosted) is the business, RagLeap Core is the engine room.**
-
 ## RagLeap Core is right for you if
 
 - ✅ You want a self-hosted RAG chatbot with full control over your data
@@ -144,9 +142,9 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 |---|---|
 | A hosted product | Self-hosted software you run yourself |
 | Multi-tenant, with persistent cross-session memory | Single-tenant — one bot, one document set, per deployment |
-| A multi-tenant platform | WhatsApp/Telegram/Discord/Voice channel adapters included, single-tenant — multi-tenant routing lives in the hosted version |
+| A multi-tenant platform | WhatsApp/Telegram/Discord/Voice channel adapters included, single-tenant |
 | A no-code SaaS dashboard | A codebase you deploy and configure |
-| Feature-complete with the hosted version | The foundational subset — see [Roadmap](#roadmap) |
+| Feature-complete | The foundational subset — see [Roadmap](#roadmap) |
 
 ## Features
 
@@ -251,250 +249,6 @@ ragleap-core/
 ├── docker-compose.yml     # app + db + voice services
 └── Dockerfile
 ```
-
-## What's in the hosted version (ragleap.com)
-
-RagLeap Core covers document upload, retrieval, and web chat. The hosted platform builds a full AI business manager on top of it:
-
-| Area | What it adds |
-|---|---|
-| **Manager AI** | A private executive assistant for the owner — sees documents, analytics, team permissions, and database connections; can send emails, generate reports, and manage settings by conversation, reachable via Web, WhatsApp, Telegram, or phone call |
-| **AI Employees** | Single-tenant runtime (46 roles, pgvector-backed learned memory) is open in this repo's `core/employees/`; the hosted platform adds multi-tenant per-workspace seeding and Manager AI integration on top |
-| **Voice AI** | Real inbound phone calls via Twilio — speech-to-text, RAG-grounded response, text-to-speech, with owner vs. customer call routing |
-| **Multi-channel bots (multi-tenant)** | WhatsApp (Twilio or Gupshup), Telegram, and Discord — single-tenant versions are in this repo; the hosted version adds multi-tenancy, per-workspace routing, and shared config across channels |
-| **Persistent Memory** | Facts and preferences that persist across sessions and channels, not just within a single conversation |
-| **Advanced AI Settings** | Model selection (Gemini/OpenAI/Claude), temperature tuning, bring-your-own-key per provider, and automatic failover across a fallback key pool |
-| **Team Chat** | Internal team messaging board per workspace, separate from customer-facing AI chat |
-| **n8n Workflows** | Single-tenant webhook triggers (WhatsApp/Telegram/Discord) are open in this repo's `core/workflows.py`; the hosted platform adds multi-tenant per-workspace routing and Voice channel coverage |
-| **222+ Languages** | This repo includes language detection (langdetect, ~55 languages) across all channels; the hosted platform extends this to 222+ languages with per-user persisted preferences |
-| **Integrations & Database Connectors** | This repo includes 9 raw connectors (MySQL, PostgreSQL, MongoDB, REST API, Salesforce, HubSpot, Shopify, Google Sheets, Stripe) with on-demand sync; the hosted platform adds AI-suggested automations per channel and developer-level custom automation workflows on top |
-| **Analytics Dashboard** | Per-provider usage breakdown (OpenAI, Gemini, Claude), query volume, token costs, and daily trends |
-| **Team & Billing** | Multi-tenant workspaces, team member permissions, subscription plans, usage-based billing |
-| **Audit History** | Full log of configuration changes — who changed what, and when |
-| **Embed Control Center** | White-label widget builder — Bubble, Fixed Panel, or Full Page embeds for any website |
-| **Data Visibility Controls** | Per-document and per-database Public/Private settings — control exactly what customer-facing bots see vs. what's reserved for Manager AI only |
-| **Observability & Hallucination Detection** | Built-in monitoring layer that audits AI responses for accuracy and flags potential hallucinations |
-| **Cloud or Self-Hosted deployment** | Run the full platform as managed cloud (subscription) or self-hosted on your own server (one-time license) |
-| **Managed hosting** | Backups, uptime SLA, and support — zero infrastructure to maintain |
-
-This is the standard **open-core model** — the same approach used by projects like n8n, Supabase, and Cal.com: the engine is free and open, the managed/extended product is commercial.
-
-## Full Technical Architecture (Hosted Platform)
-
-> This section documents the real internals of the hosted RagLeap platform — gathered by reading actual production source, not summarized from memory or marketing copy. Where something is confirmed *not* to be live (dead code, an unwired tool), it's labeled as such rather than omitted. This is a living section — deeper subsystems (billing, multi-tenant workspace routing) are deliberately excluded here since they're operational/SaaS infrastructure, not differentiating technology.
-
-### System Overview
-
-```mermaid
-flowchart TD
-    subgraph Channels["Entry points"]
-        Web[Web Chat] --- WA[WhatsApp] --- TG[Telegram] --- DC[Discord] --- Vc[Voice / Twilio]
-    end
-
-    Channels --> Router{"Owner or customer?<br/>(Voice: verified mobile number match.<br/>Text: personal bot vs. customer-facing config)"}
-
-    Router -->|Owner| MgrL1["Manager AI - Layer 1: Agent Framework<br/>regex router first, LLM classifier only on miss<br/>6 specialist agents, think/act/verify/heal loop"]
-    MgrL1 --> MgrL2["Layer 2: Autonomous Loop<br/>off / semi / full modes, per-workspace<br/>action + channel allowlists, approval protocol"]
-    MgrL2 --> MgrL3["Layer 3: LLM<br/>only reached when Layer 1 can't match an intent<br/>always given real, current workspace data"]
-    MgrL3 -.->|not yet wired, see Known Gaps| RAGShared["Customer-facing RAG index"]
-
-    Router -->|Customer| Addon["Addon DB action check<br/>RealTimeExternalDataService<br/>owner-configured SELECT/UPDATE/INSERT/DELETE"]
-    Addon --> RAG["RAG Retrieval<br/>pgvector cosine search + Neo4j entity-graph boost"]
-    RAGShared --- RAG
-
-    RAG --> Employees["AI Employees<br/>46 roles, pgvector learned memory,<br/>skill-based context injection"]
-    Employees --> Gen["Generation<br/>19-provider BYOK (Gemini/OpenAI/Anthropic/etc.)"]
-
-    Gen --> Mem["Persistent Memory<br/>transactional outbox: embedding/graph/TTS writes<br/>queued in the same DB transaction as the memory row"]
-
-    Ingest["Document / URL Ingestion<br/>OCR fallback, language detection,<br/>canary QA retrieval check before marking complete"] --> RAG
-
-    style MgrL3 fill:#2a2a3a,stroke:#66a
-    style RAGShared fill:#3a3a2a,stroke:#aa4
-```
-
-**How to read this**: solid arrows are confirmed, live data flow. Dotted arrows mark a real gap between two systems that look like they should already be connected but aren't (see `RAGQueryTool` in the Manager AI section below — Manager AI cannot currently query the customer-facing RAG index despite a tool existing for exactly that purpose). Each subsystem below is documented on its own with the same standard: read from real source, verified live or explicitly marked otherwise.
-
-### Manager AI — Three-Layer Design
-
-Manager AI answers most owner requests **without calling an LLM at all**. A regex-based router matches intent first; only genuinely ambiguous requests reach a model, and even then the model is always given real, current workspace data rather than reasoning blind.
-
-```mermaid
-flowchart TD
-    Owner["Owner message (Web, Telegram, WhatsApp, Discord, Voice)"] --> Guard["Guardrails: input-length cap, prompt-injection regex"]
-    Guard --> Router["RouterAgent"]
-
-    Router -->|"Layer 1: regex match (instant, free)"| Domain{"Domain matched?"}
-    Router -->|"Layer 2: tiny 1-token LLM classify (only on regex miss)"| Domain
-
-    Domain -->|email| EmailAgent["EmailAgent"]
-    Domain -->|channels| ChannelAgent["ChannelAgent"]
-    Domain -->|business| BusinessAgent["BusinessAgent"]
-    Domain -->|healing| HealingAgent["HealingAgent"]
-    Domain -->|self| SelfAgent["SelfAgent"]
-    Domain -->|email_status| EmailStatusAgent["EmailStatusAgent"]
-    Domain -->|none| LLMFallback["Full LLM response (real data injected first)"]
-
-    EmailAgent --> Think["agent.think() — deterministic plan, no LLM"]
-    ChannelAgent --> Think
-    BusinessAgent --> Think
-    HealingAgent --> Think
-    SelfAgent --> Think
-    EmailStatusAgent --> Think
-
-    Think --> Act["agent.act() — executes real Tool classes"]
-    Act --> Verify["agent.verify() — did it actually work?"]
-    Verify -->|no| Heal["agent.heal() — pattern-matched recovery message"]
-    Verify -->|yes| Reply["Reply to owner"]
-    Heal -->|still failing| Adapt["Re-plan, retry up to 2x with error context"]
-    Adapt --> Think
-    Heal -->|healed| Reply
-
-    Act -.->|starts_flow signal| FlowSM["FlowStateMachine — multi-step setup wizard (Telegram/WhatsApp/Gmail connect)"]
-    FlowSM --> Reply
-
-    Act --> Obs["observability.py — logs every LLM/tool call/guardrail-block/hallucination to AgentTrace"]
-    LLMFallback --> OutGuard["Guardrails: hallucination check (non-blocking, logs only)"]
-    OutGuard --> Reply
-```
-
-**Verified live.** Every node above was confirmed by reading the actual source: `api/agent_framework.py` (base `Agent`/`Tool`/`AgentOrchestrator` classes), `api/agents/*.py` (6 specialist agents), `api/agents/router_agent.py`, `api/agents/agent_brain.py`, `api/agent_state_machine.py`, `api/guardrails.py`, `api/observability.py`.
-
-**Confirmed dead code — not live, listed here so nobody rediscovers them by accident:**
-- 8 tool classes in `api/agent_tools.py` are fully implemented but called from nowhere in the codebase: `RAGQueryTool`, `DocumentReadTool`, `DocumentUploadTool`, `MemoryReadTool`, `MemoryWriteTool`, `MemorySearchTool`, `AgentStateReadTool`, `AgentStateWriteTool`. Notably, `RAGQueryTool` means Manager AI does **not** currently share live query access with the customer-facing RAG system, despite a tool existing for exactly that purpose.
-- `send_owner_whatsapp`, `send_owner_telegram`, `send_owner_sms` are each defined **twice** in `api/manager_actions.py`. `ACTION_REGISTRY` (the real dispatch table) is built before the second definitions appear, so it's permanently bound to the first, shorter versions — the second, longer versions are unreachable dead code, *unless* something imports them directly by name (confirmed: nothing currently does).
-
-### Manager AI — Layer 2: Autonomous Loop
-
-Beyond responding to owner messages, Manager AI can act on its own — within limits the owner explicitly configures. Three modes, per workspace: `off` (owner-initiated only, the default), `semi` (AI proposes, owner approves via a reply), `full` (AI executes directly and reports).
-
-```mermaid
-flowchart TD
-    Trigger["Autonomous trigger (e.g. EmailAgent.scan_and_plan(), a scheduled follow-up)"] --> Dispatch["execute_or_request()"]
-    Dispatch --> ModeCheck{"Mode? Action/channel allowlisted?"}
-    ModeCheck -->|"off, or not allowlisted"| Skip["Skipped"]
-    ModeCheck -->|full| Execute["Execute immediately via execute_fn()"]
-    Execute --> Log["log_autonomous_action() — bounded to last 200 entries in memory.knowledge"]
-    ModeCheck -->|semi| Pending["Store pending action, keyed by an 8-char action_id"]
-    Pending --> RequestApproval["request_approval() — sends 'Reply YES/NO {action_id}' to the owner's configured approval channel"]
-    RequestApproval --> OwnerReply{"Owner replies"}
-    OwnerReply -->|"YES {action_id}"| ExecutePending["_execute_pending_action() — dispatches to email/whatsapp/telegram/sms/voice"]
-    OwnerReply -->|"NO {action_id}"| Reject["Rejected — logged, cancelled, never executed"]
-    ExecutePending --> Log
-    Reject --> Log
-    Log --> DailyReport["generate_autonomy_daily_report() — daily summary of actions taken, grouped by type, failures flagged"]
-```
-
-**Verified live**, read in full from `api/autonomy_engine.py`. Two independent gates apply before mode even matters: an `actions` allowlist and a `channels` allowlist, both configurable per-workspace — so "full autonomy" doesn't mean unrestricted, it means unrestricted *within whatever the owner explicitly turned on*. The approval flow in `semi` mode is a genuine two-way protocol, not a one-shot notification: the owner's exact reply (`YES ABC123` / `NO ABC123`) is parsed and matched back to the specific pending action before anything executes.
-
-### Action Dispatch — 70 named actions, one registry
-
-`api/manager_actions.py`'s `execute_action(action_type, workspace, params, memory)` dispatches by string name through `ACTION_REGISTRY`, a dict of ~70 real handler functions. Natural-language flexibility comes from **deliberate many-to-one aliasing** — e.g. `get_all_settings` is reachable via 5 different phrasings (`show_settings`, `current_settings`, `ai_settings_info`, `view_settings`), each mapped to the same function — not fuzzy matching.
-
-Two real behaviors worth noting precisely:
-- **Learns from correction**: before executing a channel-config action, `execute_action()` checks `memory.preferences['providers_rejected']` — if the owner previously rejected a provider, it won't silently reconfigure it again.
-- **Owner vs. customer channels are genuinely separate action families**: `whatsapp_config`/`telegram_config`/`discord_config` set up the *customer-facing* bot; `telegram_personal_bot_config`/`whatsapp_personal_bot_config`/`discord_personal_bot_config` (each a `lambda` wrapping `save_personal_bot_config(ws, platform, ...)`) set up the *owner's own* channel for talking to Manager AI. Same channel types, two distinct configurations.
-
-### Document Ingestion Pipeline
-
-```mermaid
-flowchart TD
-    Upload["Upload (file or URL)"] --> Create["Create Document record + UploadProgress tracker"]
-    Create --> Save["Save file to disk"]
-    Save --> Parse["file_parser.parse_file()"]
-
-    Parse -->|zip| ZipExpand["Expand: each archive entry becomes its own Document, independently chunked + embedded"]
-    Parse -->|other| OCRCheck{"PDF and parsed text too short?"}
-
-    OCRCheck -->|yes| OCR["ocr_pdf() pre-pass — keeps OCR text only if longer/better than parsed"]
-    OCRCheck -->|no| LangDetect
-    OCR --> LangDetect["Language detection"]
-
-    LangDetect -->|confidence below threshold| Flag["Fall back to workspace default language, flag document for manual review"]
-    LangDetect -->|confident| Chunk
-
-    Flag --> Chunk["Chunk text"]
-    Chunk -->|custom chunk_size/overlap given| BasicChunker["Basic chunker"]
-    Chunk -->|default| DocAwareChunker["DocumentAwareChunker — section-aware"]
-
-    BasicChunker --> Embed["Generate embeddings per chunk"]
-    DocAwareChunker --> Embed
-
-    Embed --> Graph{"Neo4j graph_service available?"}
-    Graph -->|yes| GraphIndex["Extract entities, upsert document graph"]
-    Graph -->|no| SkipGraph["Skip gracefully — logged as warning, not a failure"]
-
-    GraphIndex --> QA
-    SkipGraph --> QA["Ingestion QA: canary check"]
-
-    QA --> Canary["Extract top 3 highest-frequency terms from source text, run REAL retrieval queries for each through EnhancedRetrievalService, confirm this document is actually retrievable"]
-    Canary -->|hits below threshold| Warn["Flag document with qa_failed warning (hard-fail is opt-in per deployment)"]
-    Canary -->|passes| Complete["Mark Document completed"]
-    Warn --> Complete
-```
-
-**Verified live**, read in full from `ingestion/pipeline.py` (854 lines). The canary QA step is the most distinctive piece: rather than just checking "did the embedding API call succeed," it runs the document's own most distinctive terms back through the real production retrieval path and confirms the document itself shows up in results — proving end-to-end searchability, not just successful ingestion.
-
-**Known limitation, relative to the open-source `ragleap-core` repo**: the open-source `core/chunker.py` only has the basic chunker — `DocumentAwareChunker`'s section-aware chunking is hosted-only.
-
-### URL Extraction (documents from web pages and YouTube)
-
-```mermaid
-flowchart TD
-    URL["Submitted URL"] --> Detect{"YouTube URL pattern?"}
-
-    Detect -->|yes| YT1["Try manually-created English transcript"]
-    YT1 -->|unavailable| YT2["Try auto-generated English transcript"]
-    YT2 -->|unavailable| YT3["Try any available language transcript"]
-    YT3 --> YTMeta["Fetch title, channel, description via page metadata"]
-    YTMeta --> Combine1["Combine transcript + metadata into one document"]
-
-    Detect -->|no| Fetch["Fetch page (cloudscraper if available, else requests) with browser-mimicking headers"]
-    Fetch -->|403| Rotate["Rotate user-agent, retry (up to 4 agents)"]
-    Rotate --> Fetch
-    Fetch --> JSCheck{"Bot-wall / JS-challenge page detected?"}
-    JSCheck -->|yes| Playwright["Playwright headless browser: load, scroll in 5 steps to trigger lazy content, re-render"]
-    JSCheck -->|no| Extract
-    Playwright --> Extract["Extract via ranked content-area selectors (main/article/.content/Wikipedia-specific/etc.), strip ads/nav/cookie-banners, dedupe lines"]
-    Extract --> Combine2["Combine title + description + content into one document"]
-
-    Combine1 --> Ingest["Feeds into the same ingestion pipeline as uploaded files"]
-    Combine2 --> Ingest
-```
-
-**Verified live**, read in full from `ingestion/url_extractor.py` (653 lines). Worth noting plainly: this extractor uses real anti-bot-detection techniques (`cloudscraper` for Cloudflare bypass, rotating user-agents, browser-mimicking request headers) to reliably extract content from sites that actively try to block automated access — a deliberate, real engineering choice, not incidental.
-
-### Persistent Memory
-
-```mermaid
-flowchart TD
-    Write["Any write to memory (owner instruction, learned interaction, correction)"] --> Entry["MemoryEntry row: pgvector embedding (3072-dim), scope (user/workspace), tags, importance score, retention_policy"]
-    Entry -->|same DB transaction| Outbox["OutboxEvent queued: embedding.create, graph.create_node, tts.create, etc."]
-    Outbox --> Worker["Background worker processes events async — idempotency key prevents duplicate processing, retries on failure with next_retry_at/attempts tracking"]
-    Entry -.->|optional| Connector["Connector reference — memory can be written to the customer's own external storage instead of hosted DB"]
-```
-
-**Verified live**, read from `memory/models.py`'s `MemoryEntry` and `OutboxEvent` models. The transactional outbox pattern is genuinely notable: side effects (embedding generation, graph writes) are queued in the *same database transaction* as the memory write itself, so a crashed background worker can't cause a memory entry to silently end up without its embedding — the event just waits, retried, until it succeeds.
-
-### Voice Channel Routing (Hosted)
-
-```mermaid
-flowchart TD
-    A[Inbound call to workspace Twilio number] --> B["twilio_voice_incoming<br/>(memory/voice_views.py) - confirmed the only<br/>endpoint provisioned as a number's voice_url"]
-    B --> C{Caller number matches<br/>owner's verified mobile?}
-    C -->|Yes| D[Manager AI voice endpoint<br/>owner-facing]
-    C -->|No| E[twilio_voice_speech<br/>customer-facing]
-
-    E --> F["Addon DB action check<br/>RealTimeExternalDataService.match_and_execute_action<br/>NEW: real business-data lookups now run<br/>before RAG, matching the text channels"]
-    F --> G["process_voice_query - same /api/v1/query<br/>endpoint every channel uses. Matched DB<br/>results are folded into the query text"]
-    G --> H[synthesize_for_call<br/>twilio_voice_service.py]
-    H -.->|"Known gap: audio file hosting is<br/>unimplemented - both branches fall back<br/>to Twilio's built-in TTS voice"| I[Caller hears Twilio's built-in voice]
-```
-
-**Verified live**, read from `memory/voice_views.py` and `memory/twilio_voice_service.py`. Two things worth being direct about:
-
-- **Fixed**: customer voice calls previously had no path to real business data — a caller asking about an order or appointment could only get a RAG answer from documents, never a live database lookup, unlike WhatsApp/Telegram/Discord. `twilio_voice_speech` now runs the same `RealTimeExternalDataService.match_and_execute_action` step already used by the text channels before handing off to RAG, so a match gets folded into the query the AI answers from.
-- **Still open**: ElevenLabs TTS is never actually delivered to callers. `synthesize_for_call` in `twilio_voice_service.py` has an unimplemented audio-hosting step (`# TODO: Implement audio file hosting/S3 upload`) — both the success and fallback branches currently produce the same result, Twilio's built-in voice. A separate, unrelated ElevenLabs helper (`api/voice_ai.py::generate_elevenlabs_twiml`) does correctly upload synthesized audio to the project's R2/S3 storage, but it is not currently called from any live voice path — fixing this gap means wiring that upload logic into `synthesize_for_call` itself, not assuming the existing helper is already doing the job.
 
 ## Quickstart
 
@@ -858,7 +612,7 @@ Want to see exactly what's being worked on and what's open to claim? Check the [
 
 - [GitHub Issues](../../issues) — bugs and feature requests
 - [GitHub Discussions](../../discussions) — ideas and questions
-- [ragleap.com](https://ragleap.com) — the hosted product
+- [ragleap.com](https://ragleap.com) — the project website
 
 ## License
 
