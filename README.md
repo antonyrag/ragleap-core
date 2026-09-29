@@ -104,17 +104,17 @@ Or run the full self-hosted app (channels, web chat UI, Docker Compose) — see 
 
 Most open-source RAG projects give you a toolkit — you still have to build the app, wire up a UI, add memory, and connect every channel yourself. RagLeap Core gives you one AI across WhatsApp, Telegram, Discord, and voice calls, instead of a different disconnected bot per channel. Memory persists across sessions and channels, so it isn't relearning who a customer is every time. Voice is a real, working inbound-call handler (Twilio Media Streams, Whisper STT, OpenAI TTS) — not just document Q&A with a phone number bolted on — and n8n workflow automation can be triggered directly from any conversation.
 
-What this repo doesn't include: a multi-tenant admin dashboard (settings, analytics, team, billing) and the executive-assistant layer (Manager AI) that sits on top of this same engine — those are part of the hosted platform. RagLeap Core itself is single-tenant, self-hosted, and configured via `.env`.
+What this repo doesn't include: a multi-tenant admin dashboard (settings, analytics, team, billing) and an executive-assistant layer (Manager AI). RagLeap Core itself is single-tenant, self-hosted, and configured via `.env`.
 
 ## What makes RagLeap Core specifically different
 
-This repo isn't a general-purpose RAG framework you assemble into something — it's the real, working engine that already powers a production AI business platform (see [What's in the hosted version](#whats-in-the-hosted-version-ragleapcom) below). The code here is honest about being early, but it's extracted from something that already works in the real world, not built as a demo.
+This repo isn't a general-purpose RAG framework you assemble into something — it's a real, working engine you can run today. The code here is honest about being early.
 
 ## Why RagLeap exists
 
 Open-source AI agent projects like OpenClaw took off for a specific reason: people wanted an assistant that runs on **their own infrastructure**, with **their own keys**, answering from **the chat apps they already use** — not a black box hosted by someone else. That same principle is what RagLeap Core is built on for business AI specifically.
 
-**Your keys, your infrastructure, your data.** RagLeap Core never asks for a system API key. You bring your own Gemini key, you run your own PostgreSQL database, your documents never leave your server unless you choose the hosted version.
+**Your keys, your infrastructure, your data.** RagLeap Core never asks for a system API key. You bring your own Gemini key, you run your own PostgreSQL database, your documents never leave your server.
 
 **Chat is the interface, not a separate dashboard you have to learn.** The same way OpenClaw meets people on WhatsApp, Telegram, and Slack, RagLeap's full platform meets business owners on the channels they already use — WhatsApp, Telegram, Discord, and real phone calls — not a new app they have to check.
 
@@ -126,7 +126,7 @@ Open-source AI agent projects like OpenClaw took off for a specific reason: peop
 
 RagLeap Core is a document-grounded chat engine. Upload your documents, ask questions, get cited answers — self-hosted, on your own infrastructure, with your own API key.
 
-WhatsApp, Telegram, and Discord bots are included in this repo too — single-tenant, .env-configured channel adapters that answer from the same document knowledge base. It is the foundation of [RagLeap](https://ragleap.com), a hosted AI business manager that adds Voice calling, multi-tenancy, a persistent memory system, and an executive-assistant layer on top of this same core engine.
+WhatsApp, Telegram, and Discord bots are included in this repo too — single-tenant, .env-configured channel adapters that answer from the same document knowledge base.
 
 ## RagLeap Core is right for you if
 
@@ -168,20 +168,10 @@ WhatsApp, Telegram, and Discord bots are included in this repo too — single-te
 | 🔗 **n8n workflow automation** | Fire a webhook after the AI replies on WhatsApp/Telegram/Discord — no-code automations triggered directly from a conversation |
 ## Architecture
 
-RagLeap Core is the foundation layer of the full RagLeap platform. Here's how it fits into the bigger picture:
+How RagLeap Core is put together:
 
 ```mermaid
 flowchart TD
-    subgraph Hosted["RagLeap — Hosted Platform (locked)"]
-        H1["Manager AI"]
-        H2["Multi-tenant AI Employees + Manager AI integration"]
-        H3["Persistent Memory (cross-channel, cross-session)"]
-        H4["Multi-tenant Billing, Teams & Permissions"]
-        H5["Audit History / Compliance logging"]
-        H6["Embed Widget Control Center (white-label)"]
-        H7["Managed hosting, backups, SLA, support"]
-    end
-
     subgraph Core["RagLeap Core — this repo (open)"]
         WebUI["Web Chat UI"] --> ChatAPI["Chat API"]
         ChatAPI --> WA["WhatsApp"]
@@ -216,10 +206,7 @@ flowchart TD
         PG --> Neo[("Neo4j (Knowledge Graph)")]
     end
 
-    Core -. built on top of .-> Hosted
 ```
-
-**[locked]** = commercial/hosted-only feature, not included in this repository. See below for the full breakdown.
 
 **Optional background job queue.** The periodic integration sync job runs inline in the API process by default. Setting `REDIS_URL` switches it to a real Redis queue (RQ) instead, processed by separate `worker` process(es) that scale independently — horizontally via `docker compose up -d --scale worker=N`, or in Kubernetes via a queue-depth autoscaler like KEDA (see `examples/keda-scaledobject-worker.yaml` for a reference `ScaledObject`). Entirely optional — nothing changes if `REDIS_URL` is unset.
 
