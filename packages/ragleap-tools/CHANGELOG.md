@@ -5,6 +5,27 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-29
+
+### Added
+
+- `search_github_repositories` tool (`GitHubSearchConfig`,
+  `make_github_search_tool`) via the real GitHub REST API
+  (`/search/repositories`). Unlike `search_web`'s providers, a token is
+  optional - GitHub allows unauthenticated search at a real, lower rate
+  limit, so this is not forced into the `SearchProvider` interface (see
+  `docs/design/web-search-tool.md` for the full reasoning). Sets a
+  real `User-Agent` header, which GitHub's API requires and rejects
+  requests without. Standard library only - no new dependency.
+  `num_results` clamped to 1-20, same reasoning as `search_web`.
+
+### Verified
+
+- 100 tests passing (was 85). 15 new: request-building tests mock
+  `urllib.request.urlopen` and assert on the real query string and
+  headers, including that no `Authorization` header is sent without a
+  token and a `Bearer` header is sent with one.
+
 ## [0.2.0] - 2026-09-28
 
 ### Added

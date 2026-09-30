@@ -51,8 +51,9 @@ from ragleap_tools.web_search import (
     WebSearchConfig,
     make_web_search_tool,
 )
+from ragleap_tools.github_search import GitHubSearchConfig, make_github_search_tool
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # Tools with no config/state needed - usable directly.
 STATELESS_TOOLS = [
@@ -97,5 +98,7 @@ __all__ = [
     "SerperSearchProvider",
     "WebSearchConfig",
     "make_web_search_tool",
+    "GitHubSearchConfig",
+    "make_github_search_tool",
     "__version__",
 ]
