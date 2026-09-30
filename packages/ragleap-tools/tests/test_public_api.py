@@ -4,7 +4,7 @@ import ragleap_tools
 
 
 def test_version_is_exposed():
-    assert ragleap_tools.__version__ == "0.2.0"
+    assert ragleap_tools.__version__ == "0.3.0"
 
 
 def test_stateless_tools_all_have_valid_openai_schemas():
@@ -36,5 +36,11 @@ def test_web_search_names_are_exported():
         "WebSearchConfig",
         "make_web_search_tool",
     ):
+        assert hasattr(ragleap_tools, name), name
+        assert name in ragleap_tools.__all__, name
+
+
+def test_github_search_names_are_exported():
+    for name in ("GitHubSearchConfig", "make_github_search_tool"):
         assert hasattr(ragleap_tools, name), name
         assert name in ragleap_tools.__all__, name

@@ -121,6 +121,26 @@ third-party pages, so treat them as untrusted input: this tool does not
 screen them for prompt injection. There is no caching, rate limiting
 or deduplication.
 
+## GitHub repository search (BYOK-optional, no extra dependencies)
+
+```python
+from ragleap_tools import GitHubSearchConfig, make_github_search_tool
+
+tool = make_github_search_tool(GitHubSearchConfig())  # token optional
+# or: GitHubSearchConfig(token="...") for a higher rate limit
+
+result = tool.call(query="language:python topic:llm", num_results=5, sort="stars")
+# result.result == {"results": [{"full_name": ..., "url": ..., "description": ..., "stars": ..., "language": ...}, ...], "count": 5}
+```
+
+Works without a token, at GitHub's real unauthenticated rate limit (60
+requests/hour per IP) - pass `token=` for a higher limit. No
+environment-variable fallback: if you want a token used, you pass it.
+Supports GitHub's real search qualifiers in the query string
+(`language:`, `stars:`, `topic:`, etc.), same as GitHub's own search UI.
+Scoped to repository search only, not code or issue search. Standard
+library only (`urllib.request`) - no new dependency.
+
 ## Deliberately out of scope
 
 Each of these needs its own security-focused design pass, not a
@@ -138,7 +158,7 @@ rushed inclusion here:
 
 ## Status
 
-v0.2.0. 85 tests, all passing, including real security verification
+v0.3.0. 100 tests, all passing, including real security verification
 for the two risk-sensitive tools (calculator's code-injection
 rejection, file ops' path-traversal and symlink-escape rejection) -
 not just documented as safe, actually tested against real attack

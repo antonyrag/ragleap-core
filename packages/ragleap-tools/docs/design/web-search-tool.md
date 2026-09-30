@@ -99,3 +99,33 @@ the model (prompt injection). This tool does not sanitize or screen
 results - it returns titles, URLs and snippets as the provider gives
 them. Callers wiring this into an agent loop should treat results as
 untrusted input.
+
+## GitHub repository search - a second, related provider-style tool
+
+Not a `SearchProvider` implementation - GitHub's search API has a
+meaningfully different shape (GET with query params, not POST with a
+JSON body) and a meaningfully different auth model (a token is
+optional, unlike Tavily/Serper where a key is required). Forcing it
+into the `SearchProvider` interface would mean either lying about the
+optional-token capability or adding an awkward `Optional[str]`
+special case to an interface every other implementation treats as
+required. A separate `GitHubSearchConfig`/`search_github_repositories`
+pair, following the same overall pattern (stdlib `urllib.request`,
+`ToolResult` never-raise, `Tool`/config-binding shape), is more honest
+than a forced abstraction.
+
+`token: Optional[str] = None` - GitHub allows unauthenticated repository
+search at a real, lower rate limit (documented as 60 requests/hour per
+IP without a token). No fallback to reading an env var - if a token is
+wanted, the caller passes it explicitly, same BYOK stance as everywhere
+else in this package.
+
+GitHub's API requires a `User-Agent` header on every request and
+rejects requests without one - a real, easy-to-miss requirement, not
+optional the way it is for most REST APIs. Set unconditionally.
+
+Scoped to repository search only (`/search/repositories`), not code or
+issue search - one tool doing one clear thing, matching this package's
+existing `search_documents`/`search_web` granularity rather than one
+tool trying to cover three different GitHub search endpoints with
+different result shapes.
