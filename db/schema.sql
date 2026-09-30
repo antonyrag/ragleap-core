@@ -291,3 +291,26 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 );
 CREATE INDEX IF NOT EXISTS llm_usage_created_idx ON llm_usage (created_at DESC);
 CREATE INDEX IF NOT EXISTS llm_usage_role_created_idx ON llm_usage (role, created_at DESC);
+
+-- Task tickets: a lightweight work-tracking system AI employees (via the
+-- action planner) and the owner (via the API) can create, assign, and
+-- update. Mirrors n8n_workflows' single-tenant, plain-SQL style.
+CREATE TABLE IF NOT EXISTS tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open'
+        CHECK (status IN ('open', 'in_progress', 'blocked', 'done', 'cancelled')),
+    priority TEXT NOT NULL DEFAULT 'normal'
+        CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    assigned_role TEXT,
+    creator TEXT NOT NULL DEFAULT 'owner',
+    parent_task_id UUID REFERENCES tasks(id) ON DELETE SET NULL,
+    due_date TIMESTAMPTZ,
+    result TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS tasks_status_idx ON tasks (status);
+CREATE INDEX IF NOT EXISTS tasks_assigned_role_idx ON tasks (assigned_role);

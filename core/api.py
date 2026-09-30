@@ -27,6 +27,7 @@ from core.employees import learning as employee_learning
 from core.employees import channel_roles as employee_channel_roles
 from core.employees import memory as employee_memory
 from core import workflows
+from core import tasks as core_tasks
 from core import autonomy
 from core import observability
 from core import queue
@@ -164,6 +165,27 @@ class WorkflowUpdateRequest(BaseModel):
     webhook_url: str | None = None
     channels: list[str] | None = None
     is_active: bool | None = None
+
+
+class TaskCreateRequest(BaseModel):
+    title: str
+    description: str = ""
+    status: str = "open"
+    priority: str = "normal"
+    assigned_role: str | None = None
+    creator: str = "owner"
+    parent_task_id: str | None = None
+    due_date: str | None = None
+
+
+class TaskUpdateRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    assigned_role: str | None = None
+    due_date: str | None = None
+    result: str | None = None
 
 
 class AutonomySettingsRequest(BaseModel):
@@ -651,6 +673,43 @@ def delete_n8n_workflow(workflow_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Workflow not found.")
     return {"deleted": True}
+
+
+@app.get("/tasks")
+def list_tasks(status: str | None = None, assigned_role: str | None = None, parent_task_id: str | None = None):
+    return {"tasks": core_tasks.list_tasks(status=status, assigned_role=assigned_role, parent_task_id=parent_task_id)}
+
+
+@app.post("/tasks")
+def create_task(req: TaskCreateRequest):
+    try:
+        return core_tasks.create_task(
+            title=req.title, description=req.description, status=req.status, priority=req.priority,
+            assigned_role=req.assigned_role, creator=req.creator,
+            parent_task_id=req.parent_task_id, due_date=req.due_date,
+        )
+    except core_tasks.TaskValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/tasks/{task_id}")
+def get_task(task_id: str):
+    t = core_tasks.get_task(task_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return t
+
+
+@app.patch("/tasks/{task_id}")
+def update_task(task_id: str, req: TaskUpdateRequest):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    try:
+        t = core_tasks.update_task(task_id, **updates)
+    except core_tasks.TaskValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if t is None:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return t
 
 
 MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB — stored as a Postgres TEXT column, keep it sane

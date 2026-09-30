@@ -32,6 +32,8 @@ ACTION_TOOLS = {
     "send_webhook": {"channel": "webhook"},
     "send_slack": {"channel": "slack"},
     "send_email": {"channel": "email"},
+    "create_task": {"channel": "task"},
+    "notify_owner": {"channel": "notify_owner"},
 }
 
 
@@ -51,6 +53,26 @@ def available_tools() -> Dict[str, str]:
         tools["send_email"] = (
             "Send an email. target must be one full address matching one of: " + allow +
             ". Optional subject."
+        )
+    # Both opt-in, same "off unless the owner configured it" pattern as every
+    # other tool above -- keeps available_tools() empty (and plan_action()'s
+    # zero-tools skip-the-LLM-call optimization intact) for any deployment
+    # that hasn't turned these on.
+    if os.environ.get("ACTION_TASKS_ENABLED", "").strip().lower() == "true":
+        tools["create_task"] = (
+            "Create a task ticket. target is optional: an existing employee role name to "
+            "assign it to, or empty to leave unassigned. content is the task title (first "
+            "line) and description."
+        )
+    try:
+        from core.autonomy import get_autonomy_settings
+        has_owner = bool(get_autonomy_settings().get("approval_target"))
+    except Exception:
+        has_owner = False
+    if has_owner:
+        tools["notify_owner"] = (
+            "Send a message directly to the owner, ignoring the normal approval routing "
+            "target. target is ignored (leave empty). content is the message."
         )
     return tools
 
@@ -109,6 +131,13 @@ def _validate_plan(plan: Dict, tools: Dict[str, str]) -> Optional[Dict]:
             return None
         if subject:
             content = f"Subject: {subject}\n\n{content}"
+    elif tool == "create_task":
+        if target:
+            from core.employees import roles as employee_roles
+            if employee_roles.get_role(target) is None:
+                target = ""  # unknown role: fall back to unassigned rather than reject the whole task
+    elif tool == "notify_owner":
+        target = ""  # always ignored -- see _send_via_channel's "notify_owner" branch
     else:
         target = "slack"
     return {"tool": tool, "channel": ACTION_TOOLS[tool]["channel"], "target": target,
