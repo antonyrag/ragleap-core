@@ -163,6 +163,22 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
             from core.action_senders import send_email
             ok = send_email(target, content)
             return f"Email to {target}: {'sent' if ok else 'failed'}"
+        elif channel == "task":
+            from core import tasks as core_tasks
+            title = (content.splitlines()[0] if content else "Untitled task")[:200]
+            t = core_tasks.create_task(title=title, description=content, creator=target or "employee")
+            return f"Task created: {t['id']}"
+        elif channel == "notify_owner":
+            # target is ignored on purpose: notify_owner always goes to the
+            # configured owner, the same approval_channel/approval_target
+            # request_approval() uses -- a model-supplied target is never
+            # trusted for this, it would defeat the point of "notify owner".
+            settings = get_autonomy_settings()
+            owner_ch = settings["approval_channel"]
+            owner_target = settings["approval_target"]
+            if not owner_target:
+                return "notify_owner skipped: no approval_target configured"
+            return _send_via_channel(owner_ch, owner_target, content)
         else:
             return f"Unsupported channel for autonomous send: {channel} (voice has no discrete send - see RFC #171)"
     except Exception as e:
