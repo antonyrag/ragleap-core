@@ -1,26 +1,49 @@
-﻿{{- if .Values.alertmanager.enabled }}
+{{- if .Values.alertmanager.enabled }}
+{{- $slack := .Values.alertmanager.receivers.slack }}
+{{- $email := .Values.alertmanager.receivers.email }}
+{{- $any := or $slack.enabled $email.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ragleap-alertmanager-config
 data:
   alertmanager.yml: |
+    {{- if $email.enabled }}
+    global:
+      smtp_smarthost: {{ required "alertmanager.receivers.email.smarthost is required when email is enabled" $email.smarthost | quote }}
+      smtp_from: {{ required "alertmanager.receivers.email.from is required when email is enabled" $email.from | quote }}
+      smtp_auth_username: {{ required "alertmanager.receivers.email.username is required when email is enabled" $email.username | quote }}
+      smtp_auth_password_file: /etc/alertmanager-secrets/{{ $email.secretKey }}
+    {{- end }}
     route:
-      receiver: default-webhook
+      receiver: {{ if $any }}team{{ else }}default-webhook{{ end }}
       group_by: ['alertname']
       group_wait: 30s
       group_interval: 5m
       repeat_interval: 4h
     receivers:
+    {{- if $any }}
+      - name: team
+    {{- if $slack.enabled }}
+        slack_configs:
+          - api_url_file: /etc/alertmanager-secrets/{{ $slack.secretKey }}
+            channel: {{ $slack.channel | quote }}
+            send_resolved: true
+    {{- end }}
+    {{- if $email.enabled }}
+        email_configs:
+          - to: {{ required "alertmanager.receivers.email.to is required when email is enabled" $email.to | quote }}
+            send_resolved: true
+    {{- end }}
+    {{- else }}
       - name: default-webhook
-        # PLACEHOLDER -- replace with a real Slack/email/PagerDuty
-        # receiver before relying on this for real notifications.
-        # As configured, every send to this URL will fail; alerts
-        # are still correctly routed, grouped, and visible in
-        # AlertManager's own UI/API, just not delivered anywhere.
+        # PLACEHOLDER -- enable alertmanager.receivers.slack and/or
+        # .email in values.yaml. As configured, every send fails; alerts
+        # are still routed, grouped and visible in AlertManager's UI/API.
         webhook_configs:
           - url: 'http://localhost:1/replace-with-real-receiver'
             send_resolved: true
+    {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -57,6 +80,11 @@ spec:
               mountPath: /etc/alertmanager
             - name: data
               mountPath: /alertmanager
+            {{- if $any }}
+            - name: secrets
+              mountPath: /etc/alertmanager-secrets
+              readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /-/ready
@@ -75,9 +103,13 @@ spec:
             name: ragleap-alertmanager-config
         - name: data
           # emptyDir, not a PVC -- silence/notification state loss on
-          # pod restart is an accepted, documented limitation for this
-          # first pass. Revisit if silences need to survive restarts.
+          # pod restart is an accepted, documented limitation.
           emptyDir: {}
+        {{- if $any }}
+        - name: secrets
+          secret:
+            secretName: {{ .Values.alertmanager.receivers.secretName }}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -60,3 +60,23 @@ alertmanager:
   # attempt) and alert routing/grouping/silencing all work for real,
   # but nothing will actually notify a human until a real receiver
   # (Slack webhook, email, PagerDuty, etc.) is configured here.
+  # Real receivers: both disabled by default, so existing installs keep
+  # the placeholder. Secrets are NEVER stored here. Create the Secret
+  # yourself in the release namespace, e.g.:
+  #   kubectl -n <ns> create secret generic ragleap-alertmanager-secrets \
+  #     --from-literal=slack_url='<webhook>' --from-literal=smtp_pass='<pw>'
+  # If Secret keys are missing or the Secret is absent, the pod stays in
+  # ContainerCreating (a loud failure, not a silent one).
+  receivers:
+    secretName: ragleap-alertmanager-secrets
+    slack:
+      enabled: false
+      channel: "#alerts"
+      secretKey: slack_url
+    email:
+      enabled: false
+      to: ""
+      smarthost: ""        # e.g. smtp.gmail.com:587
+      from: ""
+      username: ""
+      secretKey: smtp_pass

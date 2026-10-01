@@ -25,10 +25,12 @@ real cluster:
 - AlertManager is wired end-to-end to Prometheus and live-verified:
   Prometheus's own `/api/v1/alertmanagers` confirms it as a genuinely
   registered target, and a real first alert rule (`PostgresExporterDown`)
-  loads correctly. **No real notification receiver is configured yet**
-  -- routing, grouping, and silencing all work for real, but nothing
-  will actually notify a human until a real Slack/email/PagerDuty
-  receiver replaces the placeholder webhook in `values.yaml`.
+  loads correctly. **Optional Slack and email receivers are supported but
+  off by default** (`alertmanager.receivers.*` in `values.yaml`);
+  credentials come from a Secret you create, never from values. Until
+  you enable one, alerts go to a placeholder webhook and nothing notifies
+  a human. Delivery was verified with a local echo receiver; a real
+  Slack/email notification has not yet been verified end to end.
 
 SLO/SLI dashboards are not yet built -- correctly sequenced after
 alerting has proven reliable, per the build order below.
@@ -41,8 +43,8 @@ alerting has proven reliable, per the build order below.
 2. Grafana, provisioned dashboards-as-code, verified against real
    flowing data -- done, live-verified.
 3. Loki + log shipping -- done, live-verified end-to-end.
-4. AlertManager -- done, wired and live-verified. No real receiver
-   configured yet; see "Known open items".
+4. AlertManager -- done, wired and live-verified. Slack/email
+   receivers available but off by default; see "Known open items".
 5. SLO/SLI dashboards, only after real data has accumulated for days,
    not minutes
 
@@ -65,10 +67,11 @@ alerting has proven reliable, per the build order below.
   `neo4j:5-community` image in this repo's own `kind` cluster.
 - Loki's retention (`168h` / 7 days) is unverified for real
   storage-sizing needs; flagged in `values.yaml` as a placeholder.
-- **AlertManager has no real notification receiver configured.** Alerts
-  are correctly routed and grouped but not delivered anywhere. Replace
-  the placeholder webhook in `values.yaml` with a real Slack/email/
-  PagerDuty receiver before relying on this for real incident response.
+- **AlertManager receivers are off by default, and real delivery is
+  unverified.** Enable `alertmanager.receivers.slack` and/or `.email` and
+  create the Secret named in `values.yaml`. Until then alerts are routed
+  and grouped but go to a placeholder webhook. PagerDuty is not
+  supported yet.
 - AlertManager's state (silences, notification log) uses `emptyDir`,
   not a PVC -- lost on pod restart.
 - A recurring log-shipping health check remains unbuilt.
