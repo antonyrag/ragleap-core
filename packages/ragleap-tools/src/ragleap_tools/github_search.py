@@ -34,8 +34,10 @@ MAX_NUM_RESULTS = 20
 @dataclass
 class GitHubSearchConfig:
     """token: optional - GitHub allows unauthenticated repository
-    search at a real, lower rate limit (60 requests/hour per IP,
-    documented by GitHub itself). No env var fallback: if a token is
+    search at a real, lower rate limit than its core API. A live
+    /rate_limit check on 2026-10-01 showed 10 for the search resource
+    (60 for core) unauthenticated; check /rate_limit for your own
+    limits. No env var fallback: if a token is
     wanted, pass it explicitly, same BYOK stance as every other tool
     in this package."""
     token: Optional[str] = None

@@ -5,6 +5,14 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `GitHubSearchConfig` docstring wrongly gave 60 requests/hour per IP as
+  the unauthenticated search limit (that is GitHub's unauthenticated
+  core API limit). A live `/rate_limit` check on 2026-10-01 showed the
+  search resource at 10 (core at 60). Documentation only - no behavior
+  change. The published 0.3.0 wheel still carries the old docstring.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added
