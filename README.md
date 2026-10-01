@@ -28,7 +28,7 @@ RagLeap Core is the open-source engine behind RagLeap — a self-hosted, agentic
 **What it does:**
 - Self-learning, outcome-weighted memory
 - Auto-trigger workflows and escalation
-- Full / semi autonomy modes
+- Autonomy modes: `off` (default, the AI acts only when you start it), `semi` (you approve each action) and `full` (opt-in; sensitive roles are never fully autonomous)
 - Think-act-decide loop, not just retrieval
 
 [Quickstart](#quickstart) · [Docs](https://docs.ragleap.com) · [Website](https://ragleap.com) · [Packages](https://packages.ragleap.com/)
@@ -114,7 +114,7 @@ This repo isn't a general-purpose RAG framework you assemble into something — 
 
 Open-source AI agent projects like OpenClaw took off for a specific reason: people wanted an assistant that runs on **their own infrastructure**, with **their own keys**, answering from **the chat apps they already use** — not a black box hosted by someone else. That same principle is what RagLeap Core is built on for business AI specifically.
 
-**Your keys, your infrastructure, your data.** RagLeap Core never asks for a system API key. You bring your own Gemini key, you run your own PostgreSQL database, your documents never leave your server.
+**Your keys, your infrastructure, your data.** RagLeap Core never asks for a system API key. You bring your own Gemini key, you run your own PostgreSQL database, your documents are stored on your own server, and text is sent only to the AI providers you configure (your chat model, and Gemini for embeddings).
 
 **Chat is the interface, not a separate dashboard you have to learn.** The same way OpenClaw meets people on WhatsApp, Telegram, and Slack, RagLeap's full platform meets business owners on the channels they already use — WhatsApp, Telegram, Discord, and real phone calls — not a new app they have to check.
 
@@ -261,7 +261,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or Anthropic.
+Requirements: Docker, Docker Compose, and a Gemini API key (embeddings currently always use Gemini). For chat you can use Gemini or any of the 19 providers listed under [Supported LLM Providers](#supported-llm-providers-byok), including a local Ollama model and any OpenAI-compatible endpoint.
 
 **Try it in 30 seconds** — with the stack running, see [examples/](examples/) for two verified, runnable scripts:
 - `examples/01_ingest_and_query.py` — upload a document and ask a question via the API
@@ -272,13 +272,13 @@ Requirements: Docker, Docker Compose, an API key from OpenAI, Google Gemini, or 
 If you don't need the full Docker app — WhatsApp/Telegram/Discord/Voice adapters, the web chat UI, all of it — the core retrieval engine is also published as standalone, pip-installable Python packages:
 
 ```bash
-pip install --index-url https://packages.ragleap.com/simple/ ragleap-rag
+pip install ragleap-rag
 ```
 
 - **`ragleap-rag`** — the chunking → embedding → retrieval → generation pipeline as a library. Pluggable embeddings (12+ providers), 6 vector backends (FAISS, PgVector, Pinecone, Weaviate, Qdrant, Milvus), cross-encoder reranking, and more.
 - **`ragleap-graph`** — Neo4j-backed knowledge graph retrieval, usable standalone or alongside `ragleap-rag`.
-- **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. First backend: Chroma, embedded/local via chromadb's `PersistentClient` — no server required. Install with `pip install ragleap-vectorstores[chroma]` or `uv add ragleap-vectorstores[chroma]`.
-- **`ragleap-tools`** — standalone, dependency-light tools for LLM tool-calling. 12 stateless tools (calculator, date/time, unit conversion, JSON/CSV parsing, text utilities), sandboxed file ops (symlink-escape protected), and optional `ragleap-rag`-backed document ingestion. Does not own a tool-calling execution loop — provides `Tool` objects for your own loop or `ragleap-agents` once it ships. Install with `pip install ragleap-tools` or `uv add ragleap-tools`.
+- **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. Backends: Chroma and LanceDB (embedded/local), Redis (RediSearch/Redis Stack), Upstash Vector (managed serverless) and OpenSearch (k-NN). Install with `pip install ragleap-vectorstores[chroma]` or `uv add ragleap-vectorstores[chroma]`.
+- **`ragleap-tools`** — standalone, dependency-light tools for LLM tool-calling. 12 stateless tools (calculator, date/time, unit conversion, JSON/CSV parsing, text utilities), sandboxed file ops (symlink-escape protected), `search_documents` (hybrid vector+keyword search), `search_web` (pluggable BYOK providers such as Tavily and Serper), and optional `ragleap-rag`-backed document ingestion. Does not own a tool-calling execution loop — provides `Tool` objects for your own loop or `ragleap-agents` once it ships. Install with `pip install ragleap-tools` or `uv add ragleap-tools`.
 - **`ragleap-ops`** — Kubernetes deployment manifests for RagLeap Core, live-tested end-to-end on a real cluster. Install with `pip install ragleap-ops` or `uv add ragleap-ops`.
 - **`ragleap-app-chart`** — generic, reusable Helm chart for deploying arbitrary services to Kubernetes, not RagLeap-specific. Point it at your own app via a `services:` list. Install with `pip install ragleap-app-chart` or `uv add ragleap-app-chart`.
 - **`ragleap-observability`** — Prometheus, Grafana, Loki + Promtail for `ragleap-ops`, live-verified end-to-end against a real cluster (real connection confirmed, real non-zero metrics returned; 21+ real log streams with correct namespace/pod/container labels). AlertManager is wired to Prometheus with a first real alert rule (no real notification receiver configured yet). Install with `pip install ragleap-observability` or `uv add ragleap-observability`.
