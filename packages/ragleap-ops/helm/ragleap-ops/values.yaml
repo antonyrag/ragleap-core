@@ -63,3 +63,9 @@ ingress:
   hostname: app.example.com   # REPLACE with your real domain before enabling
   ingressClassName: nginx
   clusterIssuer: letsencrypt-prod   # REPLACE with your own ClusterIssuer name; see README for setup
+
+# Dedicated zero-permission ServiceAccounts for db/app/voice/neo4j.
+# Set create: false if you manage ServiceAccounts yourself (e.g. they
+# already exist from the raw k8s/ manifests). Tokens are never mounted.
+serviceAccount:
+  create: true

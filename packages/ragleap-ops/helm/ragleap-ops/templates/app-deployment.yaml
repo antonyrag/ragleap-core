@@ -14,6 +14,10 @@ spec:
       labels:
         app: ragleap-app
     spec:
+      automountServiceAccountToken: false
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: ragleap-app
+      {{- end }}
       imagePullSecrets:
         - name: {{ .Values.app.imagePullSecret }}
       initContainers:

@@ -14,6 +14,10 @@ spec:
       labels:
         app: ragleap-voice
     spec:
+      automountServiceAccountToken: false
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: ragleap-voice
+      {{- end }}
       imagePullSecrets:
         - name: {{ .Values.voice.imagePullSecret }}
       initContainers:
