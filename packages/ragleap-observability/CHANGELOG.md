@@ -5,6 +5,27 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Optional Slack and email AlertManager receivers, configured under `alertmanager.receivers.*` in `values.yaml`. Both are **disabled by default**, so existing installs keep the placeholder webhook and render exactly as before.
+- Credentials are never stored in values or the ConfigMap. They are read from a user-created Secret (`alertmanager.receivers.secretName`, default `ragleap-alertmanager-secrets`) mounted read-only at `/etc/alertmanager-secrets`, using AlertManager's `api_url_file` (Slack) and `smtp_auth_password_file` (email).
+- `required` guards on `smarthost`, `from`, `username` and `to`: enabling email with any of them missing fails at `helm template`/`helm install` with a clear message, not at runtime.
+
+### Verified
+
+- `helm template` across four scenarios: defaults (placeholder still renders, one receiver block), Slack only, Slack plus email, and email enabled with missing fields (fails with the expected `required` error).
+- `amtool check-config` on the pinned `prom/alertmanager:v0.27.0` image accepts the fully rendered Slack-plus-email config.
+- Local echo-receiver test: AlertManager `v0.27.0` read a webhook URL from a mounted `api_url_file` and delivered a Slack-format payload (`"channel":"#alerts"`, `[FIRING:1]`) to the receiver. Run with Docker only, not on a cluster.
+
+### Known limitations
+
+- Not yet verified in a real pod: the Secret volume mount, and a real `PostgresExporterDown` alert reaching a receiver end to end (firing and resolved).
+- No real Slack or email notification has been sent and confirmed. The delivery test used a local echo receiver.
+- PagerDuty is not supported.
+- A missing Secret or Secret key leaves the AlertManager pod stuck in `ContainerCreating` (a loud failure, by design).
+- The ConfigMap does not trigger a restart on change. Run `kubectl rollout restart deploy/ragleap-alertmanager` after changing receivers.
+- AlertManager state (silences, notification log) is still on `emptyDir` and lost on pod restart.
+
 ## [0.3.0] - 2026-09-27
 
 ### Added
