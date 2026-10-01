@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-01
+
 ### Added
 
 - Optional Slack and email AlertManager receivers, configured under `alertmanager.receivers.*` in `values.yaml`. Both are **disabled by default**, so existing installs keep the placeholder webhook and render exactly as before.
@@ -15,12 +17,13 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `helm template` across four scenarios: defaults (placeholder still renders, one receiver block), Slack only, Slack plus email, and email enabled with missing fields (fails with the expected `required` error).
 - `amtool check-config` on the pinned `prom/alertmanager:v0.27.0` image accepts the fully rendered Slack-plus-email config.
-- Local echo-receiver test: AlertManager `v0.27.0` read a webhook URL from a mounted `api_url_file` and delivered a Slack-format payload (`"channel":"#alerts"`, `[FIRING:1]`) to the receiver. Run with Docker only, not on a cluster.
+- Live on a real `kind` cluster, against a Slack-compatible stand-in receiver: the Secret mounts read-only in the real pod, the rendered config is correct in-cluster, and a manually posted alert is delivered after the 30s `group_wait`.
+- Real rule end to end: with `postgres-exporter` scaled to 0, `PostgresExporterDown` went none, pending, then firing after exactly 5 minutes, and a `[FIRING:1]` payload was delivered. After the exporter recovered, a `[RESOLVED]` payload was delivered about 4 minutes later (consistent with `group_interval: 5m`).
+- AlertManager's Slack client requires the receiver to answer with `ok` in the response body. An empty 200 is logged as an unrecoverable error. Real Slack does this, but any stand-in must too.
 
 ### Known limitations
 
-- Not yet verified in a real pod: the Secret volume mount, and a real `PostgresExporterDown` alert reaching a receiver end to end (firing and resolved).
-- No real Slack or email notification has been sent and confirmed. The delivery test used a local echo receiver.
+- No real Slack or email notification has been sent and confirmed. All delivery tests used a Slack-compatible stand-in receiver.
 - PagerDuty is not supported.
 - A missing Secret or Secret key leaves the AlertManager pod stuck in `ContainerCreating` (a loud failure, by design).
 - The ConfigMap does not trigger a restart on change. Run `kubectl rollout restart deploy/ragleap-alertmanager` after changing receivers.

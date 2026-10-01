@@ -29,8 +29,9 @@ real cluster:
   off by default** (`alertmanager.receivers.*` in `values.yaml`);
   credentials come from a Secret you create, never from values. Until
   you enable one, alerts go to a placeholder webhook and nothing notifies
-  a human. Delivery was verified with a local echo receiver; a real
-  Slack/email notification has not yet been verified end to end.
+  a human. Firing and resolved delivery were verified end to end on a live
+  cluster against a Slack-compatible stand-in; a real Slack/email
+  send has not yet been confirmed.
 
 SLO/SLI dashboards are not yet built -- correctly sequenced after
 alerting has proven reliable, per the build order below.
@@ -67,8 +68,8 @@ alerting has proven reliable, per the build order below.
   `neo4j:5-community` image in this repo's own `kind` cluster.
 - Loki's retention (`168h` / 7 days) is unverified for real
   storage-sizing needs; flagged in `values.yaml` as a placeholder.
-- **AlertManager receivers are off by default, and real delivery is
-  unverified.** Enable `alertmanager.receivers.slack` and/or `.email` and
+- **AlertManager receivers are off by default, and a real Slack/email
+  send is unconfirmed** (delivery is verified against a stand-in). Enable `alertmanager.receivers.slack` and/or `.email` and
   create the Secret named in `values.yaml`. Until then alerts are routed
   and grouped but go to a placeholder webhook. PagerDuty is not
   supported yet.
