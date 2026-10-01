@@ -115,8 +115,10 @@ pair, following the same overall pattern (stdlib `urllib.request`,
 than a forced abstraction.
 
 `token: Optional[str] = None` - GitHub allows unauthenticated repository
-search at a real, lower rate limit (documented as 60 requests/hour per
-IP without a token). No fallback to reading an env var - if a token is
+search at a real, lower rate limit than its core API (a live
+`/rate_limit` check on 2026-10-01 showed 10 for the search resource and
+60 for core, unauthenticated; an earlier version of this doc wrongly
+gave 60 requests/hour for search). No fallback to reading an env var - if a token is
 wanted, the caller passes it explicitly, same BYOK stance as everywhere
 else in this package.
 
