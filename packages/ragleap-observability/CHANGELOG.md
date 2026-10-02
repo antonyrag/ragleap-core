@@ -13,11 +13,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Verified
 
 - Scratch-namespace install on a live `kind` cluster (Promtail disabled): the five ServiceAccounts were created, each Deployment shows its own ServiceAccount with automount `false`, and `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Grafana pod, which still reached Ready.
-- On the long-running release (`ragleap-core` namespace, upgraded from `main` at `443ad60`): all nine Deployments (the five observability ones plus the four `ragleap-ops` ones) use their own ServiceAccount with automount `false`; `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Prometheus pod; `up{job="ragleap-postgres"}` is 1 and AlertManager is registered as an active target; Loki kept its data across the rollout (59 series in the last 24h) and is still ingesting new logs from Promtail (2 streams for `ragleap-core` in the last 5 minutes); Promtail `/ready` returns `Ready`; the Grafana pod reached Ready without a token.
+- On the long-running release (`ragleap-core` namespace, upgraded from `main` at `443ad60`): all nine Deployments (the five observability ones plus the four `ragleap-ops` ones) use their own ServiceAccount with automount `false`; `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Prometheus pod; `up{job="ragleap-postgres"}` is 1 and AlertManager is registered as an active target; Loki kept its data across the rollout (59 series in the last 24h) and is still ingesting new logs from Promtail (2 streams for `ragleap-core` in the last 5 minutes); Promtail `/ready` returns `Ready`; the Grafana pod reached Ready without a token, and **Save & test** succeeded for both the Prometheus and Loki datasources.
 
 ### Known limitations
 
-- Grafana's Prometheus and Loki datasources were not re-tested via Save & test after the rollout (only that the pod is Ready).
+- Grafana's admin password defaults to the placeholder `change-me-before-real-use` (`templates/grafana-secret.yaml`), and the long-running release is still using it. Override it before exposing Grafana anywhere beyond a port-forward. A configurable password or existing-Secret option is not yet implemented.
 - Promtail's ClusterRole still grants `nodes` as well as `pods`. The pod-discovery config likely needs only `pods`, but that has not been tested.
 
 ## [0.4.0] - 2026-10-01
