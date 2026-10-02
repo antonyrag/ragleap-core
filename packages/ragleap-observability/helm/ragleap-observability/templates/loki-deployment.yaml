@@ -58,6 +58,10 @@ spec:
       labels:
         app: ragleap-loki
     spec:
+      automountServiceAccountToken: false
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: ragleap-loki
+      {{- end }}
       securityContext:
         fsGroup: 10001
       containers:
