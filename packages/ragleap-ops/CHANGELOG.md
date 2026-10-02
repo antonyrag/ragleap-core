@@ -99,7 +99,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Restoring a full-schema `pg_dump` into an already-initialized (non-empty schema) database produces expected `already exists`/`multiple primary keys` errors for every CREATE statement -- harmless (the actual data COPY statements still succeed), but noisy. A genuinely clean restore drill should target a freshly-provisioned empty database, not layer onto an existing schema the way this test did. Real operational finding, not previously documented.
 - This restore drill covered Postgres only. The neo4j scale-to-zero + `neo4j-admin dump`/`load` restore path (built earlier this session) has NOT yet been live-restore-tested -- only the dump side was previously verified. Real remaining gap.
-- Both fixes (runAsUser, fix-permissions init container) were verified in this session but not yet reflected in the Helm chart's equivalent templates (`helm/ragleap-ops/templates/`) -- only the raw `k8s/` manifests were fixed and tested here. The Helm chart needs the same fix, tracked as a follow-up (same class of bug as the earlier neo4j probe-drift finding between raw manifests and Helm templates).
+- Both fixes (runAsUser, fix-permissions init container) were verified in this session but not yet reflected in the Helm chart's equivalent templates (`helm/ragleap-ops/templates/`) -- only the raw `k8s/` manifests were fixed and tested here. The Helm chart needs the same fix, tracked as a follow-up (same class of bug as the earlier neo4j probe-drift finding between raw manifests and Helm templates). **Update:** the SecurityContext fix was later ported to the Helm chart templates and verified with a live `helm install` (#297).
 
 
 ## [0.3.0] - 2026-09-06
