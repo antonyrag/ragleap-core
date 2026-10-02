@@ -5,6 +5,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Dedicated zero-permission ServiceAccounts for Prometheus, Grafana, Loki, AlertManager and postgres-exporter (`templates/serviceaccounts.yaml`), with `automountServiceAccountToken: false` on both the ServiceAccounts and each Deployment's pod spec. Previously all five ran as the namespace `default` account with its API token mounted. None of them calls the Kubernetes API (Prometheus uses static targets in this chart), so no Role or RoleBinding is added. Controlled by the new `serviceAccount.create` value (default `true`). Promtail keeps its own ServiceAccount and ClusterRole, because it needs pod discovery.
+
+### Verified
+
+- Scratch-namespace install on a live `kind` cluster (Promtail disabled): the five ServiceAccounts were created, each Deployment shows its own ServiceAccount with automount `false`, and `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Grafana pod, which still reached Ready.
+
+### Known limitations
+
+- Not yet verified on the long-running release: Prometheus scraping, Grafana datasources and Promtail/Loki shipping have not been re-checked after the upgrade. Only the scratch install has been tested.
+- Promtail's ClusterRole still grants `nodes` as well as `pods`. The pod-discovery config likely needs only `pods`, but that has not been tested.
+
 ## [0.4.0] - 2026-10-01
 
 ### Added
