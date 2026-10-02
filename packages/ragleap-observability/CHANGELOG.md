@@ -11,6 +11,10 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Upgrade note:** if the release was previously upgraded with a test `--set` (for example `alertmanager.receivers.slack.enabled=true`), later upgrades keep that value. If you then delete the Secret it references, the AlertManager pod gets stuck in `ContainerCreating` after any restart. Finish such tests with `helm upgrade --reset-values` (or an explicit `--set ...=false`) before deleting the Secret.
 - Configurable Grafana admin credentials: `grafana.admin.user`, `grafana.admin.password` and `grafana.admin.existingSecret` (a Secret you create, with keys `admin-user` and `admin-password`; the chart then renders no Secret of its own and the Deployment reads yours). Defaults are unchanged, so existing installs behave identically. A new `templates/NOTES.txt` prints a warning after `helm install`/`upgrade` while the placeholder password is still in use.
 
+### Changed
+
+- Promtail's ClusterRole now grants `get`, `list` and `watch` on `pods` only. The unused `nodes` permission was dropped: discovery uses `role: pod`, and `HOSTNAME` comes from the Downward API (`spec.nodeName`), so no Node API access is needed.
+
 ### Fixed
 
 - The comment in `templates/grafana-secret.yaml` said to replace the password "via --set", but no value existed for `--set` to change, so it had no effect. The password is now a real value.
@@ -20,11 +24,11 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Scratch-namespace install on a live `kind` cluster (Promtail disabled): the five ServiceAccounts were created, each Deployment shows its own ServiceAccount with automount `false`, and `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Grafana pod, which still reached Ready.
 - On the long-running release (`ragleap-core` namespace, upgraded from `main` at `443ad60`): all nine Deployments (the five observability ones plus the four `ragleap-ops` ones) use their own ServiceAccount with automount `false`; `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Prometheus pod; `up{job="ragleap-postgres"}` is 1 and AlertManager is registered as an active target; Loki kept its data across the rollout (59 series in the last 24h) and is still ingesting new logs from Promtail (2 streams for `ragleap-core` in the last 5 minutes); Promtail `/ready` returns `Ready`; the Grafana pod reached Ready without a token, and **Save & test** succeeded for both the Prometheus and Loki datasources.
 - Grafana admin credentials, on a live `kind` cluster in a scratch namespace: with `--set grafana.admin.password=...` the new password returns 200 and the placeholder returns 401; with `grafana.admin.existingSecret` only the supplied Secret exists (no `ragleap-grafana-admin`) and Grafana reaches Ready; the `NOTES.txt` warning prints when neither option is set and stays empty when one is.
+- Promtail with the pods-only ClusterRole, on the long-running release: `kubectl auth can-i` reports `list pods` = yes and `list nodes` = no for the Promtail ServiceAccount; no `forbidden`, `error` or `denied` lines in its logs 60 seconds after a restart; `/ready` returns `Ready`; and 2 `ragleap-core` streams were ingested into Loki in the 5 minutes after the restart.
 
 ### Known limitations
 
 - The placeholder admin password is still the default when no option is set, and the long-running release is still using it. Upgrading will not change it: Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when it first initializes its database, so a release with a persistent volume needs `grafana cli admin reset-admin-password` (not yet tested).
-- Promtail's ClusterRole still grants `nodes` as well as `pods`. The pod-discovery config likely needs only `pods`, but that has not been tested.
 
 ## [0.4.0] - 2026-10-01
 
