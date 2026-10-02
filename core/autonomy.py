@@ -179,6 +179,9 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
             if not owner_target:
                 return "notify_owner skipped: no approval_target configured"
             return _send_via_channel(owner_ch, owner_target, content)
+        elif channel == "mcp":
+            from core.mcp_client import call_tool
+            return call_tool(target, content)
         else:
             return f"Unsupported channel for autonomous send: {channel} (voice has no discrete send - see RFC #171)"
     except Exception as e:
