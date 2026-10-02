@@ -28,6 +28,7 @@ from core.employees import channel_roles as employee_channel_roles
 from core.employees import memory as employee_memory
 from core import workflows
 from core import tasks as core_tasks
+from core import proactive_triggers as core_triggers
 from core import autonomy
 from core import observability
 from core import queue
@@ -68,10 +69,20 @@ async def _sync_job():
     except Exception as e:
         logger.error("Error in background sync job: %s", e)
 
+async def _run_due_triggers_job():
+    """Fire any due proactive triggers. run_due_triggers never raises; it is
+    blocking (LLM calls), so it runs in a worker thread."""
+    try:
+        await asyncio.to_thread(core_triggers.run_due_triggers)
+    except Exception as e:
+        logger.error("Error in proactive triggers job: %s", e)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_sync_job, "interval", minutes=5)
+    scheduler.add_job(_run_due_triggers_job, "interval", minutes=1,
+                      max_instances=1, coalesce=True)
     scheduler.start()
     logger.info("Background sync scheduler started.")
     yield
@@ -186,6 +197,22 @@ class TaskUpdateRequest(BaseModel):
     assigned_role: str | None = None
     due_date: str | None = None
     result: str | None = None
+
+
+class TriggerCreateRequest(BaseModel):
+    name: str
+    role: str
+    prompt: str
+    schedule_minutes: int
+    is_active: bool = True
+
+
+class TriggerUpdateRequest(BaseModel):
+    name: str | None = None
+    role: str | None = None
+    prompt: str | None = None
+    schedule_minutes: int | None = None
+    is_active: bool | None = None
 
 
 class AutonomySettingsRequest(BaseModel):
@@ -710,6 +737,49 @@ def update_task(task_id: str, req: TaskUpdateRequest):
     if t is None:
         raise HTTPException(status_code=404, detail="Task not found.")
     return t
+
+
+@app.get("/proactive-triggers")
+def list_proactive_triggers(active_only: bool = False):
+    return {"triggers": core_triggers.list_triggers(active_only=active_only)}
+
+
+@app.post("/proactive-triggers")
+def create_proactive_trigger(req: TriggerCreateRequest):
+    try:
+        return core_triggers.create_trigger(
+            name=req.name, role=req.role, prompt=req.prompt,
+            schedule_minutes=req.schedule_minutes, is_active=req.is_active,
+        )
+    except core_triggers.TriggerValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/proactive-triggers/{trigger_id}")
+def get_proactive_trigger(trigger_id: str):
+    t = core_triggers.get_trigger(trigger_id)
+    if t is None:
+        raise HTTPException(status_code=404, detail="Trigger not found.")
+    return t
+
+
+@app.patch("/proactive-triggers/{trigger_id}")
+def update_proactive_trigger(trigger_id: str, req: TriggerUpdateRequest):
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    try:
+        t = core_triggers.update_trigger(trigger_id, **updates)
+    except core_triggers.TriggerValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if t is None:
+        raise HTTPException(status_code=404, detail="Trigger not found.")
+    return t
+
+
+@app.delete("/proactive-triggers/{trigger_id}")
+def delete_proactive_trigger(trigger_id: str):
+    if not core_triggers.delete_trigger(trigger_id):
+        raise HTTPException(status_code=404, detail="Trigger not found.")
+    return {"deleted": True}
 
 
 MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB — stored as a Postgres TEXT column, keep it sane
