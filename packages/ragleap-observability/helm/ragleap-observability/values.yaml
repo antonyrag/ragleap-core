@@ -34,9 +34,15 @@ prometheus:
 grafana:
   enabled: true
   image: grafana/grafana:11.3.1
-  # Admin password is NOT set here -- see grafana-secret.yaml, never commit
-  # real credentials to values.yaml. This is a placeholder only used if
-  # no real secret is supplied.
+  # Admin credentials. Never commit real credentials to values.yaml.
+  # Preferred: create a Secret yourself (keys admin-user, admin-password)
+  # and set existingSecret. Otherwise set password at install time with
+  # --set grafana.admin.password=... If both are empty the chart falls back
+  # to a placeholder password, which is NOT safe beyond a local test.
+  admin:
+    existingSecret: ""
+    user: admin
+    password: ""
   port: 3000
 
 loki:
