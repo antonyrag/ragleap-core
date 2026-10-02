@@ -36,6 +36,7 @@ ACTION_TOOLS = {
     "notify_owner": {"channel": "notify_owner"},
     "mcp_call": {"channel": "mcp"},
     "run_code": {"channel": "code"},
+    "run_shell": {"channel": "shell"},
 }
 
 
@@ -99,6 +100,18 @@ def available_tools() -> Dict[str, str]:
             "afterwards, 10 second limit, standard library only) and return its printed "
             "output. target is ignored (leave empty). content must be the complete Python "
             "source, under 2000 characters; use print() to produce results."
+        )
+    # Opt-in, separately from run_code: SHELL_EXEC_ENABLED=true plus SANDBOX_TOKEN.
+    try:
+        from core import code_exec
+        shell_on = code_exec.shell_enabled()
+    except Exception:
+        shell_on = False
+    if shell_on:
+        tools["run_shell"] = (
+            "Run one short shell command line (sh, with standard Unix tools like grep, sed, awk, "
+            "sort) in an isolated sandbox: no network, nothing kept afterwards, 10 second limit. "
+            "target is ignored (leave empty). content must be the command, under 2000 characters."
         )
     return tools
 
@@ -173,6 +186,10 @@ def _validate_plan(plan: Dict, tools: Dict[str, str]) -> Optional[Dict]:
                 return None
         except Exception:
             return None
+    elif tool == "run_shell":
+        target = ""
+        if len(str(plan.get("content", "") or "").strip()) > MAX_ACTION_CONTENT:
+            return None  # never run a silently truncated command
     elif tool == "run_code":
         target = ""
         if len(str(plan.get("content", "") or "").strip()) > MAX_ACTION_CONTENT:

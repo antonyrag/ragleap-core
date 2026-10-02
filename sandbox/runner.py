@@ -32,6 +32,7 @@ MAX_OUTPUT_BYTES = 16 * 1024
 MAX_BODY = 16 * 1024
 LABEL = "ragleap.sandbox"
 BOOTSTRAP = "import os;exec(compile(os.environ.pop('CODE'),'<sandbox>','exec'))"
+SHELL_BOOTSTRAP = 'c="$CMD"; unset CMD; eval "$c"'
 
 
 class _Unix(http.client.HTTPConnection):
@@ -58,12 +59,13 @@ def _docker(method, path, body=None, timeout=30):
         c.close()
 
 
-def build_spec(code):
+def build_spec(code, mode="python"):
     """The ONLY container spec ever used. Nothing here comes from the caller except the code."""
     return {
         "Image": IMAGE,
-        "Cmd": ["python", "-I", "-B", "-u", "-c", BOOTSTRAP],
-        "Env": ["CODE=" + code],
+        "Cmd": (["sh", "-c", SHELL_BOOTSTRAP] if mode == "shell"
+                else ["python", "-I", "-B", "-u", "-c", BOOTSTRAP]),
+        "Env": [("CMD=" if mode == "shell" else "CODE=") + code],
         "User": "65534:65534",
         "WorkingDir": "/tmp",
         "NetworkDisabled": True,
@@ -98,10 +100,10 @@ def demux(buf):
     return bytes(out), bytes(err)
 
 
-def run_in_sandbox(code):
+def run_in_sandbox(code, mode="python"):
     cid = None
     try:
-        st, body = _docker("POST", "/containers/create", build_spec(code))
+        st, body = _docker("POST", "/containers/create", build_spec(code, mode))
         if st != 201:
             raise RuntimeError(f"create failed: HTTP {st} {body[:200]!r} (is {IMAGE} pulled?)")
         cid = json.loads(body)["Id"]
@@ -181,15 +183,19 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0 or length > MAX_BODY:
             return self._reply(413, {"error": "bad body size"})
         try:
-            code = json.loads(self.rfile.read(length))["code"]
-            if not isinstance(code, str) or not code.strip() or len(code) > MAX_CODE_CHARS:
+            payload = json.loads(self.rfile.read(length))
+            if not isinstance(payload, dict) or ("code" in payload) == ("shell" in payload):
+                raise ValueError  # exactly one of "code" / "shell"
+            key = "shell" if "shell" in payload else "code"
+            code = payload[key]
+            if not isinstance(code, str) or not code.strip() or len(code) > MAX_CODE_CHARS or "\x00" in code:
                 raise ValueError
         except Exception:
             return self._reply(400, {"error": "body must be JSON {\"code\": \"<=8000 chars\"}"})
         if not _lock.acquire(blocking=False):
             return self._reply(429, {"error": "busy"})
         try:
-            self._reply(200, run_in_sandbox(code))
+            self._reply(200, run_in_sandbox(code, "shell") if key == "shell" else run_in_sandbox(code))
         except Exception as e:
             print(f"run failed: {e}", flush=True)
             self._reply(500, {"error": "sandbox error"})
