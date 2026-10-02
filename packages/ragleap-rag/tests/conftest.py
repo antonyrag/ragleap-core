@@ -1,4 +1,5 @@
 import os
+import re
 import pytest
 
 os.environ.setdefault("GEMINI_API_KEY", "fake-test-key")
@@ -113,3 +114,21 @@ def rag(database_url):
         embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", api_key="fake-test-key", dimensions=TEST_DIMENSIONS),
         primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
     )
+
+
+_ENV_PATTERN = re.compile(r"(_API_KEY|_EMBEDDING_MODEL|_EMBEDDING_DIMENSIONS|_EMBEDDING_BASE_URL)$")
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_embedding_env(monkeypatch):
+    """Config-validation tests assert that a missing key/model/dimension
+    raises ValueError, but EmbeddingConfig and PineconeBackend fall back to
+    environment variables, so those tests passed or failed depending on the
+    host (12 failed with synthetic variables set; one failed on a host that
+    exports EMBEDDING_DIMENSIONS). Remove every matching variable for each
+    test; tests that need one set it themselves with monkeypatch.setenv.
+    Caveat: this strips every *_API_KEY, so a test that needs a real key
+    from the environment must set it itself."""
+    for name in list(os.environ):
+        if _ENV_PATTERN.search(name) or name == "EMBEDDING_DIMENSIONS":
+            monkeypatch.delenv(name, raising=False)

@@ -153,7 +153,7 @@ jobs:
         working-directory: packages/ragleap-rag
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[test,gemini,faiss,structured]"
+          pip install -e ".[test,gemini,faiss,structured,formats,web,qdrant,weaviate,pinecone,milvus]"
       - name: Run ragleap-rag test suite
         working-directory: packages/ragleap-rag
         env:

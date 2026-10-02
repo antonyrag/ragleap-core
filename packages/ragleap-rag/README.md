@@ -433,7 +433,7 @@ The URL itself is stored as the document_name, so citations point back to the or
 
 ## Supported file formats
 
-rag.ingest(filename, raw_bytes) supports 28 formats via file extension, dispatched automatically. Core formats (txt, pdf, docx, md) work with the base install; everything else requires the formats extra.
+rag.ingest(filename, raw_bytes) supports 28 file extensions (some are aliases, e.g. .htm/.html), dispatched automatically. Each extension has a minimal-sample extraction test; complex real-world documents are not exhaustively tested. Core formats (txt, pdf, docx, md) work with the base install; everything else requires the formats extra.
 
 ```bash
 pip install ragleap-rag[formats]
