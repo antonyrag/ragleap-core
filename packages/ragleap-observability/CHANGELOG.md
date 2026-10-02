@@ -8,14 +8,16 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Dedicated zero-permission ServiceAccounts for Prometheus, Grafana, Loki, AlertManager and postgres-exporter (`templates/serviceaccounts.yaml`), with `automountServiceAccountToken: false` on both the ServiceAccounts and each Deployment's pod spec. Previously all five ran as the namespace `default` account with its API token mounted. None of them calls the Kubernetes API (Prometheus uses static targets in this chart), so no Role or RoleBinding is added. Controlled by the new `serviceAccount.create` value (default `true`). Promtail keeps its own ServiceAccount and ClusterRole, because it needs pod discovery.
+- **Upgrade note:** if the release was previously upgraded with a test `--set` (for example `alertmanager.receivers.slack.enabled=true`), later upgrades keep that value. If you then delete the Secret it references, the AlertManager pod gets stuck in `ContainerCreating` after any restart. Finish such tests with `helm upgrade --reset-values` (or an explicit `--set ...=false`) before deleting the Secret.
 
 ### Verified
 
 - Scratch-namespace install on a live `kind` cluster (Promtail disabled): the five ServiceAccounts were created, each Deployment shows its own ServiceAccount with automount `false`, and `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Grafana pod, which still reached Ready.
+- On the long-running release (`ragleap-core` namespace, upgraded from `main` at `443ad60`): all nine Deployments (the five observability ones plus the four `ragleap-ops` ones) use their own ServiceAccount with automount `false`; `/var/run/secrets/kubernetes.io/serviceaccount` does not exist in the Prometheus pod; `up{job="ragleap-postgres"}` is 1 and AlertManager is registered as an active target; Loki kept its data across the rollout (59 series in the last 24h) and is still ingesting new logs from Promtail (2 streams for `ragleap-core` in the last 5 minutes); Promtail `/ready` returns `Ready`; the Grafana pod reached Ready without a token.
 
 ### Known limitations
 
-- Not yet verified on the long-running release: Prometheus scraping, Grafana datasources and Promtail/Loki shipping have not been re-checked after the upgrade. Only the scratch install has been tested.
+- Grafana's Prometheus and Loki datasources were not re-tested via Save & test after the rollout (only that the pod is Ready).
 - Promtail's ClusterRole still grants `nodes` as well as `pods`. The pod-discovery config likely needs only `pods`, but that has not been tested.
 
 ## [0.4.0] - 2026-10-01
