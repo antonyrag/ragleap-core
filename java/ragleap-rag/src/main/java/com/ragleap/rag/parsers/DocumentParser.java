@@ -49,11 +49,12 @@ public final class DocumentParser {
 
     /** Formats implemented in this port so far. Grows as batches land. */
     public static final Set<String> SUPPORTED_EXTENSIONS = Collections.unmodifiableSet(new TreeSet<>(List.of(
-            ".txt", ".md", ".sql", ".csv", ".tsv", ".json", ".yaml", ".yml", ".vtt", ".srt", ".zip", ".rtf")));
+            ".txt", ".md", ".sql", ".csv", ".tsv", ".json", ".yaml", ".yml", ".vtt", ".srt", ".zip", ".rtf",
+            ".html", ".htm", ".xml", ".xsl", ".xslt", ".pdf")));
 
     /** Supported by the Python package, planned for this port, not written yet. */
     private static final Set<String> NOT_YET_PORTED = Set.of(
-            ".pdf", ".docx", ".xlsx", ".xls", ".pptx", ".html", ".htm", ".xml", ".xsl", ".xslt",
+            ".docx", ".xlsx", ".xls", ".pptx",
             ".odt", ".ods", ".odp", ".eml", ".epub");
 
     private static final Set<String> UNSUPPORTED_LEGACY = Set.of(".doc", ".ppt");
@@ -117,6 +118,9 @@ public final class DocumentParser {
             case ".vtt", ".srt" -> extractSubtitle(rawBytes);
             case ".zip" -> extractZip(rawBytes);
             case ".rtf" -> extractRtf(rawBytes);
+            case ".html", ".htm" -> MarkupExtractor.html(rawBytes);
+            case ".xml", ".xsl", ".xslt" -> MarkupExtractor.xml(rawBytes);
+            case ".pdf" -> PdfExtractor.extract(rawBytes);
             default -> throw new IllegalArgumentException(
                     "Unsupported file type '" + ext + "'. Supported: "
                             + String.join(", ", SUPPORTED_EXTENSIONS) + ".");
@@ -245,7 +249,7 @@ public final class DocumentParser {
     static String extractSubtitle(byte[] rawBytes) {
         List<String> kept = new ArrayList<>();
         for (String line : LINE_BREAKS.split(extractTxt(rawBytes), -1)) {
-            String stripped = line.strip();
+            String stripped = PyText.strip(line);
             if (stripped.isEmpty() || stripped.equals("WEBVTT")) {
                 continue;
             }
@@ -289,7 +293,7 @@ public final class DocumentParser {
                 }
                 try {
                     String innerText = extractText(name, zis.readAllBytes());
-                    if (!innerText.isBlank()) {
+                    if (!PyText.isBlank(innerText)) {
                         parts.add("[File: " + name + "]\n" + innerText);
                     }
                 } catch (Exception e) {
