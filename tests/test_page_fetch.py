@@ -223,7 +223,7 @@ def test_too_many_redirects(net):
 
 def test_private_resolution_is_refused_before_connecting(net, monkeypatch):
     def private(host):
-        raise ValueError("host resolves to a non-public address")
+        raise pf._Refused("non_public")
     monkeypatch.setattr(pf, "resolve_public", private)
     assert "refused" in pf.fetch_page("https://docs.example.com/x") and net["calls"] == []
 
@@ -240,7 +240,7 @@ def test_status_content_type_size_and_network_errors(net):
     assert "HTTP 404" in pf.fetch_page("https://docs.example.com/x")
     net["script"] = [(200, "", "application/octet-stream", b"x")]
     assert "refused" in pf.fetch_page("https://docs.example.com/x")
-    net["script"] = [ValueError("response too large")]
+    net["script"] = [pf._Refused("too_large")]
     assert "too large" in pf.fetch_page("https://docs.example.com/x")
     net["script"] = [ConnectionError("down")]
     assert "failed" in pf.fetch_page("https://docs.example.com/x")
@@ -255,7 +255,9 @@ def test_result_is_truncated(net):
 
 def test_fetch_page_listed_only_when_enabled(monkeypatch):
     t = actions.available_tools()
-    assert "fetch_page" in t and "docs.example.com" in t["fetch_page"]
+    assert "fetch_page" in t
+    listed = t["fetch_page"].split("one of: ")[1].split(". ")[0].split(", ")
+    assert listed == ["docs.example.com", "*.wiki.example.org"]
     monkeypatch.delenv("BROWSER_FETCH_ENABLED")
     assert "fetch_page" not in actions.available_tools()
     monkeypatch.setenv("BROWSER_FETCH_ENABLED", "true")
@@ -339,3 +341,34 @@ def test_semi_mode_pends_then_yes_fetches(gate):
 def test_sensitive_role_forced_to_semi(gate):
     gate["sensitive"] = True
     assert _plan(role="legal-helper")["status"] == "pending_approval" and gate["ran"] == []
+
+
+# ---- no exception text leaks into results; TLS floor ----
+
+def test_library_error_text_never_reaches_the_result(net):
+    net["script"] = [ValueError("secret internals /srv/app/core.py line 42")]
+    out = pf.fetch_page("https://docs.example.com/x")
+    assert out == "Page fetch: failed; see server logs."
+    net["script"] = [OSError("[SSL: CERTIFICATE_VERIFY_FAILED] (_ssl.c:1007)")]
+    assert "SSL" not in pf.fetch_page("https://docs.example.com/x")
+
+
+def test_every_refusal_code_has_constant_wording():
+    for code, text in pf._REASONS.items():
+        assert pf.fetch_page.__module__ and isinstance(text, str) and text
+    assert pf._Refused("allowlist").code == "allowlist"
+
+
+def test_request_requires_tls_1_2_or_newer(monkeypatch):
+    import ssl
+    holder = {}
+
+    class Ctx:
+        def wrap_socket(self, s, server_hostname=None):
+            holder["ctx"] = self
+            return FakeSock(_resp())
+
+    monkeypatch.setattr(pf.socket, "create_connection", lambda addr, timeout=None: object())
+    monkeypatch.setattr(pf.ssl, "create_default_context", lambda: Ctx())
+    pf._request("docs.example.com", "93.184.216.34", "/")
+    assert holder["ctx"].minimum_version == ssl.TLSVersion.TLSv1_2

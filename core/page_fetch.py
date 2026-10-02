@@ -31,6 +31,24 @@ from urllib.parse import urljoin, urlsplit
 
 logger = logging.getLogger(__name__)
 
+# Refusals carry a short code; the wording shown to callers comes only from this
+# constant table, so no exception text from libraries ever reaches a result.
+_REASONS = {
+    "length": "bad url length", "chars": "invalid characters in url", "scheme": "https only",
+    "creds": "credentials not allowed", "port": "port not allowed", "host": "bad host",
+    "ip": "ip addresses not allowed", "allowlist": "host not on the allowlist",
+    "non_public": "host resolves to a non-public address", "no_resolve": "host did not resolve",
+    "redirect": "redirect without a location", "too_large": "response too large",
+    "too_slow": "response too slow",
+}
+
+
+class _Refused(ValueError):
+    def __init__(self, code):
+        super().__init__(code)
+        self.code = code
+
+
 MAX_URL_CHARS = 300
 MAX_REDIRECTS = 3
 TIMEOUT = 15
@@ -78,27 +96,27 @@ def validate_url(url: str) -> Tuple[str, str]:
     """Return (host, path_with_query) or raise ValueError."""
     url = (url or "").strip()
     if not url or len(url) > MAX_URL_CHARS:
-        raise ValueError("bad url length")
+        raise _Refused("length")
     if any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in url):
-        raise ValueError("invalid characters in url")
+        raise _Refused("chars")
     p = urlsplit(url)
     if p.scheme != "https":
-        raise ValueError("https only")
+        raise _Refused("scheme")
     if p.username or p.password or "@" in p.netloc:
-        raise ValueError("credentials not allowed")
+        raise _Refused("creds")
     try:
         port = p.port
     except ValueError:
-        raise ValueError("bad port")
+        raise _Refused("port")
     if port not in (None, 443):
-        raise ValueError("port not allowed")
+        raise _Refused("port")
     host = (p.hostname or "").lower().rstrip(".")
     if not host or not host.isascii():
-        raise ValueError("bad host")
+        raise _Refused("host")
     if _is_ip(host):
-        raise ValueError("ip addresses not allowed")
+        raise _Refused("ip")
     if not host_allowed(host):
-        raise ValueError("host not on the allowlist")
+        raise _Refused("allowlist")
     path = p.path or "/"
     if p.query:
         path += "?" + p.query
@@ -116,10 +134,10 @@ def resolve_public(host: str) -> str:
         if mapped is not None:
             a = mapped
         if not a.is_global or a.is_multicast:
-            raise ValueError("host resolves to a non-public address")
+            raise _Refused("non_public")
         ips.append(ip)
     if not ips:
-        raise ValueError("host did not resolve")
+        raise _Refused("no_resolve")
     return ips[0]
 
 
@@ -128,7 +146,9 @@ def _request(host: str, ip: str, path: str) -> Tuple[int, str, str, bytes]:
     deadline = time.monotonic() + TOTAL_TIMEOUT
     raw = socket.create_connection((ip, 443), timeout=TIMEOUT)
     try:
-        tls = ssl.create_default_context().wrap_socket(raw, server_hostname=host)
+        ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        tls = ctx.wrap_socket(raw, server_hostname=host)
     except Exception:
         raw.close()
         raise
@@ -154,9 +174,9 @@ def _request(host: str, ip: str, path: str) -> Tuple[int, str, str, bytes]:
                 break
             body += chunk
             if len(body) > MAX_BYTES:
-                raise ValueError("response too large")
+                raise _Refused("too_large")
             if time.monotonic() > deadline:
-                raise ValueError("response too slow")
+                raise _Refused("too_slow")
         return status, location, ctype, bytes(body)
     finally:
         conn.close()
@@ -234,7 +254,7 @@ def fetch_page(url: str) -> str:
             status, location, ctype, body = _request(host, ip, path)
             if 300 <= status < 400:
                 if not location:
-                    raise ValueError("redirect without a location")
+                    raise _Refused("redirect")
                 current = urljoin(current, location)
                 continue
             if status != 200:
@@ -247,8 +267,8 @@ def fetch_page(url: str) -> str:
             head = f"Page fetch: https://{host}{path[:120]} (HTTP 200)\n"
             return (head + text.strip())[:MAX_RESULT_CHARS]
         return "Page fetch: refused (too many redirects)"
-    except ValueError as e:
-        return f"Page fetch: refused ({e})"
+    except _Refused as e:
+        return "Page fetch: refused (" + _REASONS.get(e.code, "not allowed") + ")"
     except Exception as e:
         logger.error("Page fetch failed: %s", e)
         return "Page fetch: failed; see server logs."
