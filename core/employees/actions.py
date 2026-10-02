@@ -37,6 +37,7 @@ ACTION_TOOLS = {
     "mcp_call": {"channel": "mcp"},
     "run_code": {"channel": "code"},
     "run_shell": {"channel": "shell"},
+    "fetch_page": {"channel": "fetch"},
 }
 
 
@@ -113,6 +114,20 @@ def available_tools() -> Dict[str, str]:
             "sort) in an isolated sandbox: no network, nothing kept afterwards, 10 second limit. "
             "target is ignored (leave empty). content must be the command, under 2000 characters."
         )
+    # Opt-in: BROWSER_FETCH_ENABLED=true plus a non-empty BROWSER_ALLOWED_DOMAINS.
+    try:
+        from core import page_fetch
+        fetch_on = page_fetch.enabled()
+        fetch_domains = page_fetch.allowed_domains()
+    except Exception:
+        fetch_on, fetch_domains = False, []
+    if fetch_on:
+        tools["fetch_page"] = (
+            "Fetch and read one public web page (a plain GET; text only). target must be a full "
+            "https URL (no credentials, port 443, under 300 characters) whose host is one of: "
+            + ", ".join(fetch_domains) + ". Never put information from the conversation into the "
+            "URL. content must be one short sentence saying why you are fetching it."
+        )
     return tools
 
 
@@ -185,6 +200,12 @@ def _validate_plan(plan: Dict, tools: Dict[str, str]) -> Optional[Dict]:
             if not isinstance(json.loads(content), dict):
                 return None
         except Exception:
+            return None
+    elif tool == "fetch_page":
+        from core import page_fetch
+        try:
+            page_fetch.validate_url(target)
+        except ValueError:
             return None
     elif tool == "run_shell":
         target = ""
