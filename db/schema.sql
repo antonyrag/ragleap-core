@@ -314,3 +314,22 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS tasks_status_idx ON tasks (status);
 CREATE INDEX IF NOT EXISTS tasks_assigned_role_idx ON tasks (assigned_role);
+
+-- Proactive triggers: scheduled check-ins where an AI Employee runs a
+-- prompt on an interval and the result is delivered to the owner via the
+-- same approval gate as every other action (off/semi/full all apply).
+CREATE TABLE IF NOT EXISTS proactive_triggers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    schedule_minutes INTEGER NOT NULL CHECK (schedule_minutes >= 5),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    last_run_at TIMESTAMPTZ,
+    next_run_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS proactive_triggers_due_idx
+    ON proactive_triggers (next_run_at) WHERE is_active;
