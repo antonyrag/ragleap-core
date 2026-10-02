@@ -34,6 +34,7 @@ ACTION_TOOLS = {
     "send_email": {"channel": "email"},
     "create_task": {"channel": "task"},
     "notify_owner": {"channel": "notify_owner"},
+    "mcp_call": {"channel": "mcp"},
 }
 
 
@@ -73,6 +74,17 @@ def available_tools() -> Dict[str, str]:
         tools["notify_owner"] = (
             "Send a message directly to the owner, ignoring the normal approval routing "
             "target. target is ignored (leave empty). content is the message."
+        )
+    # Opt-in: only when the owner configured MCP_SERVERS and MCP_ALLOWED_TOOLS.
+    try:
+        from core import mcp_client
+        mcp_targets = mcp_client.allowed_targets()
+    except Exception:
+        mcp_targets = []
+    if mcp_targets:
+        tools["mcp_call"] = (
+            "Call an external MCP tool. target must be exactly one of: " + ", ".join(mcp_targets) +
+            ". content must be a JSON object holding that tool's arguments."
         )
     return tools
 
@@ -138,6 +150,15 @@ def _validate_plan(plan: Dict, tools: Dict[str, str]) -> Optional[Dict]:
                 target = ""  # unknown role: fall back to unassigned rather than reject the whole task
     elif tool == "notify_owner":
         target = ""  # always ignored -- see _send_via_channel's "notify_owner" branch
+    elif tool == "mcp_call":
+        from core import mcp_client
+        if target not in mcp_client.allowed_targets():
+            return None
+        try:
+            if not isinstance(json.loads(content), dict):
+                return None
+        except Exception:
+            return None
     else:
         target = "slack"
     return {"tool": tool, "channel": ACTION_TOOLS[tool]["channel"], "target": target,
