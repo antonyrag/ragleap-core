@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-02
+
 ### Added
 
 - Dedicated zero-permission ServiceAccounts for Prometheus, Grafana, Loki, AlertManager and postgres-exporter (`templates/serviceaccounts.yaml`), with `automountServiceAccountToken: false` on both the ServiceAccounts and each Deployment's pod spec. Previously all five ran as the namespace `default` account with its API token mounted. None of them calls the Kubernetes API (Prometheus uses static targets in this chart), so no Role or RoleBinding is added. Controlled by the new `serviceAccount.create` value (default `true`). Promtail keeps its own ServiceAccount and ClusterRole, because it needs pod discovery.
@@ -28,7 +30,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Known limitations
 
-- The placeholder admin password is still the default when no option is set, and the long-running release is still using it. Upgrading will not change it: Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when it first initializes its database, so a release with a persistent volume needs `grafana cli admin reset-admin-password` (not yet tested).
+- The placeholder admin password is still the default when no option is set, and the long-running release is still using it. Upgrading will not change it: Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when it first initializes its database, so a release with a persistent volume needs `grafana cli admin reset-admin-password` (verified live: the command changed the password and the old placeholder was then rejected with 401, but it leaves the `ragleap-grafana-admin` Secret out of sync with Grafana).
 
 ## [0.4.0] - 2026-10-01
 
