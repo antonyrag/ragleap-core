@@ -1,0 +1,4 @@
+{{- if and .Values.grafana.enabled (not .Values.grafana.admin.existingSecret) (not .Values.grafana.admin.password) }}
+WARNING: Grafana is using the placeholder admin password "change-me-before-real-use".
+Set grafana.admin.password, or create your own Secret and set grafana.admin.existingSecret.
+{{- end }}

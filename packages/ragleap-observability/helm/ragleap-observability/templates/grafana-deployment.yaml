@@ -34,12 +34,12 @@ spec:
             - name: GF_SECURITY_ADMIN_USER
               valueFrom:
                 secretKeyRef:
-                  name: ragleap-grafana-admin
+                  name: {{ .Values.grafana.admin.existingSecret | default "ragleap-grafana-admin" }}
                   key: admin-user
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: ragleap-grafana-admin
+                  name: {{ .Values.grafana.admin.existingSecret | default "ragleap-grafana-admin" }}
                   key: admin-password
           volumeMounts:
             - name: datasources
