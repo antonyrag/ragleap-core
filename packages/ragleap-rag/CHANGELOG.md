@@ -20,7 +20,9 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Verified
 - Local run, Python 3.10, all extras installed, Postgres test database, `CI=true` so a missing extra fails instead of skipping: 326 tests, 312 passed, 14 skipped (12 live-gated Qdrant/Weaviate tests that need running servers, 2 that need `onnxruntime`). Without `CI=true`: 293 passed, 33 skipped (the 19 extras-guard tests skip locally).
 - Minimum versions installed and exercised: `pandas==2.2.2`, `lxml_html_clean==0.4.0`, `xlwt==1.3.0` (parquet extraction output and the trafilatura import checked).
-- Not verified: the `pyarrow>=14.0.0` floor, and the Python 3.11 / pandas 3.x combination CI uses (no 3.11 on the test host). The 28 per-extension tests use minimal generated samples, not complex real-world documents.
+- CI on this PR's branch (Python 3.11, Postgres service, all extras, run 36963231731): 308 passed, 18 skipped.
+- Python 3.11.15 with pandas 3.0.6 and pyarrow 25.0.1 (separate venv): parquet extraction of a table containing a null and floats gave the same output as with pandas 2.2.2 (`'a\tb\nx\t1.5\n\t2.0\n'`); `test_parsers`, `test_web_import_error`, `test_package_metadata` and `test_embedding`: 63 passed, 1 failed - `test_ollama_full_rag_integration_with_faiss`, because that venv was created without the faiss extra (it passes in the full-extras runs).
+- Not verified: the `pyarrow>=14.0.0` floor. The 28 per-extension tests use minimal generated samples, not complex real-world documents.
 
 ### Known, not fixed here
 - `_extract_zip` has no limit on member count or expanded size (a 39,002-byte zip returned 40,000,016 characters with no error).
