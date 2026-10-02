@@ -185,6 +185,9 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
         elif channel == "code":
             from core.code_exec import run_code
             return run_code(content)
+        elif channel == "shell":
+            from core.code_exec import run_shell
+            return run_shell(content)
         else:
             return f"Unsupported channel for autonomous send: {channel} (voice has no discrete send - see RFC #171)"
     except Exception as e:

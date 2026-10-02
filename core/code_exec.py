@@ -1,8 +1,10 @@
 """
-Client for the isolated code-sandbox runner (see sandbox/runner.py).
-Opt-in: CODE_EXEC_ENABLED=true AND SANDBOX_TOKEN set. SANDBOX_URL defaults to
-the compose service. The model supplies only the Python source; it never
-chooses the URL, token or any container option. Never raises.
+Client for the isolated sandbox runner (see sandbox/runner.py): run_code
+(Python) and run_shell (sh). Each is separately opt-in:
+  CODE_EXEC_ENABLED=true  /  SHELL_EXEC_ENABLED=true   AND   SANDBOX_TOKEN set.
+SANDBOX_URL defaults to the compose service. The model supplies only the
+source/command text; it never chooses the URL, token or any container
+option. Never raises.
 """
 import logging
 import os
@@ -16,32 +18,42 @@ MAX_RESULT_CHARS = 2000
 HTTP_TIMEOUT = 45
 
 
-def enabled() -> bool:
-    return (os.environ.get("CODE_EXEC_ENABLED", "").strip().lower() == "true"
+def _flag(name: str) -> bool:
+    return (os.environ.get(name, "").strip().lower() == "true"
             and bool(os.environ.get("SANDBOX_TOKEN", "").strip()))
 
 
-def run_code(code: str) -> str:
+def enabled() -> bool:
+    return _flag("CODE_EXEC_ENABLED")
+
+
+def shell_enabled() -> bool:
+    return _flag("SHELL_EXEC_ENABLED")
+
+
+def _execute(label: str, key: str, text: str, is_enabled) -> str:
     try:
-        code = (code or "").strip()
-        if not code:
-            return "Code run: refused (empty code)"
-        if len(code) > MAX_CODE_CHARS:
-            return "Code run: refused (code too long)"
-        if not enabled():
-            return "Code run: refused (code execution not enabled)"
+        text = (text or "").strip()
+        if not text:
+            return f"{label}: refused (empty)"
+        if len(text) > MAX_CODE_CHARS:
+            return f"{label}: refused (too long)"
+        if "\x00" in text:
+            return f"{label}: refused (invalid characters)"
+        if not is_enabled():
+            return f"{label}: refused (not enabled)"
         url = os.environ.get("SANDBOX_URL", "http://sandbox:8099").strip().rstrip("/")
         resp = requests.post(
-            url + "/run", json={"code": code},
+            url + "/run", json={key: text},
             headers={"Authorization": "Bearer " + os.environ["SANDBOX_TOKEN"].strip()},
             timeout=HTTP_TIMEOUT, allow_redirects=False,
         )
         if resp.status_code == 429:
-            return "Code run: sandbox busy, try again"
+            return f"{label}: sandbox busy, try again"
         if resp.status_code != 200:
             raise ValueError(f"HTTP {resp.status_code}")
         d = resp.json()
-        head = f"Code run: exit {d.get('exit_code')}"
+        head = f"{label}: exit {d.get('exit_code')}"
         if d.get("timed_out"):
             head += " (timed out)"
         if d.get("oom"):
@@ -53,5 +65,13 @@ def run_code(code: str) -> str:
             parts.append("stderr:\n" + d["stderr"])
         return "\n".join(parts)[:MAX_RESULT_CHARS]
     except Exception as e:
-        logger.error("Code sandbox call failed: %s", e)
-        return "Code run: failed; see server logs."
+        logger.error("%s sandbox call failed: %s", label, e)
+        return f"{label}: failed; see server logs."
+
+
+def run_code(code: str) -> str:
+    return _execute("Code run", "code", code, enabled)
+
+
+def run_shell(command: str) -> str:
+    return _execute("Shell run", "shell", command, shell_enabled)
