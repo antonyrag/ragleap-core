@@ -50,12 +50,12 @@ public final class DocumentParser {
     /** Formats implemented in this port so far. Grows as batches land. */
     public static final Set<String> SUPPORTED_EXTENSIONS = Collections.unmodifiableSet(new TreeSet<>(List.of(
             ".txt", ".md", ".sql", ".csv", ".tsv", ".json", ".yaml", ".yml", ".vtt", ".srt", ".zip", ".rtf",
-            ".html", ".htm", ".xml", ".xsl", ".xslt", ".pdf")));
+            ".html", ".htm", ".xml", ".xsl", ".xslt", ".pdf",
+            ".docx", ".pptx", ".xlsx", ".odt", ".ods", ".odp", ".epub")));
 
     /** Supported by the Python package, planned for this port, not written yet. */
     private static final Set<String> NOT_YET_PORTED = Set.of(
-            ".docx", ".xlsx", ".xls", ".pptx",
-            ".odt", ".ods", ".odp", ".eml", ".epub");
+            ".xls", ".eml");
 
     private static final Set<String> UNSUPPORTED_LEGACY = Set.of(".doc", ".ppt");
 
@@ -121,6 +121,12 @@ public final class DocumentParser {
             case ".html", ".htm" -> MarkupExtractor.html(rawBytes);
             case ".xml", ".xsl", ".xslt" -> MarkupExtractor.xml(rawBytes);
             case ".pdf" -> PdfExtractor.extract(rawBytes);
+            case ".docx" -> DocxExtractor.extract(rawBytes);
+            case ".pptx" -> PptxExtractor.extract(rawBytes);
+            case ".xlsx" -> XlsxExtractor.extract(rawBytes);
+            case ".odt", ".odp" -> OdfExtractor.paragraphs(rawBytes, ext.equals(".odt") ? "ODT" : "ODP");
+            case ".ods" -> OdfExtractor.spreadsheet(rawBytes);
+            case ".epub" -> EpubExtractor.extract(rawBytes);
             default -> throw new IllegalArgumentException(
                     "Unsupported file type '" + ext + "'. Supported: "
                             + String.join(", ", SUPPORTED_EXTENSIONS) + ".");
