@@ -2200,14 +2200,14 @@ wheels = [
 
 [[package]]
 name = "pypdf"
-version = "6.16.1"
+version = "6.19.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/5a/df92d1c1ef8806ca28f20f978ee059894868d93de797a7e2edebe7fe1a43/pypdf-6.16.1.tar.gz", hash = "sha256:c4d1b43ddae921387321cf63936cd16a7743b91d2da92f165c149a195c972ba9", size = 7003737, upload-time = "2026-08-14T12:24:04.531Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1f/ac/63d71aaedb59acbcdef491e6ca6469165e3771c9c74358204818fd9bc5a6/pypdf-6.19.0.tar.gz", hash = "sha256:bbc43aca292369ccc6cbc8a921991ecf2538a3587ab5a116eff06c321d647155", size = 7033266, upload-time = "2026-09-16T09:32:05.946Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/a1/724b18d6757ab7253a8fecd3a430eb8d980ed26872ba16651e7b5ddfc63f/pypdf-6.16.1-py3-none-any.whl", hash = "sha256:63fec31c4092ae50b6729beedcb469055b60d20c834bde1c402df241f371f644", size = 382924, upload-time = "2026-08-14T12:24:02.854Z" },
+    { url = "https://files.pythonhosted.org/packages/3c/2c/c43c03eaf630435f023f1dc61ec4a4a78951ad5530a62c71cc89bde307b7/pypdf-6.19.0-py3-none-any.whl", hash = "sha256:7e5d6e730e7dae87d560a2cee218b852f6498c8be61966f3cd02ead971e48d14", size = 395480, upload-time = "2026-09-16T09:32:04.087Z" },
 ]
 
 [[package]]
@@ -2433,7 +2433,7 @@ wheels = [
 
 [[package]]
 name = "ragleap-rag"
-version = "0.12.9"
+version = "0.12.10"
 source = { editable = "." }
 dependencies = [
     { name = "psycopg2-binary" },
@@ -2452,11 +2452,14 @@ all = [
     { name = "google-genai" },
     { name = "huggingface-hub" },
     { name = "jsonschema" },
+    { name = "lxml-html-clean" },
     { name = "odfpy" },
     { name = "onnxruntime", version = "1.23.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "onnxruntime", version = "1.28.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "openai" },
     { name = "openpyxl" },
+    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pandas", version = "3.0.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pillow" },
     { name = "pinecone" },
     { name = "pyarrow" },
@@ -2483,6 +2486,8 @@ formats = [
     { name = "ebooklib" },
     { name = "odfpy" },
     { name = "openpyxl" },
+    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "pandas", version = "3.0.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pyarrow" },
     { name = "python-pptx" },
     { name = "pyyaml" },
@@ -2524,11 +2529,13 @@ test = [
     { name = "psycopg2-binary" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "xlwt" },
 ]
 weaviate = [
     { name = "weaviate-client" },
 ]
 web = [
+    { name = "lxml-html-clean" },
     { name = "trafilatura" },
 ]
 
@@ -2548,6 +2555,8 @@ requires-dist = [
     { name = "huggingface-hub", marker = "extra == 'rerank'", specifier = ">=0.20.0" },
     { name = "jsonschema", marker = "extra == 'all'", specifier = ">=4.0.0" },
     { name = "jsonschema", marker = "extra == 'structured'", specifier = ">=4.0.0" },
+    { name = "lxml-html-clean", marker = "extra == 'all'", specifier = ">=0.4.0" },
+    { name = "lxml-html-clean", marker = "extra == 'web'", specifier = ">=0.4.0" },
     { name = "odfpy", marker = "extra == 'all'", specifier = ">=1.4.0" },
     { name = "odfpy", marker = "extra == 'formats'", specifier = ">=1.4.0" },
     { name = "onnxruntime", marker = "extra == 'all'", specifier = ">=1.17.0" },
@@ -2556,6 +2565,8 @@ requires-dist = [
     { name = "openai", marker = "extra == 'openai'", specifier = ">=1.40.0" },
     { name = "openpyxl", marker = "extra == 'all'", specifier = ">=3.1.0" },
     { name = "openpyxl", marker = "extra == 'formats'", specifier = ">=3.1.0" },
+    { name = "pandas", marker = "extra == 'all'", specifier = ">=2.2.2" },
+    { name = "pandas", marker = "extra == 'formats'", specifier = ">=2.2.2" },
     { name = "pillow", marker = "extra == 'all'", specifier = ">=10.0.0" },
     { name = "pillow", marker = "extra == 'ocr'", specifier = ">=10.0.0" },
     { name = "pinecone", marker = "extra == 'all'", specifier = ">=5.0.0" },
@@ -2592,6 +2603,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0.0" },
     { name = "xlrd", marker = "extra == 'all'", specifier = ">=2.0.0" },
     { name = "xlrd", marker = "extra == 'formats'", specifier = ">=2.0.0" },
+    { name = "xlwt", marker = "extra == 'test'", specifier = ">=1.3.0" },
 ]
 provides-extras = ["gemini", "test", "anthropic", "openai", "rerank", "faiss", "pinecone", "weaviate", "qdrant", "milvus", "structured", "web", "ocr", "redis", "formats", "all"]
 
@@ -3475,4 +3487,13 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/46/2c/c06ef49dc36e7954e55b802a8b231770d286a9758b3d936bd1e04ce5ba88/xlsxwriter-3.2.9.tar.gz", hash = "sha256:254b1c37a368c444eac6e2f867405cc9e461b0ed97a3233b2ac1e574efb4140c", size = 215940, upload-time = "2025-09-16T00:16:21.63Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/0c/3662f4a66880196a590b202f0db82d919dd2f89e99a27fadef91c4a33d41/xlsxwriter-3.2.9-py3-none-any.whl", hash = "sha256:9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3", size = 175315, upload-time = "2025-09-16T00:16:20.108Z" },
+]
+
+[[package]]
+name = "xlwt"
+version = "1.3.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/06/97/56a6f56ce44578a69343449aa5a0d98eefe04085d69da539f3034e2cd5c1/xlwt-1.3.0.tar.gz", hash = "sha256:c59912717a9b28f1a3c2a98fd60741014b06b043936dcecbc113eaaada156c88", size = 153929, upload-time = "2017-08-22T06:47:16.498Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/48/def306413b25c3d01753603b1a222a011b8621aed27cd7f89cbc27e6b0f4/xlwt-1.3.0-py2.py3-none-any.whl", hash = "sha256:a082260524678ba48a297d922cc385f58278b8aa68741596a87de01a9c628b2e", size = 99981, upload-time = "2017-08-22T06:47:15.281Z" },
 ]
