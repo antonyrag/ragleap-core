@@ -182,6 +182,9 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
         elif channel == "mcp":
             from core.mcp_client import call_tool
             return call_tool(target, content)
+        elif channel == "code":
+            from core.code_exec import run_code
+            return run_code(content)
         else:
             return f"Unsupported channel for autonomous send: {channel} (voice has no discrete send - see RFC #171)"
     except Exception as e:

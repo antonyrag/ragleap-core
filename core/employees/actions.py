@@ -35,6 +35,7 @@ ACTION_TOOLS = {
     "create_task": {"channel": "task"},
     "notify_owner": {"channel": "notify_owner"},
     "mcp_call": {"channel": "mcp"},
+    "run_code": {"channel": "code"},
 }
 
 
@@ -85,6 +86,19 @@ def available_tools() -> Dict[str, str]:
         tools["mcp_call"] = (
             "Call an external MCP tool. target must be exactly one of: " + ", ".join(mcp_targets) +
             ". content must be a JSON object holding that tool's arguments."
+        )
+    # Opt-in: only when the owner enabled the sandbox and set its token.
+    try:
+        from core import code_exec
+        code_on = code_exec.enabled()
+    except Exception:
+        code_on = False
+    if code_on:
+        tools["run_code"] = (
+            "Run a short Python 3 script in an isolated sandbox (no network, nothing kept "
+            "afterwards, 10 second limit, standard library only) and return its printed "
+            "output. target is ignored (leave empty). content must be the complete Python "
+            "source, under 2000 characters; use print() to produce results."
         )
     return tools
 
@@ -159,6 +173,10 @@ def _validate_plan(plan: Dict, tools: Dict[str, str]) -> Optional[Dict]:
                 return None
         except Exception:
             return None
+    elif tool == "run_code":
+        target = ""
+        if len(str(plan.get("content", "") or "").strip()) > MAX_ACTION_CONTENT:
+            return None  # never run silently truncated code
     else:
         target = "slack"
     return {"tool": tool, "channel": ACTION_TOOLS[tool]["channel"], "target": target,
