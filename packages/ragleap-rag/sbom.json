@@ -179,7 +179,7 @@
       "version": "0.8.0"
     },
     {
-      "bom-ref": "anthropic==1.8.0",
+      "bom-ref": "anthropic==1.11.0",
       "description": "The official Python library for the anthropic API",
       "externalReferences": [
         {
@@ -202,9 +202,9 @@
         }
       ],
       "name": "anthropic",
-      "purl": "pkg:pypi/anthropic@1.8.0",
+      "purl": "pkg:pypi/anthropic@1.11.0",
       "type": "library",
-      "version": "1.8.0"
+      "version": "1.11.0"
     },
     {
       "bom-ref": "anyio==4.15.1",
@@ -536,26 +536,31 @@
       "version": "2.1.1"
     },
     {
-      "bom-ref": "chardet==5.2.0",
-      "description": "Universal encoding detector for Python 3",
+      "bom-ref": "chardet==7.6.0",
+      "description": "Universal character encoding detector",
       "externalReferences": [
         {
           "comment": "from packaging metadata Project-URL: Documentation",
           "type": "documentation",
-          "url": "https://chardet.readthedocs.io/"
+          "url": "https://chardet.readthedocs.io"
         },
         {
-          "comment": "from packaging metadata Project-URL: Issue Tracker",
+          "comment": "from packaging metadata Project-URL: Bug Tracker",
           "type": "issue-tracker",
           "url": "https://github.com/chardet/chardet/issues"
         },
         {
-          "comment": "from packaging metadata Project-URL: GitHub Project",
-          "type": "other",
+          "comment": "from packaging metadata Project-URL: Changelog",
+          "type": "release-notes",
+          "url": "https://chardet.readthedocs.io/en/latest/changelog.html"
+        },
+        {
+          "comment": "from packaging metadata Project-URL: Repository",
+          "type": "vcs",
           "url": "https://github.com/chardet/chardet"
         },
         {
-          "comment": "from packaging metadata: Home-page",
+          "comment": "from packaging metadata Project-URL: Homepage",
           "type": "website",
           "url": "https://github.com/chardet/chardet"
         }
@@ -564,17 +569,17 @@
         {
           "license": {
             "acknowledgement": "declared",
-            "name": "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)"
+            "id": "0BSD"
           }
         }
       ],
       "name": "chardet",
-      "purl": "pkg:pypi/chardet@5.2.0",
+      "purl": "pkg:pypi/chardet@7.6.0",
       "type": "library",
-      "version": "5.2.0"
+      "version": "7.6.0"
     },
     {
-      "bom-ref": "charset-normalizer==3.5.1",
+      "bom-ref": "charset-normalizer==3.5.2",
       "description": "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet.",
       "externalReferences": [
         {
@@ -607,9 +612,9 @@
         }
       ],
       "name": "charset-normalizer",
-      "purl": "pkg:pypi/charset-normalizer@3.5.1",
+      "purl": "pkg:pypi/charset-normalizer@3.5.2",
       "type": "library",
-      "version": "3.5.1"
+      "version": "3.5.2"
     },
     {
       "bom-ref": "click==8.5.0",
@@ -688,7 +693,7 @@
       "version": "1.4.0"
     },
     {
-      "bom-ref": "cryptography==50.0.1",
+      "bom-ref": "cryptography==50.0.2",
       "description": "cryptography is a package which provides cryptographic recipes and primitives to Python developers.",
       "externalReferences": [
         {
@@ -724,12 +729,12 @@
         }
       ],
       "name": "cryptography",
-      "purl": "pkg:pypi/cryptography@50.0.1",
+      "purl": "pkg:pypi/cryptography@50.0.2",
       "type": "library",
-      "version": "50.0.1"
+      "version": "50.0.2"
     },
     {
-      "bom-ref": "cyclonedx-bom==7.4.0",
+      "bom-ref": "cyclonedx-bom==7.5.0",
       "description": "CycloneDX Software Bill of Materials (SBOM) generator for Python projects and environments",
       "externalReferences": [
         {
@@ -778,9 +783,9 @@
         }
       ],
       "name": "cyclonedx-bom",
-      "purl": "pkg:pypi/cyclonedx-bom@7.4.0",
+      "purl": "pkg:pypi/cyclonedx-bom@7.5.0",
       "type": "library",
-      "version": "7.4.0"
+      "version": "7.5.0"
     },
     {
       "bom-ref": "cyclonedx-python-lib==11.12.0",
@@ -1031,7 +1036,7 @@
       "version": "1.15.1"
     },
     {
-      "bom-ref": "filelock==4.0.5",
+      "bom-ref": "filelock==4.0.9",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1064,9 +1069,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@4.0.5",
+      "purl": "pkg:pypi/filelock@4.0.9",
       "type": "library",
-      "version": "4.0.5"
+      "version": "4.0.9"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -1173,7 +1178,7 @@
       "version": "2026.9.0"
     },
     {
-      "bom-ref": "google-auth==2.58.1",
+      "bom-ref": "google-auth==2.59.1",
       "description": "Google Authentication Library",
       "externalReferences": [
         {
@@ -1197,12 +1202,12 @@
           "value": "requests"
         }
       ],
-      "purl": "pkg:pypi/google-auth@2.58.1",
+      "purl": "pkg:pypi/google-auth@2.59.1",
       "type": "library",
-      "version": "2.58.1"
+      "version": "2.59.1"
     },
     {
-      "bom-ref": "google-genai==2.25.0",
+      "bom-ref": "google-genai==2.27.0",
       "description": "GenAI Python SDK",
       "externalReferences": [
         {
@@ -1220,9 +1225,9 @@
         }
       ],
       "name": "google-genai",
-      "purl": "pkg:pypi/google-genai@2.25.0",
+      "purl": "pkg:pypi/google-genai@2.27.0",
       "type": "library",
-      "version": "2.25.0"
+      "version": "2.27.0"
     },
     {
       "bom-ref": "grpcio==1.78.0",
@@ -2211,7 +2216,7 @@
       "version": "1.30.0"
     },
     {
-      "bom-ref": "openai==3.19.2",
+      "bom-ref": "openai==3.23.0",
       "description": "The official Python library for the openai API",
       "externalReferences": [
         {
@@ -2234,9 +2239,9 @@
         }
       ],
       "name": "openai",
-      "purl": "pkg:pypi/openai@3.19.2",
+      "purl": "pkg:pypi/openai@3.23.0",
       "type": "library",
-      "version": "3.19.2"
+      "version": "3.23.0"
     },
     {
       "bom-ref": "openpyxl==3.1.5",
@@ -3118,7 +3123,7 @@
       "version": "1.2.0"
     },
     {
-      "bom-ref": "python-dotenv==1.2.3",
+      "bom-ref": "python-dotenv==1.2.4",
       "description": "Read key-value pairs from a .env file and set them as environment variables",
       "externalReferences": [
         {
@@ -3136,9 +3141,9 @@
         }
       ],
       "name": "python-dotenv",
-      "purl": "pkg:pypi/python-dotenv@1.2.3",
+      "purl": "pkg:pypi/python-dotenv@1.2.4",
       "type": "library",
-      "version": "1.2.3"
+      "version": "1.2.4"
     },
     {
       "bom-ref": "python-pptx==1.0.2",
@@ -3347,7 +3352,7 @@
       "version": "0.37.0"
     },
     {
-      "bom-ref": "regex==2026.9.10",
+      "bom-ref": "regex==2026.9.29",
       "description": "Alternative regular expression module, to replace re.",
       "externalReferences": [
         {
@@ -3363,9 +3368,9 @@
         }
       ],
       "name": "regex",
-      "purl": "pkg:pypi/regex@2026.9.10",
+      "purl": "pkg:pypi/regex@2026.9.29",
       "type": "library",
-      "version": "2026.9.10"
+      "version": "2026.9.29"
     },
     {
       "bom-ref": "requests==2.34.2",
@@ -4359,7 +4364,7 @@
   "dependencies": [
     {
       "dependsOn": [
-        "cryptography==50.0.1",
+        "cryptography==50.0.2",
         "joserfc==1.7.5"
       ],
       "ref": "Authlib==1.8.0"
@@ -4381,14 +4386,14 @@
       "dependsOn": [
         "anyio==4.15.1",
         "docstring_parser==0.18.0",
-        "google-auth==2.58.1",
+        "google-auth==2.59.1",
         "httpx2==2.13.1",
         "jiter==0.17.0",
         "pydantic==2.13.5",
         "sniffio==1.3.1",
         "typing_extensions==4.16.0"
       ],
-      "ref": "anthropic==1.8.0"
+      "ref": "anthropic==1.11.0"
     },
     {
       "dependsOn": [
@@ -4419,8 +4424,8 @@
     },
     {
       "dependsOn": [
-        "chardet==5.2.0",
-        "charset-normalizer==3.5.1",
+        "chardet==7.6.0",
+        "charset-normalizer==3.5.2",
         "lxml==6.1.3",
         "soupsieve==2.10",
         "typing_extensions==4.16.0"
@@ -4443,10 +4448,10 @@
       "ref": "cffi==2.1.1"
     },
     {
-      "ref": "chardet==5.2.0"
+      "ref": "chardet==7.6.0"
     },
     {
-      "ref": "charset-normalizer==3.5.1"
+      "ref": "charset-normalizer==3.5.2"
     },
     {
       "ref": "click==8.5.0"
@@ -4464,17 +4469,17 @@
         "cffi==2.1.1",
         "typing_extensions==4.16.0"
       ],
-      "ref": "cryptography==50.0.1"
+      "ref": "cryptography==50.0.2"
     },
     {
       "dependsOn": [
-        "chardet==5.2.0",
+        "chardet==7.6.0",
         "cyclonedx-python-lib==11.12.0",
         "packageurl-python==0.17.6",
         "packaging==26.3",
         "pip-requirements-parser==32.0.1"
       ],
-      "ref": "cyclonedx-bom==7.4.0"
+      "ref": "cyclonedx-bom==7.5.0"
     },
     {
       "dependsOn": [
@@ -4493,7 +4498,7 @@
       "dependsOn": [
         "python-dateutil==2.9.0.post0",
         "pytz==2026.4",
-        "regex==2026.9.10",
+        "regex==2026.9.29",
         "tzlocal==5.4.4"
       ],
       "ref": "dateparser==1.4.3"
@@ -4518,7 +4523,7 @@
       "ref": "faiss-cpu==1.15.1"
     },
     {
-      "ref": "filelock==4.0.5"
+      "ref": "filelock==4.0.9"
     },
     {
       "ref": "flatbuffers==25.12.19"
@@ -4539,20 +4544,20 @@
     },
     {
       "dependsOn": [
-        "cryptography==50.0.1",
+        "cryptography==50.0.2",
         "grpcio==1.78.0",
         "packaging==26.3",
         "pyasn1_modules==0.4.2",
         "requests==2.34.2",
         "urllib3==2.8.0"
       ],
-      "ref": "google-auth==2.58.1"
+      "ref": "google-auth==2.59.1"
     },
     {
       "dependsOn": [
         "anyio==4.15.1",
         "distro==1.9.0",
-        "google-auth==2.58.1",
+        "google-auth==2.59.1",
         "httpx==0.28.1",
         "pillow==12.3.0",
         "protobuf==6.33.6",
@@ -4563,7 +4568,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "google-genai==2.25.0"
+      "ref": "google-genai==2.27.0"
     },
     {
       "dependsOn": [
@@ -4589,7 +4594,7 @@
     },
     {
       "dependsOn": [
-        "charset-normalizer==3.5.1",
+        "charset-normalizer==3.5.2",
         "dateparser==1.4.3",
         "lxml==6.1.3",
         "python-dateutil==2.9.0.post0",
@@ -4643,7 +4648,7 @@
         "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
-        "filelock==4.0.5",
+        "filelock==4.0.9",
         "fsspec==2026.9.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -4674,7 +4679,7 @@
     },
     {
       "dependsOn": [
-        "cryptography==50.0.1"
+        "cryptography==50.0.2"
       ],
       "ref": "joserfc==1.7.5"
     },
@@ -4713,7 +4718,7 @@
     },
     {
       "dependsOn": [
-        "regex==2026.9.10"
+        "regex==2026.9.29"
       ],
       "ref": "lark==1.3.1"
     },
@@ -4773,7 +4778,7 @@
         "urllib3==2.8.0",
         "websockets==16.1.1"
       ],
-      "ref": "openai==3.19.2"
+      "ref": "openai==3.23.0"
     },
     {
       "dependsOn": [
@@ -4895,7 +4900,7 @@
         "pandas==3.0.6",
         "protobuf==6.33.6",
         "pyarrow==25.0.1",
-        "python-dotenv==1.2.3",
+        "python-dotenv==1.2.4",
         "requests==2.34.2",
         "setuptools==79.0.1",
         "urllib3==2.8.0"
@@ -4907,7 +4912,7 @@
     },
     {
       "dependsOn": [
-        "cryptography==50.0.1",
+        "cryptography==50.0.2",
         "pillow==12.3.0",
         "typing_extensions==4.16.0"
       ],
@@ -4937,7 +4942,7 @@
       "dependsOn": [
         "click==8.5.0"
       ],
-      "ref": "python-dotenv==1.2.3"
+      "ref": "python-dotenv==1.2.4"
     },
     {
       "dependsOn": [
@@ -4965,7 +4970,7 @@
     },
     {
       "dependsOn": [
-        "cryptography==50.0.1",
+        "cryptography==50.0.2",
         "requests==2.34.2"
       ],
       "ref": "redis==8.1.0"
@@ -4979,13 +4984,13 @@
       "ref": "referencing==0.37.0"
     },
     {
-      "ref": "regex==2026.9.10"
+      "ref": "regex==2026.9.29"
     },
     {
       "dependsOn": [
         "certifi==2026.7.22",
-        "chardet==5.2.0",
-        "charset-normalizer==3.5.1",
+        "chardet==7.6.0",
+        "charset-normalizer==3.5.2",
         "idna==3.20",
         "urllib3==2.8.0"
       ],
@@ -5010,16 +5015,18 @@
       "dependsOn": [
         "EbookLib==0.20",
         "PyYAML==6.0.3",
-        "anthropic==1.8.0",
+        "anthropic==1.11.0",
         "beautifulsoup4==4.15.0",
         "faiss-cpu==1.15.1",
-        "google-genai==2.25.0",
+        "google-genai==2.27.0",
         "huggingface_hub==1.33.0",
         "jsonschema==4.26.0",
+        "lxml_html_clean==0.4.5",
         "odfpy==1.4.1",
         "onnxruntime==1.30.0",
-        "openai==3.19.2",
+        "openai==3.23.0",
         "openpyxl==3.1.5",
+        "pandas==3.0.6",
         "pillow==12.3.0",
         "pinecone==10.0.0",
         "psycopg2-binary==2.9.13",
@@ -5046,7 +5053,7 @@
     },
     {
       "dependsOn": [
-        "filelock==4.0.5",
+        "filelock==4.0.9",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -5072,7 +5079,7 @@
     },
     {
       "dependsOn": [
-        "regex==2026.9.10",
+        "regex==2026.9.29",
         "requests==2.34.2"
       ],
       "ref": "tiktoken==0.14.0"
@@ -5098,7 +5105,7 @@
       "dependsOn": [
         "beautifulsoup4==4.15.0",
         "certifi==2026.7.22",
-        "charset-normalizer==3.5.1",
+        "charset-normalizer==3.5.2",
         "courlan==1.4.0",
         "htmldate==1.10.0",
         "jusText==3.0.2",
@@ -5203,9 +5210,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.12.9"
+      "version": "0.12.10"
     },
-    "timestamp": "2026-09-28T11:21:37.091858+00:00",
+    "timestamp": "2026-10-02T04:12:14.949807+00:00",
     "tools": {
       "components": [
         {
@@ -5255,7 +5262,7 @@
           ],
           "name": "cyclonedx-py",
           "type": "application",
-          "version": "7.4.0"
+          "version": "7.5.0"
         },
         {
           "description": "Python library for CycloneDX",
@@ -5309,7 +5316,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:6b98db9e-955e-49cd-adf9-d7d54ae9d5a8",
+  "serialNumber": "urn:uuid:362b8209-7f51-4307-93a1-7f8d05761aad",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
