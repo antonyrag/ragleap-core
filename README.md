@@ -275,7 +275,7 @@ If you don't need the full Docker app — WhatsApp/Telegram/Discord/Voice adapte
 pip install ragleap-rag
 ```
 
-- **`ragleap-rag`** — the chunking → embedding → retrieval → generation pipeline as a library. Pluggable embeddings (12+ providers), 6 vector backends (FAISS, PgVector, Pinecone, Weaviate, Qdrant, Milvus), cross-encoder reranking, and more.
+- **`ragleap-rag`** — the chunking → embedding → retrieval → generation pipeline as a library. Pluggable embeddings (8 providers: Gemini, OpenAI, Mistral, Together, Ollama, Cohere, Voyage and a custom endpoint), 6 vector backends (FAISS, PgVector, Pinecone, Weaviate, Qdrant, Milvus), cross-encoder reranking, and more.
 - **`ragleap-graph`** — Neo4j-backed knowledge graph retrieval, usable standalone or alongside `ragleap-rag`.
 - **`ragleap-vectorstores`** — pluggable vector backends beyond `ragleap-rag` core's 6. Backends: Chroma and LanceDB (embedded/local), Redis (RediSearch/Redis Stack), Upstash Vector (managed serverless) and OpenSearch (k-NN). Install with `pip install ragleap-vectorstores[chroma]` or `uv add ragleap-vectorstores[chroma]`.
 - **`ragleap-tools`** — standalone, dependency-light tools for LLM tool-calling. 12 stateless tools (calculator, date/time, unit conversion, JSON/CSV parsing, text utilities), sandboxed file ops (symlink-escape protected), `search_documents` (hybrid vector+keyword search), `search_web` (pluggable BYOK providers such as Tavily and Serper), and optional `ragleap-rag`-backed document ingestion. Does not own a tool-calling execution loop — provides `Tool` objects for your own loop or `ragleap-agents` once it ships. Install with `pip install ragleap-tools` or `uv add ragleap-tools`.
