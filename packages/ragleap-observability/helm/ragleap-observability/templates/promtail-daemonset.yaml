@@ -1,4 +1,4 @@
-﻿{{- if .Values.promtail.enabled }}
+{{- if .Values.promtail.enabled }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -53,7 +53,7 @@ metadata:
   name: ragleap-promtail-role
 rules:
   - apiGroups: [""]
-    resources: ["pods", "nodes"]
+    resources: ["pods"]
     verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
