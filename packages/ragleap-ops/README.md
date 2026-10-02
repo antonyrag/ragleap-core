@@ -17,6 +17,26 @@ was found and fixed via live testing.
   (`app`/`voice` depend on `db` via an init container that polls
   `pg_isready`)
 
+## Helm chart and hardening
+
+`helm/ragleap-ops/` is the chart most users should install. It carries the
+same services as `k8s/`, plus:
+
+- **Zero-permission ServiceAccounts** for `db`, `app`, `voice` and `neo4j`
+  (`serviceAccount.create`, default `true`). No Role or RoleBinding is
+  created and no API token is mounted. Verified live: the token path does
+  not exist in the `db` pod.
+- **Upgrading from 0.3.0:** if the ServiceAccounts already exist from the raw
+  `k8s/` manifests, Helm refuses with an ownership conflict. Install with
+  `--set serviceAccount.create=false` (token mounting is still disabled), or
+  delete the existing ServiceAccounts first.
+- **Read-only root filesystem** for `db`, `app` and `voice`. It is
+  deliberately not enabled for `neo4j`: live testing showed it shadows the
+  image's default config (see the comment in `neo4j-deployment.yaml`).
+- `RUNBOOK.md`: incident playbooks (db-down, neo4j-crash-loop, backup
+  failure, expired ingress certificate), each drilled against a
+  deliberately broken cluster.
+
 ## Regenerating local-only files
 
 Two files are intentionally **not** committed (see `.gitignore`) since
