@@ -112,6 +112,25 @@ services:
     # (only useful once REDIS_URL is set in .env - the app runs work
     # inline otherwise, and this container just idles waiting for jobs)
 
+  # Code sandbox runner. Opt-in: docker compose --profile sandbox up -d sandbox
+  # It holds the Docker socket so it can start throwaway locked-down containers,
+  # so it is kept tiny (sandbox/runner.py) and gets NO env_file: only its own
+  # token. No published ports; only the app reaches it, over the compose network.
+  sandbox:
+    profiles: ["sandbox"]
+    image: python:3.11-slim
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-python:3.11-slim}
+    volumes:
+      - ./sandbox/runner.py:/runner.py:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["python", "-u", "/runner.py"]
+
 volumes:
   ragleap_core_data:
   ragleap_core_neo4j_data:
