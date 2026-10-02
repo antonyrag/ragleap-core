@@ -306,7 +306,8 @@ def _extract_yaml(raw_bytes: bytes) -> str:
 
 
 def _extract_parquet(raw_bytes: bytes) -> str:
-    pyarrow = _require("pyarrow")
+    _require("pyarrow")
+    _require("pandas")  # Table.to_pandas() needs it; pyarrow does not install it
     import pyarrow.parquet as pq
     table = pq.read_table(io.BytesIO(raw_bytes))
     df = table.to_pandas()

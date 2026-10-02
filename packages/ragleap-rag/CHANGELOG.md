@@ -5,6 +5,28 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.10] - 2026-10-02
+### Fixed
+- `pip install "ragleap-rag[web]"` gave a broken `ingest_url()` on a fresh install: `trafilatura` imports `lxml.html.clean`, which is now the separate `lxml_html_clean` package, and nothing installed it. The `web` and `all` extras now include it, and `fetch_url_text()` reports the real import error instead of a generic "requires the 'web' extra" message. (Reproduced on Python 3.10 with lxml 6.1.3 and trafilatura 2.2.0; with `lxml_html_clean` added the import worked and a loopback page extracted correctly.)
+- `.parquet` extraction failed with a raw `ModuleNotFoundError` for `pandas`: `_extract_parquet` calls `Table.to_pandas()` and no extra installed pandas. `pandas` is now in the `formats` and `all` extras, and a missing install raises the usual `ValueError` with an install hint. Output is unchanged for existing users.
+- `ragleap.__version__` reported `0.12.6` in the published 0.12.9 wheel (package metadata said 0.12.9). It is now `0.12.10`, and a test compares it with `pyproject.toml`.
+- The `RagLeap.ingest()` docstring said it handled only .txt/.pdf/.docx.
+
+### Changed
+- Tests: an autouse fixture in `tests/conftest.py` removes `*_API_KEY`, `*_EMBEDDING_MODEL`, `*_EMBEDDING_DIMENSIONS`, `*_EMBEDDING_BASE_URL` and `EMBEDDING_DIMENSIONS` for every test. 12 config-validation tests (11 in `tests/test_embedding.py`, plus `tests/test_pinecone_backend.py::test_requires_api_key`) failed whenever those variables were set, because `EmbeddingConfig` and `PineconeBackend` fall back to the environment.
+- CI: `ragleap-rag-tests` now installs the formats, web, qdrant, weaviate, pinecone and milvus extras. Before this, 63 mocked Pinecone/Milvus/Qdrant/Weaviate tests were skipped in CI because their client packages were missing (they passed locally with the extras installed). A CI-only guard test fails if an extra goes missing, so tests cannot silently turn into skips again.
+- New `tests/test_parsers.py`: one minimal generated sample per supported extension (all 28), plus checks for the legacy-format and missing-pandas errors. `xlwt` was added to the `test` extra to generate the `.xls` sample.
+
+### Verified
+- Local run, Python 3.10, all extras installed, Postgres test database, `CI=true` so a missing extra fails instead of skipping: 326 tests, 312 passed, 14 skipped (12 live-gated Qdrant/Weaviate tests that need running servers, 2 that need `onnxruntime`). Without `CI=true`: 293 passed, 33 skipped (the 19 extras-guard tests skip locally).
+- Minimum versions installed and exercised: `pandas==2.2.2`, `lxml_html_clean==0.4.0`, `xlwt==1.3.0` (parquet extraction output and the trafilatura import checked).
+- Not verified: the `pyarrow>=14.0.0` floor, and the Python 3.11 / pandas 3.x combination CI uses (no 3.11 on the test host). The 28 per-extension tests use minimal generated samples, not complex real-world documents.
+
+### Known, not fixed here
+- `_extract_zip` has no limit on member count or expanded size (a 39,002-byte zip returned 40,000,016 characters with no error).
+- `fetch_url_text()` / `ingest_url()` do not check the target address (a loopback URL was fetched), and failures return `None`, so "blocked or too large" looks like an empty page.
+- Tracked in issue #534.
+
 ## [0.12.9] - 2026-09-26
 ### Fixed
 - REAL BUG in WeaviateBackend, live-verified against a real Weaviate

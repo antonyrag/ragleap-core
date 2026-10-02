@@ -16,11 +16,11 @@ def fetch_url_text(url: str) -> Optional[str]:
     """
     try:
         import trafilatura
-    except ImportError:
+    except ImportError as e:
         raise ImportError(
-            "URL ingestion requires the 'web' extra. Install it with: "
-            "pip install ragleap-rag[web]"
-        )
+            "URL ingestion requires the 'web' extra (pip install "
+            f"ragleap-rag[web]), but importing trafilatura failed: {e}"
+        ) from e
 
     try:
         downloaded = trafilatura.fetch_url(url)

@@ -45,7 +45,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.12.6"
+__version__ = "0.12.10"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -170,7 +170,9 @@ class RagLeap:
 
     def ingest(self, filename: str, raw_bytes: bytes, metadata: Optional[Dict] = None) -> IngestResult:
         """
-        Extract text (from .txt/.pdf/.docx bytes), chunk, embed, and
+        Extract text from raw file bytes (any extension in
+        ragleap.parsers.SUPPORTED_EXTENSIONS; everything beyond txt, md,
+        pdf and docx needs the 'formats' extra), chunk, embed, and
         store it. Returns an IngestResult with the new document_id and
         chunk count.
         """
