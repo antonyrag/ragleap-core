@@ -61,6 +61,10 @@ spec:
       labels:
         app: ragleap-alertmanager
     spec:
+      automountServiceAccountToken: false
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: ragleap-alertmanager
+      {{- end }}
       securityContext:
         fsGroup: 65534
       containers:

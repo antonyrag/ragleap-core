@@ -80,3 +80,9 @@ alertmanager:
       from: ""
       username: ""
       secretKey: smtp_pass
+
+# Dedicated zero-permission ServiceAccounts for Prometheus, Grafana, Loki,
+# AlertManager and postgres-exporter. Tokens are never mounted. Promtail
+# keeps its own ServiceAccount and ClusterRole (it needs pod discovery).
+serviceAccount:
+  create: true

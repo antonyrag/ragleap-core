@@ -15,6 +15,10 @@ spec:
       labels:
         app: ragleap-grafana
     spec:
+      automountServiceAccountToken: false
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: ragleap-grafana
+      {{- end }}
       securityContext:
         fsGroup: 472
       containers:
