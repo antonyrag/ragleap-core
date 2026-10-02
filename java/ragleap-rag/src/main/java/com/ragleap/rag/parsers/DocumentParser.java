@@ -49,12 +49,12 @@ public final class DocumentParser {
 
     /** Formats implemented in this port so far. Grows as batches land. */
     public static final Set<String> SUPPORTED_EXTENSIONS = Collections.unmodifiableSet(new TreeSet<>(List.of(
-            ".txt", ".md", ".sql", ".csv", ".tsv", ".json", ".yaml", ".yml", ".vtt", ".srt", ".zip")));
+            ".txt", ".md", ".sql", ".csv", ".tsv", ".json", ".yaml", ".yml", ".vtt", ".srt", ".zip", ".rtf")));
 
     /** Supported by the Python package, planned for this port, not written yet. */
     private static final Set<String> NOT_YET_PORTED = Set.of(
             ".pdf", ".docx", ".xlsx", ".xls", ".pptx", ".html", ".htm", ".xml", ".xsl", ".xslt",
-            ".rtf", ".odt", ".ods", ".odp", ".eml", ".epub");
+            ".odt", ".ods", ".odp", ".eml", ".epub");
 
     private static final Set<String> UNSUPPORTED_LEGACY = Set.of(".doc", ".ppt");
 
@@ -116,6 +116,7 @@ public final class DocumentParser {
             case ".yaml", ".yml" -> extractYaml(rawBytes);
             case ".vtt", ".srt" -> extractSubtitle(rawBytes);
             case ".zip" -> extractZip(rawBytes);
+            case ".rtf" -> extractRtf(rawBytes);
             default -> throw new IllegalArgumentException(
                     "Unsupported file type '" + ext + "'. Supported: "
                             + String.join(", ", SUPPORTED_EXTENSIONS) + ".");
@@ -266,6 +267,10 @@ public final class DocumentParser {
             }
         }
         return !s.isEmpty();
+    }
+
+    static String extractRtf(byte[] rawBytes) {
+        return RtfConverter.rtfToText(extractTxt(rawBytes));
     }
 
     /** Extracts and concatenates text from every supported file inside the zip. */
