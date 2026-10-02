@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-02
+
 ### Added
 
 - **Dedicated zero-permission ServiceAccounts in the Helm chart** (`templates/serviceaccounts.yaml`): one each for `app`, `voice`, `db` and `neo4j`, with `automountServiceAccountToken: false` on both the ServiceAccount and each Deployment's pod spec. This hardening previously existed only in the raw `k8s/` manifests (#291); the Helm chart, which is what users install, had none of it, so a `helm install` ran every service as the namespace `default` account with its API token mounted. No Role or RoleBinding is added, because none of these services call the Kubernetes API. Controlled by the new `serviceAccount.create` value (default `true`).
