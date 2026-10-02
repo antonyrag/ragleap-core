@@ -32,6 +32,11 @@ real cluster:
   a human. Firing and resolved delivery were verified end to end on a live
   cluster against a Slack-compatible stand-in; a real Slack/email
   send has not yet been confirmed.
+- Least-privilege hardening, verified on a live cluster: Prometheus,
+  Grafana, Loki, AlertManager and postgres-exporter each run under their
+  own zero-permission ServiceAccounts with no API token mounted, and
+  Promtail's ClusterRole grants `pods` only. Grafana's admin password is
+  configurable (`grafana.admin.password` or `grafana.admin.existingSecret`).
 
 SLO/SLI dashboards are not yet built -- correctly sequenced after
 alerting has proven reliable, per the build order below.
@@ -76,6 +81,10 @@ alerting has proven reliable, per the build order below.
 - AlertManager's state (silences, notification log) uses `emptyDir`,
   not a PVC -- lost on pod restart.
 - A recurring log-shipping health check remains unbuilt.
+- **Grafana's admin password defaults to a placeholder** when no option is
+  set (the install prints a warning). On an existing release, upgrading will
+  not change it; use `grafana cli admin reset-admin-password` inside the pod,
+  and note this leaves the chart's Secret out of sync.
 - No canary or blue-green deployment strategy exists in this project
   -- every Deployment uses the Kubernetes default `RollingUpdate` or,
   for Prometheus specifically, an explicit `Recreate` (required by its

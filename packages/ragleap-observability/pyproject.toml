@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-observability"
-version = "0.4.0"
+version = "0.5.0"
 description = "Prometheus/Grafana/Loki/AlertManager observability stack for RagLeap Core, live-tested against a real cluster"
 readme = "README.md"
 requires-python = ">=3.10"
