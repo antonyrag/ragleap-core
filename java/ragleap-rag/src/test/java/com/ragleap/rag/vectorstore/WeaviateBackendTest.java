@@ -249,11 +249,13 @@ class WeaviateBackendTest {
 
     @Test
     void similarityScoreDerivedFromDistanceCorrectly() throws SQLException {
-        // Regression test proving the live-verified cosine-distance-to-
-        // similarity conversion: identical vector -> distance 0 ->
-        // similarity 1.0; orthogonal vector -> distance 1 -> similarity
-        // 0.0. Confirmed against real Weaviate output before this class
-        // was even written (see class javadoc).
+        // Cosine-distance-to-similarity conversion: identical vector ->
+        // distance 0 -> similarity 1.0; orthogonal vector -> distance 1 ->
+        // similarity 0.5 (the [0, 1] scale shared with pgvector and Qdrant).
+        // The distances were confirmed against real Weaviate output. An
+        // earlier version of this test asserted 0.0 for orthogonal, which
+        // encoded the unnormalized 1 - distance scale; see
+        // WeaviateScoreScaleTest for the full identical/orthogonal/opposite check.
         List<Double> embedding = vec(1, 0, 0, 0);
         List<Double> orthogonal = vec(0, 1, 0, 0);
         insertOneChunkDoc("doc-identical", "identical.txt", embedding, null);
