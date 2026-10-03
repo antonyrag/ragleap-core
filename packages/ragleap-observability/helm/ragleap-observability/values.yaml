@@ -57,7 +57,7 @@ promtail:
 
 alertmanager:
   enabled: true
-  image: prom/alertmanager:v0.27.0
+  image: prom/alertmanager:v0.34.1
   port: 9093
   # No real receiver configured yet -- the default route logs to a
   # webhook receiver pointed at a placeholder URL that will fail
