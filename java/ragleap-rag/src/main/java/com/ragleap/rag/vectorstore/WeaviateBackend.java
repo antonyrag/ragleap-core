@@ -182,6 +182,9 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
     @Override
     public void insertChunk(String documentId, String documentName, int chunkIndex, String text,
                              Integer tokenCount, List<Double> embedding, Map<String, Object> metadata) throws SQLException {
+        if (dimensions != null && embedding.size() != dimensions) {
+            throw new SQLException("expected " + dimensions + " dimensions, not " + embedding.size());
+        }
         String vectorKey = vectorKey(documentId, chunkIndex);
         String weaviateUuid = deterministicId(vectorKey);
         String metaJson = toJson(metadata);
