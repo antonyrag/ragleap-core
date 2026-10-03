@@ -38,13 +38,20 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   each provider; sandbox tests cover `../` traversal, absolute paths and a
   real on-disk symlink escape; rejected inputs are asserted never to reach
   the provider.
+- Live-checked on 2026-10-03 against the real Gemini API (model
+  `gemini-3.6-flash`): one `describe_image` call on a generated 64x64
+  solid-red PNG returned `Red`. This confirms the `x-goog-api-key` header,
+  the `inline_data` request body and the `candidates[0].content.parts[].text`
+  response parsing for PNG input. One call only: JPEG and WebP input, large
+  images and Gemini's error responses were not live-checked.
 
 ### Not verified
 
-- Neither vision provider has been called against a live account. Request
-  shapes were checked against current public documentation only. Response
-  field names, Gemini's supported image formats and the providers' exact
-  per-image size limits were not confirmed. Treat both as best-effort.
+- `AnthropicVisionProvider` has not been called against a live account. Its
+  request shape was checked against current public documentation only and
+  its response field names were not confirmed. Treat it as best-effort.
+- Gemini's supported image formats beyond PNG, and both providers' exact
+  per-image size limits, were not confirmed.
 
 ## [0.3.0] - 2026-09-29
 

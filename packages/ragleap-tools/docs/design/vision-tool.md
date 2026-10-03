@@ -103,7 +103,7 @@ request, including the prompt).
 
 ## Verification status
 
-Checked against current public documentation, not a live account:
+Checked against current public documentation (see the live check below):
 - Gemini: inline_data part with mime_type and base64 data in
   generateContent; 20 MB total-request limit for inline data;
   x-goog-api-key header (seen in one independent curl example).
@@ -111,9 +111,16 @@ Checked against current public documentation, not a live account:
   anthropic-version: 2023-06-01, content-type: application/json;
   base64 image block with media_type; formats JPEG, PNG, GIF, WebP.
 
-Not confirmed in the pages checked (from prior knowledge, to be
-rechecked in Phase 2): both providers' response field names for the
-text output, Gemini's supported image formats, and the exact per-image
-size limits. Neither provider has been called live. Any provider that
-has not been is labelled unverified in the README, CHANGELOG and the
-website, same standard as Tavily/Serper.
+Live check (2026-10-03): one real GeminiVisionProvider call (model
+gemini-3.6-flash) on a generated 64x64 solid-red PNG returned the expected
+one-word answer. This confirms the x-goog-api-key header, the inline_data
+request body and candidates[0].content.parts[].text parsing for PNG input.
+Not live-checked: JPEG and WebP input, large images, Gemini's error
+responses.
+
+Not confirmed: AnthropicVisionProvider has not been called live, and its
+response field names were taken from prior knowledge. Gemini's supported
+image formats beyond PNG and both providers' exact per-image size limits
+were not confirmed. Any provider that has not been live-checked is
+labelled unverified in the README, CHANGELOG and the website, same
+standard as Tavily/Serper.
