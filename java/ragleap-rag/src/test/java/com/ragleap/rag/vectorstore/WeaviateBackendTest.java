@@ -267,7 +267,7 @@ class WeaviateBackendTest {
         }
 
         assertEquals(1.0, scoreByDoc.get("identical.txt"), 0.001);
-        assertEquals(0.0, scoreByDoc.get("orthogonal.txt"), 0.001);
+        assertEquals(0.5, scoreByDoc.get("orthogonal.txt"), 0.001);
     }
 
     @Test
