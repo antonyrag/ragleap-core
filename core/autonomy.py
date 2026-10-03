@@ -198,6 +198,44 @@ def _send_via_channel(channel: str, target: str, content: str) -> str:
         return "Send error; see server logs."
 
 
+def list_pending(limit: int = 50) -> List[Dict]:
+    """Actions waiting for owner approval (semi mode), newest first, with full content."""
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT action_id, action_type, channel, target, content, subject, role, created_at "
+            "FROM autonomy_pending ORDER BY created_at DESC LIMIT %s",
+            (max(1, min(int(limit), 200)),),
+        )
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
+    keys = ("action_id", "action_type", "channel", "target", "content", "subject", "role", "created_at")
+    out = []
+    for r in rows:
+        d = dict(zip(keys, r))
+        if d["created_at"] is not None:
+            d["created_at"] = d["created_at"].isoformat()
+        out.append(d)
+    return out
+
+
+def resolve_pending(action_id: str, approve: bool) -> Optional[str]:
+    """
+    Approve or reject one pending action through the SAME path as an owner chat
+    reply ("YES/NO <id>"), so execution, logging and learning are identical.
+    Returns the reply text, or None if no such pending action exists.
+    """
+    action_id = (action_id or "").strip().upper()
+    if not re.fullmatch(r"[A-Z0-9]{8}", action_id):
+        return None
+    if not any(p["action_id"] == action_id for p in list_pending(200)):
+        return None
+    return process_approval_response(f"{'YES' if approve else 'NO'} {action_id}")
+
+
 def request_approval(action_type: str, channel: str, target: str,
                       content: str, action_id: str, role: Optional[str] = None) -> bool:
     """
@@ -341,7 +379,7 @@ def process_approval_response(message: str) -> Optional[str]:
         cur.close()
     except Exception as e:
         logger.error(f"process_approval_response lookup error: {e}", exc_info=True)
-        return f"Error processing approval: {e}"
+        return "Error processing approval; see server logs."
     finally:
         conn.close()
 

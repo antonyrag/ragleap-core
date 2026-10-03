@@ -863,6 +863,33 @@ def execute_autonomous_action(req: AutonomyActionRequest):
     )
 
 
+@app.get("/autonomy/pending")
+def get_pending_actions(limit: int = 50):
+    """
+    Actions waiting for owner approval in semi mode, newest first, each with its
+    full content (the exact code, command or URL). Review before approving.
+    """
+    return {"pending": autonomy.list_pending(limit=limit)}
+
+
+@app.post("/autonomy/pending/{action_id}/approve")
+def approve_pending_action(action_id: str):
+    """Approve and run one pending action (same path as replying YES <id>)."""
+    reply = autonomy.resolve_pending(action_id, approve=True)
+    if reply is None:
+        raise HTTPException(status_code=404, detail="No such pending action.")
+    return {"result": reply}
+
+
+@app.post("/autonomy/pending/{action_id}/reject")
+def reject_pending_action(action_id: str):
+    """Reject and discard one pending action (same path as replying NO <id>)."""
+    reply = autonomy.resolve_pending(action_id, approve=False)
+    if reply is None:
+        raise HTTPException(status_code=404, detail="No such pending action.")
+    return {"result": reply}
+
+
 @app.get("/autonomy/report")
 def get_autonomy_report():
     """Get today's Autonomous Loop activity report."""
