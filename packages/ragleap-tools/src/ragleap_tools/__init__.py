@@ -26,6 +26,16 @@ v0.2.0 - search_web: pluggable, bring-your-own-key web search
 (SearchProvider ABC; Tavily and Serper reference providers), standard
 library only - no new dependency. See docs/design/web-search-tool.md.
 
+v0.3.0 - search_github_repositories: GitHub repository search via the
+REST API; the token is optional. Standard library only. See
+docs/design/web-search-tool.md.
+
+v0.4.0 - describe_image: pluggable, bring-your-own-key image
+description (VisionProvider ABC; Gemini and Anthropic reference
+providers). Reads images only from the sandbox directory; URLs are
+deliberately not accepted. Standard library only. See
+docs/design/vision-tool.md.
+
 Deliberately out of scope for now (each needs its own security-focused
 design pass, not a rushed inclusion here): code execution,
 HTTP fetch, and database/business-system connectors (SQL,
@@ -52,8 +62,15 @@ from ragleap_tools.web_search import (
     make_web_search_tool,
 )
 from ragleap_tools.github_search import GitHubSearchConfig, make_github_search_tool
+from ragleap_tools.vision import (
+    AnthropicVisionProvider,
+    GeminiVisionProvider,
+    VisionConfig,
+    VisionProvider,
+    make_vision_tool,
+)
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 # Tools with no config/state needed - usable directly.
 STATELESS_TOOLS = [
@@ -100,5 +117,10 @@ __all__ = [
     "make_web_search_tool",
     "GitHubSearchConfig",
     "make_github_search_tool",
+    "VisionProvider",
+    "GeminiVisionProvider",
+    "AnthropicVisionProvider",
+    "VisionConfig",
+    "make_vision_tool",
     "__version__",
 ]

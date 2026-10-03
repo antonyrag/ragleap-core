@@ -5,6 +5,24 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
+### Added
+
+- `describe_image` tool (`VisionConfig`, `make_vision_tool`) with a
+  pluggable `VisionProvider` abstraction and two reference providers,
+  `GeminiVisionProvider` and `AnthropicVisionProvider`. Bring-your-own-key:
+  `api_key` and `model` are both required, no env-var fallback, no default
+  provider or model. Reads images only from the sandbox directory (the same
+  `FileOpsConfig` and path-escape protection as the file tools, including
+  symlink escapes). URLs are deliberately not accepted (SSRF risk). The
+  image type is detected from the file's bytes, not its extension; size is
+  capped at 5,000,000 bytes by default (`max_image_bytes`) and the
+  model-controlled prompt at 2,000 characters. Standard library only - no
+  new dependency. The returned description is untrusted text derived from
+  an image (prompt-injection surface; not screened). See
+  `docs/design/vision-tool.md`.
+
 ### Fixed
 
 - `GitHubSearchConfig` docstring wrongly gave 60 requests/hour per IP as
@@ -12,6 +30,21 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   core API limit). A live `/rate_limit` check on 2026-10-01 showed the
   search resource at 10 (core at 60). Documentation only - no behavior
   change. The published 0.3.0 wheel still carries the old docstring.
+
+### Verified
+
+- 133 tests passing (was 100). 33 new: request-building tests mock
+  `urllib.request.urlopen` and assert on the real URL, headers and body of
+  each provider; sandbox tests cover `../` traversal, absolute paths and a
+  real on-disk symlink escape; rejected inputs are asserted never to reach
+  the provider.
+
+### Not verified
+
+- Neither vision provider has been called against a live account. Request
+  shapes were checked against current public documentation only. Response
+  field names, Gemini's supported image formats and the providers' exact
+  per-image size limits were not confirmed. Treat both as best-effort.
 
 ## [0.3.0] - 2026-09-29
 
