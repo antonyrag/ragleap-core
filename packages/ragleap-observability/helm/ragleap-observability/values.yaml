@@ -47,7 +47,7 @@ grafana:
 
 loki:
   enabled: true
-  image: grafana/loki:3.3.0
+  image: grafana/loki:3.6.17
   port: 3100
   retention: 168h   # 7 days -- UNVERIFIED, size for real retention needs
 
