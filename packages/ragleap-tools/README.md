@@ -133,8 +133,10 @@ result = tool.call(query="language:python topic:llm", num_results=5, sort="stars
 # result.result == {"results": [{"full_name": ..., "url": ..., "description": ..., "stars": ..., "language": ...}, ...], "count": 5}
 ```
 
-Works without a token, at GitHub's real unauthenticated rate limit (60
-requests/hour per IP) - pass `token=` for a higher limit. No
+Works without a token, at GitHub's lower unauthenticated limit for the
+search resource (a live `/rate_limit` check on 2026-10-01 showed 10 for
+search, versus 60 for GitHub's core API; check `/rate_limit` for your
+own) - pass `token=` for a higher limit. No
 environment-variable fallback: if you want a token used, you pass it.
 Supports GitHub's real search qualifiers in the query string
 (`language:`, `stars:`, `topic:`, etc.), same as GitHub's own search UI.
