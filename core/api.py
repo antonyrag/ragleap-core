@@ -204,8 +204,10 @@ class TriggerCreateRequest(BaseModel):
     name: str
     role: str
     prompt: str
-    schedule_minutes: int
+    schedule_minutes: int | None = None
     is_active: bool = True
+    cron: str | None = None
+    timezone: str = "UTC"
 
 
 class TriggerUpdateRequest(BaseModel):
@@ -214,6 +216,8 @@ class TriggerUpdateRequest(BaseModel):
     prompt: str | None = None
     schedule_minutes: int | None = None
     is_active: bool | None = None
+    cron: str | None = None
+    timezone: str | None = None
 
 
 class AutonomySettingsRequest(BaseModel):
@@ -751,6 +755,7 @@ def create_proactive_trigger(req: TriggerCreateRequest):
         return core_triggers.create_trigger(
             name=req.name, role=req.role, prompt=req.prompt,
             schedule_minutes=req.schedule_minutes, is_active=req.is_active,
+            cron=req.cron, timezone=req.timezone,
         )
     except core_triggers.TriggerValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))

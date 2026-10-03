@@ -352,3 +352,17 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 );
 CREATE INDEX IF NOT EXISTS agent_runs_pending_idx ON agent_runs (pending_action_id) WHERE pending_action_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS agent_runs_created_idx ON agent_runs (created_at DESC);
+
+-- Cron-style schedules for proactive triggers: a trigger has EITHER schedule_minutes (every N
+-- minutes) OR cron (5-field crontab evaluated in `timezone`), never both.
+ALTER TABLE proactive_triggers ADD COLUMN IF NOT EXISTS cron TEXT;
+ALTER TABLE proactive_triggers ADD COLUMN IF NOT EXISTS timezone TEXT NOT NULL DEFAULT 'UTC';
+ALTER TABLE proactive_triggers ALTER COLUMN schedule_minutes DROP NOT NULL;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'proactive_triggers_one_schedule') THEN
+        ALTER TABLE proactive_triggers ADD CONSTRAINT proactive_triggers_one_schedule
+            CHECK ((schedule_minutes IS NOT NULL) <> (cron IS NOT NULL));
+    END IF;
+END
+$$;
