@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -20,6 +21,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * run it; without it the test is skipped, so CI does not need Python or any fixtures.
  */
 class PythonParityFixturesTest {
+
+    /** Python raised a library exception (not a ValueError) whose text cannot be reproduced; only "an error was raised" is compared. */
+    private static final Set<String> MESSAGE_MAY_DIFFER = Set.of("xls_garbage.xls");
 
     private static String esc(String s) {
         return "'" + s.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t").replace("\u000B", "\\v") + "'";
@@ -65,7 +69,7 @@ class PythonParityFixturesTest {
             } catch (IllegalArgumentException e) {
                 if (Files.exists(error)) {
                     String want = Files.readString(error, StandardCharsets.UTF_8);
-                    if (!want.equals(e.getMessage())) {
+                    if (!want.equals(e.getMessage()) && !MESSAGE_MAY_DIFFER.contains(name)) {
                         failures.add(name + ": error message differs:\n   python = " + esc(want) + "\n   java   = " + esc(e.getMessage()));
                     }
                 } else {
