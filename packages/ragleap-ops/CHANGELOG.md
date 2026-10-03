@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-03
+
+### Changed
+
+- Package metadata only, no chart or code changes: added PyPI `keywords`, fuller trove classifiers (audience, MIT license, topic) and `[project.urls]` (Documentation, Source, Changelog, Issues) so the package is discoverable on PyPI.
+
 ## [0.4.0] - 2026-10-02
 
 ### Added
