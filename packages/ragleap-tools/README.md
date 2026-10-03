@@ -177,9 +177,12 @@ scope. The returned description is text derived from an image that may be
 attacker-controlled - treat it as untrusted input (it is not screened for
 prompt injection).
 
-Neither provider has been called against a live account yet - request
-shapes were checked against current public documentation only, so treat
-both as best-effort until confirmed live.
+`GeminiVisionProvider` was live-checked once on 2026-10-03 (one call on a
+small PNG, model `gemini-3.6-flash`): the request shape and response parsing
+worked. JPEG and WebP input and Gemini's error responses were not
+live-checked. `AnthropicVisionProvider` has not been called against a live
+account - its request shape was checked against current public
+documentation only, so treat it as best-effort until confirmed live.
 
 ## Deliberately out of scope
 
@@ -205,8 +208,9 @@ not just documented as safe, actually tested against real attack
 vectors.
 
 Not live-verified: the web search providers (Tavily, Serper), the
-vision providers (Gemini, Anthropic), and authenticated GitHub requests -
-request shapes were checked against current public documentation only.
+Anthropic vision provider, and authenticated GitHub requests - request
+shapes were checked against current public documentation only. The Gemini
+vision provider was live-checked once (see above).
 
 ## License
 
