@@ -143,6 +143,44 @@ Supports GitHub's real search qualifiers in the query string
 Scoped to repository search only, not code or issue search. Standard
 library only (`urllib.request`) - no new dependency.
 
+## Image description (BYOK, no extra dependencies)
+
+```python
+from ragleap_tools import (
+    FileOpsConfig, GeminiVisionProvider, VisionConfig, make_vision_tool,
+)
+
+provider = GeminiVisionProvider(api_key="...", model="...")  # you choose the model
+tool = make_vision_tool(VisionConfig(
+    provider=provider,
+    sandbox=FileOpsConfig(root_dir="/path/to/images"),
+))
+result = tool.call(path="chart.png", prompt="What does this chart show?")
+# result.result == {"description": "..."}
+```
+
+`api_key` and `model` are both required - no environment-variable
+fallback, no default provider, no default model. `AnthropicVisionProvider`
+works the same way (and also takes `max_tokens`, default 1024, which caps
+the description's length and cost). The tool only reads images inside the
+sandbox directory, using the same path-escape protection as the file tools
+(`../` traversal, absolute paths and symlink escapes are rejected). The
+image type is detected from the file's bytes, not its extension. Defaults:
+5,000,000 bytes per image (`max_image_bytes`) and 2,000 characters for the
+model-supplied prompt (`max_prompt_chars`). Gemini accepts JPEG, PNG and
+WebP here; Anthropic also accepts GIF. Standard library only
+(`urllib.request`) - no new dependency.
+
+URLs are deliberately not accepted: letting a model name a URL to fetch
+carries the same SSRF risk as the HTTP-fetch tool listed below as out of
+scope. The returned description is text derived from an image that may be
+attacker-controlled - treat it as untrusted input (it is not screened for
+prompt injection).
+
+Neither provider has been called against a live account yet - request
+shapes were checked against current public documentation only, so treat
+both as best-effort until confirmed live.
+
 ## Deliberately out of scope
 
 Each of these needs its own security-focused design pass, not a
@@ -160,11 +198,15 @@ rushed inclusion here:
 
 ## Status
 
-v0.3.0. 100 tests, all passing, including real security verification
+v0.4.0. 133 tests, all passing, including real security verification
 for the two risk-sensitive tools (calculator's code-injection
 rejection, file ops' path-traversal and symlink-escape rejection) -
 not just documented as safe, actually tested against real attack
 vectors.
+
+Not live-verified: the web search providers (Tavily, Serper), the
+vision providers (Gemini, Anthropic), and authenticated GitHub requests -
+request shapes were checked against current public documentation only.
 
 ## License
 
