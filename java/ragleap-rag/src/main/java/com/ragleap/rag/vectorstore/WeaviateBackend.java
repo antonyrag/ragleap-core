@@ -85,6 +85,8 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
     private final HttpClient http;
     private final ReentrantLock lock = new ReentrantLock();
     private Integer dimensions;
+    /** Property names known to exist on the class (Weaviate creates a property when the first object that has it is stored). */
+    private final java.util.Set<String> knownProperties = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     public WeaviateBackend(String persistDirectory, String url, String apiKey, String collectionName) throws SQLException {
         if (persistDirectory == null || persistDirectory.isBlank()) {
@@ -151,6 +153,7 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
     @Override
     public void initSchema(int dimensions) throws SQLException {
         this.dimensions = dimensions;
+        knownProperties.clear();
 
         JsonNode existing = request("GET", "/v1/schema/" + collectionName, null, true);
         if (existing == null) {
@@ -229,7 +232,25 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
         body.set("properties", properties);
         body.set("vector", vector);
 
-        request("POST", "/v1/objects", body, false);
+        try {
+            request("POST", "/v1/objects", body, false);
+        } catch (SQLException | RuntimeException e) {
+            removeSidecarRow(vectorKey, e);
+            throw e;
+        }
+    }
+
+    /** Removes the local row of a chunk whose server write failed, so the same chunk can be retried. */
+    private void removeSidecarRow(String vectorKey, Exception original) {
+        lock.lock();
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM chunks WHERE vector_key = ?")) {
+            ps.setString(1, vectorKey);
+            ps.executeUpdate();
+        } catch (SQLException cleanupError) {
+            original.addSuppressed(cleanupError);
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
@@ -239,6 +260,14 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
         }
         if (dimensions != null && embedding.size() != dimensions) {
             return List.of();
+        }
+
+        List<String> needed = new ArrayList<>(List.of("document_id", "document_name", "chunk_index"));
+        if (metadataFilter != null) {
+            needed.addAll(metadataFilter.keySet());
+        }
+        if (!propertiesExist(needed)) {
+            return List.of(); // nothing stored yet that could match
         }
 
         StringBuilder vectorLiteral = new StringBuilder("[");
@@ -292,6 +321,29 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
             results.add(new SearchResult(weaviateUuid, text, similarityScore, documentId, documentName, chunkIndex));
         }
         return results;
+    }
+
+    /**
+     * True when every named property exists on the class. Weaviate creates a property only when the
+     * first object that has it is stored, so a search on a new collection (or a filter on a key no
+     * chunk has) would otherwise fail with a GraphQL error instead of returning no results. The
+     * schema is read only when a name is not already known.
+     */
+    private boolean propertiesExist(java.util.Collection<String> needed) throws SQLException {
+        if (knownProperties.containsAll(needed)) {
+            return true;
+        }
+        JsonNode schema = request("GET", "/v1/schema/" + collectionName, null, true);
+        if (schema == null) {
+            return true; // class not found: let the query itself report that
+        }
+        JsonNode props = schema.path("properties");
+        if (props.isArray()) {
+            for (JsonNode p : props) {
+                knownProperties.add(p.path("name").asText());
+            }
+        }
+        return knownProperties.containsAll(needed);
     }
 
     private String buildWhereClause(Map<String, Object> metadataFilter) {
