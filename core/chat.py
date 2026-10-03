@@ -19,6 +19,7 @@ from core.employees.sensitivity import is_sensitive_role
 from core.employees.supervisor import route_task
 from core.employees.team import run_team
 from core.employees.actions import maybe_act, describe_action
+from core import agent_loop
 from core import budget
 from core.observability import record_trace
 
@@ -251,13 +252,17 @@ def ask(
     # allowlists, approval, sensitive-role forcing). Never exposed on the HTTP /chat route.
     if allow_actions and result.get("provider_used"):
         if trusted:
-            action_outcome = maybe_act(query, result["answer"], generator, role)
+            if agent_loop.enabled():
+                action_outcome = agent_loop.run(query, result["answer"], generator, role)
+            else:
+                action_outcome = maybe_act(query, result["answer"], generator, role)
         else:
             action_outcome = {"status": "skipped", "tool": None, "target": None,
                               "detail": "actions require a trusted caller"}
         if action_outcome:
             result["action"] = action_outcome
-            result["answer"] += "\n\n" + describe_action(action_outcome)
+            result["answer"] += "\n\n" + (agent_loop.describe_run(action_outcome) if action_outcome.get("run_id")
+                                           else describe_action(action_outcome))
 
     usage = result.get("usage") or {}
     record_trace(
