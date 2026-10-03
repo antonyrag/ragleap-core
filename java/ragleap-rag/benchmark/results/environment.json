@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-03",
+  "java": "openjdk version \"21.0.12.1\" 2026-08-18",
+  "qdrant": "1.19.1",
+  "weaviate": "1.27.0",
+  "pgvector": "0.8.6",
+  "ollama": "0.32.5",
+  "embeddingModel": "nomic-embed-text (Ollama), 768 dimensions",
+  "cpus": 1,
+  "ramGb": 3.8
+}

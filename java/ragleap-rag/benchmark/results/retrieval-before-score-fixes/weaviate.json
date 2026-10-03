@@ -1,0 +1,22 @@
+{
+  "backend" : "weaviate",
+  "docs" : 296,
+  "queries" : 60,
+  "dim" : 768,
+  "topK" : 10,
+  "minResultsReturned" : 10,
+  "overlapAt10" : 1.0,
+  "top1Agreement" : 1.0,
+  "goldHit1" : 0.8833333333333333,
+  "goldHit5" : 0.9333333333333333,
+  "goldHit10" : 0.9833333333333333,
+  "scoreMin" : 0.4872,
+  "scoreMax" : 0.8974,
+  "scoresInUnitInterval" : true,
+  "scoreDevMean" : 0.175613592282023,
+  "scoreDevMax" : 0.256419949514277,
+  "unknownIdsReturned" : 0,
+  "latencyMedianMs" : 13.845341,
+  "latencyP95Ms" : 31.949247,
+  "insertTotalMs" : 6596.673367
+}
