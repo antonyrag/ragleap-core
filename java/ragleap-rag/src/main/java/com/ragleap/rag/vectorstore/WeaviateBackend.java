@@ -66,7 +66,7 @@ import java.util.concurrent.locks.ReentrantLock;
  *   returns {@code distance} (lower is more similar), not a similarity
  *   score. Live-verified: an identical vector returns distance 0, an
  *   orthogonal one returns distance 1 - confirming
- *   {@code similarity = 1 - distance} is correct for the class's cosine
+ *   {@code similarity = 1 - distance / 2} (the [0, 1] scale of the other backends) for the class's cosine
  *   distance metric, which is set explicitly at schema-creation time
  *   here rather than relying on Weaviate's (also-confirmed) default.</li>
  *   <li>{@code supportsSparse()} is {@code false} - Weaviate natively
@@ -280,10 +280,12 @@ public class WeaviateBackend implements VectorBackend, AutoCloseable {
                 }
             }
 
-            // Live-verified: distance 0 for an identical vector, distance 1
-            // for an orthogonal one - similarity = 1 - distance is correct
-            // for this class's cosine distance metric.
-            double similarityScore = Math.round((1.0 - distance) * 10000.0) / 10000.0;
+            // Weaviate's cosine distance is in [0, 2]: 0 identical, 1 orthogonal, 2 opposite
+            // (live-verified). It is normalized with 1 - distance / 2 so scores sit on the same
+            // [0, 1] scale as pgvector and Qdrant: 1.0 identical, 0.5 orthogonal, 0.0 opposite.
+            // The earlier 1 - distance returned raw cosine in [-1, 1]; found by the
+            // cross-backend benchmark (issue 565).
+            double similarityScore = Math.round((1.0 - distance / 2.0) * 10000.0) / 10000.0;
             results.add(new SearchResult(weaviateUuid, text, similarityScore, documentId, documentName, chunkIndex));
         }
         return results;
