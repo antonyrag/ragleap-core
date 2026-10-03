@@ -225,6 +225,32 @@ class FailureModeMatrixTest {
             }
             return String.format(Locale.ROOT, "identical=%.4f, opposite=%.4f", s.get("pos"), s.get("neg"));
         }, 60, false));
+        c.add(new Case("filter-on-unknown-key", "metadata filter on a key that no chunk has (nokey=x)", (b, n, d) -> {
+            seed(b);
+            return b.searchDense(Q, 5, Map.of("nokey", "x")).size() + " results";
+        }, 60, false));
+        c.add(new Case("failed-insert-then-retry", "insert with a wrong-dimension vector (fails), then retry the same chunk correctly", (b, n, d) -> {
+            fresh(b);
+            String id = uid("retry");
+            b.insertDocument(id, "retry.txt", Map.of("k", "v"));
+            String bad = attempt(() -> b.insertChunk(id, "retry.txt", 0, "t", 1, vec(1, 0, 0), Map.of("k", "v")));
+            String retry = attempt(() -> b.insertChunk(id, "retry.txt", 0, "t", 1, vec(1, 0, 0, 0), Map.of("k", "v")));
+            String search;
+            try {
+                search = b.searchDense(Q, 5, Map.of()).size() + " hit(s)";
+            } catch (Throwable t) {
+                search = "EXC " + describe(t);
+            }
+            long chunks = b.listDocuments(10, 0).stream().mapToLong(x -> x.chunkCount()).sum();
+            return "wrong-dim insert=" + bad + ", retry=" + retry + ", search=" + search + ", chunks listed=" + chunks;
+        }, 60, false));
+        c.add(new Case("search-after-deleting-everything", "delete all three documents, then search and list", (b, n, d) -> {
+            seed(b);
+            for (String nm : new String[] {"A", "B", "C"}) {
+                b.deleteDocument(uid(nm));
+            }
+            return b.searchDense(Q, 5, Map.of()).size() + " results, documents listed=" + b.listDocuments(10, 0).size();
+        }, 60, false));
         c.add(new Case("server-unreachable", "backend pointed at a port with nothing listening", (b, n, d) -> {
             switch (n) {
                 case "pgvector" -> {
