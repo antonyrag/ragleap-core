@@ -61,6 +61,7 @@
         <sqlite-jdbc.version>3.53.4.0</sqlite-jdbc.version>
         <pdfbox.version>3.0.8</pdfbox.version>
         <jsoup.version>1.23.2</jsoup.version>
+        <poi.version>5.5.1</poi.version>
     </properties>
 
     <dependencies>
@@ -104,6 +105,14 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>${jsoup.version}</version>
+        </dependency>
+
+        <!-- optional: only needed to read legacy .xls files -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>${poi.version}</version>
+            <optional>true</optional>
         </dependency>
 
         <dependency>

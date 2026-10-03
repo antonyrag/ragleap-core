@@ -32,11 +32,9 @@ import java.util.zip.ZipInputStream;
 /**
  * Document text extraction. Java port of ragleap-rag's parsers.py (extract_text).
  *
- * <p>This is being ported in batches. SUPPORTED_EXTENSIONS lists the formats
- * implemented so far; formats the Python package supports but this port has not
- * reached yet raise an IllegalArgumentException saying so. Parquet is
- * deliberately deferred (Java Parquet readers pull in a very heavy Hadoop
- * dependency tree).
+ * <p>27 of the Python package's 28 formats are supported. Parquet is deliberately
+ * not supported (Java Parquet readers pull in a very heavy Hadoop dependency
+ * tree). Legacy .xls needs the optional Apache POI dependency.
  *
  * <p>Errors: where Python raises ValueError, this class throws
  * IllegalArgumentException with the same message wording.
@@ -51,11 +49,8 @@ public final class DocumentParser {
     public static final Set<String> SUPPORTED_EXTENSIONS = Collections.unmodifiableSet(new TreeSet<>(List.of(
             ".txt", ".md", ".sql", ".csv", ".tsv", ".json", ".yaml", ".yml", ".vtt", ".srt", ".zip", ".rtf",
             ".html", ".htm", ".xml", ".xsl", ".xslt", ".pdf",
-            ".docx", ".pptx", ".xlsx", ".odt", ".ods", ".odp", ".epub")));
-
-    /** Supported by the Python package, planned for this port, not written yet. */
-    private static final Set<String> NOT_YET_PORTED = Set.of(
-            ".xls", ".eml");
+            ".docx", ".pptx", ".xlsx", ".odt", ".ods", ".odp", ".epub",
+            ".xls", ".eml")));
 
     private static final Set<String> UNSUPPORTED_LEGACY = Set.of(".doc", ".ppt");
 
@@ -104,10 +99,6 @@ public final class DocumentParser {
                     "Parquet is not supported in the Java port (Java Parquet readers need a very "
                             + "heavy Hadoop dependency tree). Convert to CSV first.");
         }
-        if (NOT_YET_PORTED.contains(ext)) {
-            throw new IllegalArgumentException(
-                    "'" + ext + "' parsing is not yet available in the Java port of ragleap-rag.");
-        }
 
         return switch (ext) {
             case ".txt", ".md", ".sql" -> extractTxt(rawBytes);
@@ -127,6 +118,8 @@ public final class DocumentParser {
             case ".odt", ".odp" -> OdfExtractor.paragraphs(rawBytes, ext.equals(".odt") ? "ODT" : "ODP");
             case ".ods" -> OdfExtractor.spreadsheet(rawBytes);
             case ".epub" -> EpubExtractor.extract(rawBytes);
+            case ".xls" -> extractXls(rawBytes);
+            case ".eml" -> EmlExtractor.extract(rawBytes);
             default -> throw new IllegalArgumentException(
                     "Unsupported file type '" + ext + "'. Supported: "
                             + String.join(", ", SUPPORTED_EXTENSIONS) + ".");
@@ -281,6 +274,15 @@ public final class DocumentParser {
 
     static String extractRtf(byte[] rawBytes) {
         return RtfConverter.rtfToText(extractTxt(rawBytes));
+    }
+
+    private static String extractXls(byte[] rawBytes) {
+        try {
+            return XlsExtractor.extract(rawBytes);
+        } catch (NoClassDefFoundError e) {
+            throw new IllegalArgumentException("Apache POI is required for .xls files — add the optional "
+                    + "dependency org.apache.poi:poi to your project", e);
+        }
     }
 
     /** Extracts and concatenates text from every supported file inside the zip. */
