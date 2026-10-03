@@ -1,0 +1,174 @@
+{
+  "cases" : [ {
+    "id" : "empty-collection-search",
+    "description" : "search before any data is stored",
+    "results" : {
+      "faiss" : "OK 0 results",
+      "pgvector" : "OK 0 results",
+      "qdrant" : "OK 0 results",
+      "weaviate" : "OK 0 results"
+    }
+  }, {
+    "id" : "topk-larger-than-data",
+    "description" : "topK=100 with 3 chunks stored",
+    "results" : {
+      "faiss" : "OK 3 results",
+      "pgvector" : "OK 3 results",
+      "qdrant" : "OK 3 results",
+      "weaviate" : "OK 3 results"
+    }
+  }, {
+    "id" : "filter-matches-nothing",
+    "description" : "metadata filter k=nope (nothing has it)",
+    "results" : {
+      "faiss" : "OK 0 results",
+      "pgvector" : "OK 0 results",
+      "qdrant" : "OK 0 results",
+      "weaviate" : "OK 0 results"
+    }
+  }, {
+    "id" : "filter-matches-all",
+    "description" : "metadata filter k=v (every chunk has it)",
+    "results" : {
+      "faiss" : "OK 3 results",
+      "pgvector" : "OK 3 results",
+      "qdrant" : "OK 3 results",
+      "weaviate" : "OK 3 results"
+    }
+  }, {
+    "id" : "delete-missing-document",
+    "description" : "deleteDocument for an id that was never stored",
+    "results" : {
+      "faiss" : "OK returned false",
+      "pgvector" : "OK returned false",
+      "qdrant" : "OK returned false",
+      "weaviate" : "OK returned false"
+    }
+  }, {
+    "id" : "filename-of-missing-document",
+    "description" : "getDocumentFilename for an unknown id",
+    "results" : {
+      "faiss" : "OK present=false",
+      "pgvector" : "OK present=false",
+      "qdrant" : "OK present=false",
+      "weaviate" : "OK present=false"
+    }
+  }, {
+    "id" : "duplicate-insert",
+    "description" : "same document and same chunk index inserted twice",
+    "results" : {
+      "faiss" : "OK doc#1=ok, doc#2=EXC SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: documents.id), chunk#1=ok, chunk#2=ok, documents=1, hits=2",
+      "pgvector" : "OK doc#1=ok, doc#2=EXC PSQLException: ERROR: duplicate key value violates unique constraint \"documents_pkey\"   Detail: Key (id)=(30a810f1-121e-3e37-..., chunk#1=ok, chunk#2=ok, documents=1, hits=2",
+      "qdrant" : "OK doc#1=ok, doc#2=EXC SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: documents.id), chunk#1=ok, chunk#2=EXC SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: chunks.vector_key), documents=1, hits=1",
+      "weaviate" : "OK doc#1=ok, doc#2=EXC SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: documents.id), chunk#1=ok, chunk#2=EXC SQLiteException: [SQLITE_CONSTRAINT_PRIMARYKEY] A PRIMARY KEY constraint failed (UNIQUE constraint failed: chunks.vector_key), documents=1, hits=1"
+    }
+  }, {
+    "id" : "wrong-dimension-insert",
+    "description" : "insert a 3-dim vector into a 4-dim collection",
+    "results" : {
+      "faiss" : "EXC SQLException: expected 4 dimensions, not 3",
+      "pgvector" : "EXC PSQLException: ERROR: expected 4 dimensions, not 3",
+      "qdrant" : "EXC SQLException: expected 4 dimensions, not 3",
+      "weaviate" : "EXC SQLException: expected 4 dimensions, not 3"
+    }
+  }, {
+    "id" : "wrong-dimension-query",
+    "description" : "search with a 3-dim query against 4-dim data",
+    "results" : {
+      "faiss" : "OK 0 results",
+      "pgvector" : "EXC PSQLException: ERROR: expected 4 dimensions, not 3",
+      "qdrant" : "OK 0 results",
+      "weaviate" : "OK 0 results"
+    }
+  }, {
+    "id" : "zero-vector",
+    "description" : "insert an all-zero embedding, then search",
+    "results" : {
+      "faiss" : "OK hits=1, score=0.5",
+      "pgvector" : "OK hits=0",
+      "qdrant" : "OK hits=1, score=0.5",
+      "weaviate" : "OK hits=1, score=0.5"
+    }
+  }, {
+    "id" : "unicode-and-quotes",
+    "description" : "unicode, quotes, backslash and newline in filename, metadata and text",
+    "results" : {
+      "faiss" : "OK filename roundtrip=true, text roundtrip=true, filter on that value -> 1 hit(s)",
+      "pgvector" : "OK filename roundtrip=true, text roundtrip=true, filter on that value -> 1 hit(s)",
+      "qdrant" : "OK filename roundtrip=true, text roundtrip=true, filter on that value -> 1 hit(s)",
+      "weaviate" : "OK filename roundtrip=true, text roundtrip=true, filter on that value -> 1 hit(s)"
+    }
+  }, {
+    "id" : "init-schema-twice",
+    "description" : "initSchema called a second time",
+    "results" : {
+      "faiss" : "OK second call: ok",
+      "pgvector" : "OK second call: ok",
+      "qdrant" : "OK second call: ok",
+      "weaviate" : "OK second call: ok"
+    }
+  }, {
+    "id" : "pagination",
+    "description" : "listDocuments(limit 2, offset 0) and (limit 2, offset 2) with 3 documents",
+    "results" : {
+      "faiss" : "OK 2 then 1",
+      "pgvector" : "OK 2 then 1",
+      "qdrant" : "OK 2 then 1",
+      "weaviate" : "OK 2 then 1"
+    }
+  }, {
+    "id" : "delete-then-search",
+    "description" : "delete document A, then search",
+    "results" : {
+      "faiss" : "OK deleted=true, hits=2, deleted doc still returned=false",
+      "pgvector" : "OK deleted=true, hits=2, deleted doc still returned=false",
+      "qdrant" : "OK deleted=true, hits=2, deleted doc still returned=false",
+      "weaviate" : "OK deleted=true, hits=2, deleted doc still returned=false"
+    }
+  }, {
+    "id" : "score-identical-vs-opposite",
+    "description" : "scores of an identical and an opposite vector",
+    "results" : {
+      "faiss" : "OK identical=1.0000, opposite=0.0000",
+      "pgvector" : "OK identical=1.0000, opposite=0.0000",
+      "qdrant" : "OK identical=1.0000, opposite=0.0000",
+      "weaviate" : "OK identical=1.0000, opposite=0.0000"
+    }
+  }, {
+    "id" : "filter-on-unknown-key",
+    "description" : "metadata filter on a key that no chunk has (nokey=x)",
+    "results" : {
+      "faiss" : "OK 0 results",
+      "pgvector" : "OK 0 results",
+      "qdrant" : "OK 0 results",
+      "weaviate" : "OK 0 results"
+    }
+  }, {
+    "id" : "failed-insert-then-retry",
+    "description" : "insert with a wrong-dimension vector (fails), then retry the same chunk correctly",
+    "results" : {
+      "faiss" : "OK wrong-dim insert=EXC SQLException: expected 4 dimensions, not 3, retry=ok, search=1 hit(s), chunks listed=1",
+      "pgvector" : "OK wrong-dim insert=EXC PSQLException: ERROR: expected 4 dimensions, not 3, retry=ok, search=1 hit(s), chunks listed=1",
+      "qdrant" : "OK wrong-dim insert=EXC SQLException: expected 4 dimensions, not 3, retry=ok, search=1 hit(s), chunks listed=1",
+      "weaviate" : "OK wrong-dim insert=EXC SQLException: expected 4 dimensions, not 3, retry=ok, search=1 hit(s), chunks listed=1"
+    }
+  }, {
+    "id" : "search-after-deleting-everything",
+    "description" : "delete all three documents, then search and list",
+    "results" : {
+      "faiss" : "OK 0 results, documents listed=0",
+      "pgvector" : "OK 0 results, documents listed=0",
+      "qdrant" : "OK 0 results, documents listed=0",
+      "weaviate" : "OK 0 results, documents listed=0"
+    }
+  }, {
+    "id" : "server-unreachable",
+    "description" : "backend pointed at a port with nothing listening",
+    "results" : {
+      "faiss" : "N/A (in-process, no server)",
+      "pgvector" : "EXC PoolInitializationException: Failed to initialize pool: Connection to localhost:1 refused. Check that the hostname and port are correct and...",
+      "qdrant" : "EXC SQLException: Qdrant request failed: GET /collections/x",
+      "weaviate" : "EXC SQLException: Weaviate request failed: GET /v1/schema/X"
+    }
+  } ]
+}
