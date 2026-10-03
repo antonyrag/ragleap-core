@@ -4,22 +4,32 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-observability"
-version = "0.5.0"
+version = "0.5.1"
 description = "Prometheus/Grafana/Loki/AlertManager observability stack for RagLeap Core, live-tested against a real cluster"
 readme = "README.md"
+keywords = ["observability", "monitoring", "prometheus", "grafana", "loki", "promtail", "alertmanager", "alerting", "logging", "kubernetes", "helm", "devops", "rag"]
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
     { name = "RagLeap Contributors" }
 ]
 classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
+    "Topic :: System :: Systems Administration",
+    "Topic :: System :: Monitoring",
 ]
 dependencies = []
 
 [project.urls]
 Homepage = "https://packages.ragleap.com/docs/ragleap-observability.html"
+Documentation = "https://packages.ragleap.com/docs/ragleap-observability.html"
+Source = "https://github.com/antonyrag/ragleap-core/tree/main/packages/ragleap-observability"
+Changelog = "https://github.com/antonyrag/ragleap-core/blob/main/packages/ragleap-observability/CHANGELOG.md"
+Issues = "https://github.com/antonyrag/ragleap-core/issues"
 
 [tool.hatchling.build.targets.wheel]
 packages = ["src/ragleap_observability"]
