@@ -268,7 +268,8 @@ def request_approval(action_type: str, channel: str, target: str,
 
 def execute_or_request(action_type: str, channel: str, target: str,
                         content: str, execute_fn: Optional[Callable] = None,
-                        subject: str = "", role: Optional[str] = None) -> Dict:
+                        subject: str = "", role: Optional[str] = None,
+                        force_semi: bool = False) -> Dict:
     """
     Core autonomy dispatcher.
     - off mode: skip
@@ -298,6 +299,11 @@ def execute_or_request(action_type: str, channel: str, target: str,
 
     if channels and channel not in channels:
         return {"status": "skipped", "result": f"{channel} not in allowed channels"}
+
+    if mode == "full" and force_semi:
+        # caller (e.g. a run that has read untrusted web/MCP content) requires approval for this call
+        logger.info(f"force_semi: {action_type} forced full->semi")
+        mode = "semi"
 
     if mode == "full" and role:
         try:
@@ -347,6 +353,15 @@ def execute_or_request(action_type: str, channel: str, target: str,
     return {"status": "skipped", "result": "unknown mode"}
 
 
+def _notify_agent_loop(action_id: str, approved: bool, result: str, action_type: str) -> None:
+    """Let a waiting agent-loop run (if this pending action belongs to one) resume or end."""
+    try:
+        from core import agent_loop
+        agent_loop.on_resolved(action_id, approved, result, action_type)
+    except Exception as e:
+        logger.warning(f"agent loop notification failed (non-fatal): {e}")
+
+
 def process_approval_response(message: str) -> Optional[str]:
     """
     Process an owner reply of the form "YES ABC123" or "NO ABC123".
@@ -388,6 +403,7 @@ def process_approval_response(message: str) -> Optional[str]:
         employee_learning.learn_from_owner_approval(
             action_type, content, "REJECTED by owner", approved=False
         )
+        _notify_agent_loop(action_id, False, "", action_type)
         return f"Action {action_id} rejected and cancelled."
 
     result = _send_via_channel(channel, target, content)
@@ -395,6 +411,7 @@ def process_approval_response(message: str) -> Optional[str]:
     employee_learning.learn_from_owner_approval(
         action_type, content, result, approved=True
     )
+    _notify_agent_loop(action_id, True, result, action_type)
     return f"Action {action_id} approved and executed.\n{result}"
 
 

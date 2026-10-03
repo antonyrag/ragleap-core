@@ -30,6 +30,7 @@ from core import workflows
 from core import tasks as core_tasks
 from core import proactive_triggers as core_triggers
 from core import autonomy
+from core import agent_loop
 from core import observability
 from core import queue
 from core.employees.sensitivity import is_sensitive_role
@@ -888,6 +889,20 @@ def reject_pending_action(action_id: str):
     if reply is None:
         raise HTTPException(status_code=404, detail="No such pending action.")
     return {"result": reply}
+
+
+@app.get("/agent-runs")
+def list_agent_runs(limit: int = 50, status: str | None = None):
+    """Agent-loop runs, newest first (status: running, waiting_approval, done, failed, rejected, budget)."""
+    return {"runs": agent_loop.list_runs(limit=limit, status=status)}
+
+
+@app.get("/agent-runs/{run_id}")
+def get_agent_run(run_id: str):
+    r = agent_loop.get_run(run_id)
+    if r is None:
+        raise HTTPException(status_code=404, detail="Run not found.")
+    return r
 
 
 @app.get("/autonomy/report")

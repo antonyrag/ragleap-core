@@ -333,3 +333,22 @@ CREATE TABLE IF NOT EXISTS proactive_triggers (
 
 CREATE INDEX IF NOT EXISTS proactive_triggers_due_idx
     ON proactive_triggers (next_run_at) WHERE is_active;
+
+-- Act-observe agent loop runs (opt-in: AGENT_LOOP_ENABLED). A run that needs owner
+-- approval is saved here and resumed when the pending action is approved or rejected.
+CREATE TABLE IF NOT EXISTS agent_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role TEXT,
+    query TEXT NOT NULL,
+    context_answer TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'running'
+        CHECK (status IN ('running', 'waiting_approval', 'done', 'failed', 'rejected', 'budget')),
+    steps JSONB NOT NULL DEFAULT '[]'::jsonb,
+    tainted BOOLEAN NOT NULL DEFAULT false,
+    pending_action_id TEXT,
+    summary TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_runs_pending_idx ON agent_runs (pending_action_id) WHERE pending_action_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS agent_runs_created_idx ON agent_runs (created_at DESC);
