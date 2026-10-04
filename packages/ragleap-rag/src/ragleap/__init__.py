@@ -45,7 +45,7 @@ from ragleap import schema as _schema
 
 logger = logging.getLogger(__name__)
 
-__version__ = "0.12.10"
+__version__ = "0.13.0"
 __all__ = ["RagLeap", "ProviderConfig", "EmbeddingConfig", "IngestResult", "TranscriptionConfig", "VectorBackend", "PgVectorBackend"]
 
 
@@ -179,14 +179,18 @@ class RagLeap:
         text = extract_text(filename, raw_bytes)
         return self.ingest_text(filename, text, metadata=metadata)
 
-    def ingest_url(self, url: str, metadata: Optional[Dict] = None) -> IngestResult:
+    def ingest_url(self, url: str, metadata: Optional[Dict] = None, allow_private_urls: bool = False) -> IngestResult:
         """
         Fetch a web page, extract clean readable text (stripping nav/
         ads/footers via trafilatura), and ingest it. Requires the
         'web' extra: pip install ragleap-rag[web]. The URL itself is
         used as the stored filename/document_name.
+
+        URLs that resolve to non-public addresses (loopback, private,
+        link-local) are refused with UnsafeURLError (a ValueError) unless
+        allow_private_urls=True.
         """
-        text = _web.fetch_url_text(url)
+        text = _web.fetch_url_text(url, allow_private=allow_private_urls)
         if text is None:
             raise ValueError(f"Could not extract usable text from URL: {url}")
         return self.ingest_text(url, text, metadata=metadata)
