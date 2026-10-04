@@ -1,6 +1,7 @@
 resource "kind_cluster" "this" {
-  name           = var.cluster_name
-  wait_for_ready = true
+  name            = var.cluster_name
+  wait_for_ready  = true
+  kubeconfig_path = var.kubeconfig_path
 }
 
 provider "helm" {
@@ -18,11 +19,14 @@ resource "helm_release" "observability" {
   chart            = var.observability_chart_path
   namespace        = var.namespace
   create_namespace = true
-  timeout          = 600
+  timeout          = var.helm_timeout
 
-  values = var.grafana_admin_password == "" ? [] : [
-    yamlencode({ grafana = { admin = { password = var.grafana_admin_password } } })
-  ]
+  values = concat(
+    [yamlencode({ postgresExporter = { enabled = var.install_postgres_exporter } })],
+    var.grafana_admin_password == "" ? [] : [
+      yamlencode({ grafana = { admin = { password = var.grafana_admin_password } } })
+    ]
+  )
 
   # Promtail owns cluster-scoped RBAC with fixed names; keep it on for a clean cluster.
   depends_on = [kind_cluster.this]
