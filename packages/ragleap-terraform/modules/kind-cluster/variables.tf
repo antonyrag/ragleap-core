@@ -28,3 +28,21 @@ variable "grafana_admin_password" {
   default     = ""
   sensitive   = true
 }
+
+variable "install_postgres_exporter" {
+  description = "Deploy postgres-exporter. Needs ragleap-db and the Secret ragleap-db-exporter-secret to exist first, so it is off by default."
+  type        = bool
+  default     = false
+}
+
+variable "helm_timeout" {
+  description = "Seconds to wait for the Helm release to become ready."
+  type        = number
+  default     = 300
+}
+
+variable "kubeconfig_path" {
+  description = "Where the kind provider writes this cluster's kubeconfig. Null uses the provider default."
+  type        = string
+  default     = null
+}

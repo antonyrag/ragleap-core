@@ -2,3 +2,5 @@
 *.tfstate
 *.tfstate.*
 crash.log
+ragleap-tf-config
+tf.plan
