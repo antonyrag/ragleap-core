@@ -236,6 +236,23 @@ def resolve_pending(action_id: str, approve: bool) -> Optional[str]:
     return process_approval_response(f"{'YES' if approve else 'NO'} {action_id}")
 
 
+def _decision_instructions(action_id: str) -> str:
+    """
+    How the owner answers an approval request. APPROVAL_REPLIES=off (for deployments whose app
+    cannot receive chat replies, such as a localhost-only install) points to the approval inbox
+    instead of telling the owner to reply.
+    """
+    import os
+    if os.environ.get("APPROVAL_REPLIES", "").strip().lower() == "off":
+        return (
+            "Replies here are not connected to the server. Approve or reject in the approval inbox:\n"
+            f"POST /autonomy/pending/{action_id}/approve\n"
+            f"POST /autonomy/pending/{action_id}/reject\n"
+            "(GET /autonomy/pending lists everything waiting)"
+        )
+    return f'Reply "YES {action_id}" to approve\nReply "NO {action_id}" to reject'
+
+
 def request_approval(action_type: str, channel: str, target: str,
                       content: str, action_id: str, role: Optional[str] = None) -> bool:
     """
@@ -259,8 +276,7 @@ def request_approval(action_type: str, channel: str, target: str,
         f"Channel: {channel}\n"
         f"Target: {target}\n\n"
         f"Message preview:\n{content[:300]}\n\n"
-        f'Reply "YES {action_id}" to approve\n'
-        f'Reply "NO {action_id}" to reject'
+        f"{_decision_instructions(action_id)}"
     )
     result = _send_via_channel(approval_ch, approval_target, msg)
     return "sent" in result
