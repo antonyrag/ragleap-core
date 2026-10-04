@@ -6,26 +6,28 @@
 
     <groupId>io.github.antonyrag</groupId>
     <artifactId>ragleap-rag</artifactId>
-    <version>0.10.0</version>
+    <version>0.11.0</version>
     <packaging>jar</packaging>
 
     <name>ragleap-rag (Java port)</name>
     <description>
-        Java port of ragleap-rag's core RAG pipeline: connection
-        pooling, embeddings (7 providers), pgvector storage (dense,
-        sparse, hybrid RRF search), retrieval, and generation
-        (streaming, structured output, provider fallback, vision
-        captioning) - plus standalone utilities (chunking,
-        sanitization, guardrails, cost tracking, evaluation scoring,
-        structured-output validation, observability hooks).
-        Independently versioned from the Python ragleap-rag package
-        (see https://pypi.org/project/ragleap-rag/) rather than kept
-        in lockstep - this port does not yet have parity with the
-        Python package's full surface (only pgvector of its 6 vector
-        backends, no query rewriting, no conversation memory, no
-        ingestion pipeline). Every module here is genuinely tested;
-        most of the core pipeline is live-verified against real
-        Postgres and Ollama, documented per-class where it is not.
+        Java port of ragleap-rag's RAG pipeline: connection pooling,
+        embeddings (7 providers), vector storage on six backends
+        (pgvector, FAISS, Qdrant, Weaviate, Milvus, Pinecone; Milvus
+        and Pinecone are not live-verified; sparse and hybrid RRF
+        search on pgvector), retrieval, generation (streaming,
+        structured output, provider fallback, vision captioning),
+        conversation memory, query rewriting, and a document parser
+        for 27 of the Python package's 28 formats (no Parquet; legacy
+        .xls needs the optional Apache POI dependency) - plus
+        standalone utilities (chunking, sanitization, guardrails,
+        cost tracking, evaluation scoring, structured-output
+        validation, observability hooks). Independently versioned from
+        the Python ragleap-rag package (see
+        https://pypi.org/project/ragleap-rag/) rather than kept in
+        lockstep; OCR, web, audio and video ingestion are not yet
+        ported. Every module here is genuinely tested; documented
+        per-class where it is not live-verified.
     </description>
     <url>https://github.com/antonyrag/ragleap-core</url>
 
