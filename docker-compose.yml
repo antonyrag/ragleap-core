@@ -118,7 +118,8 @@ services:
   # token. No published ports; only the app reaches it, over the compose network.
   sandbox:
     profiles: ["sandbox"]
-    image: python:3.11-slim
+    build: ./sandbox
+    image: ragleap-core-sandbox
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -127,7 +128,6 @@ services:
       SANDBOX_TOKEN: ${SANDBOX_TOKEN:-}
       SANDBOX_IMAGE: ${SANDBOX_IMAGE:-python:3.11-slim}
     volumes:
-      - ./sandbox/runner.py:/runner.py:ro
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python", "-u", "/runner.py"]
 
