@@ -2,17 +2,23 @@
 URL ingestion for ragleap-rag. Fetches a web page and extracts clean,
 readable text (stripping navigation, ads, footers, and other
 boilerplate) - requires the [web] extra (trafilatura).
+
+Pages are downloaded by ragleap._net.fetch_public(), which refuses
+non-public addresses unless allow_private=True (see that module).
 """
+import http.client
 import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_url_text(url: str) -> Optional[str]:
+def fetch_url_text(url: str, allow_private: bool = False) -> Optional[str]:
     """
     Fetch a URL and return clean extracted text, or None if fetching
-    or extraction failed. Requires the 'web' extra.
+    or extraction failed. Raises UnsafeURLError (a ValueError) when the
+    URL targets a non-public address and allow_private is False.
+    Requires the 'web' extra.
     """
     try:
         import trafilatura
@@ -22,9 +28,13 @@ def fetch_url_text(url: str) -> Optional[str]:
             f"ragleap-rag[web]), but importing trafilatura failed: {e}"
         ) from e
 
+    from ragleap._net import UnsafeURLError, fetch_public
+
     try:
-        downloaded = trafilatura.fetch_url(url)
-    except Exception as e:
+        downloaded = fetch_public(url, allow_private=allow_private)
+    except UnsafeURLError:
+        raise
+    except (OSError, http.client.HTTPException) as e:
         logger.error(f"Failed to fetch URL '{url}': {e}")
         return None
 

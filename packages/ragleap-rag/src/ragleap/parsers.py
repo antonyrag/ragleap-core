@@ -26,6 +26,34 @@ EXTENDED_EXTENSIONS = {
 SUPPORTED_EXTENSIONS = CORE_EXTENSIONS | EXTENDED_EXTENSIONS
 UNSUPPORTED_LEGACY = {".doc", ".ppt"}
 
+# Archive limits (a 39,002-byte zip once returned 40,000,016 characters with no error).
+# Defaults are proposals; override by assigning to these module attributes.
+MAX_ZIP_MEMBERS = 1000
+MAX_ZIP_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+_ZIP_BASED_EXTENSIONS = {".zip", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp", ".epub"}
+
+
+class _ZipLimitError(ValueError):
+    pass
+
+
+def _check_zip_limits(raw_bytes: bytes) -> None:
+    """Reject an archive with too many members or too much declared
+    uncompressed data before any extraction. Unreadable archives are left
+    to the format's own parser to report."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
+            infos = z.infolist()
+    except zipfile.BadZipFile:
+        return
+    if len(infos) > MAX_ZIP_MEMBERS:
+        raise _ZipLimitError(f"Archive has {len(infos)} members (limit {MAX_ZIP_MEMBERS}).")
+    total = sum(i.file_size for i in infos)
+    if total > MAX_ZIP_UNCOMPRESSED_BYTES:
+        raise _ZipLimitError(
+            f"Archive declares {total} bytes uncompressed (limit {MAX_ZIP_UNCOMPRESSED_BYTES})."
+        )
+
 
 def _require(module_name: str, extra_hint: str = "formats"):
     try:
@@ -85,6 +113,8 @@ def extract_text(filename: str, raw_bytes: bytes) -> str:
     if handler is None:
         raise ValueError(f"Unsupported file type '{ext}'. Supported: {', '.join(sorted(SUPPORTED_EXTENSIONS))}.")
 
+    if ext in _ZIP_BASED_EXTENSIONS:
+        _check_zip_limits(raw_bytes)
     return handler(raw_bytes)
 
 
@@ -260,6 +290,7 @@ def _extract_eml(raw_bytes: bytes) -> str:
 def _extract_zip(raw_bytes: bytes) -> str:
     """Extracts and concatenates text from every supported file inside the zip."""
     parts = []
+    budget = MAX_ZIP_UNCOMPRESSED_BYTES
     with zipfile.ZipFile(io.BytesIO(raw_bytes)) as z:
         for name in z.namelist():
             if name.endswith("/"):
@@ -268,10 +299,18 @@ def _extract_zip(raw_bytes: bytes) -> str:
             if ext not in SUPPORTED_EXTENSIONS or ext == ".zip":
                 continue
             try:
-                inner_bytes = z.read(name)
+                with z.open(name) as member:
+                    inner_bytes = member.read(budget + 1)
+                if len(inner_bytes) > budget:
+                    raise _ZipLimitError(
+                        f"Archive member data exceeds the {MAX_ZIP_UNCOMPRESSED_BYTES}-byte uncompressed limit."
+                    )
+                budget -= len(inner_bytes)
                 inner_text = extract_text(name, inner_bytes)
                 if inner_text.strip():
                     parts.append(f"[File: {name}]\n{inner_text}")
+            except _ZipLimitError:
+                raise
             except Exception as e:
                 logger.warning(f"Skipping '{name}' inside zip — extraction failed: {e}")
     if not parts:
