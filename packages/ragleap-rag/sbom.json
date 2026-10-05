@@ -1036,7 +1036,7 @@
       "version": "1.15.1"
     },
     {
-      "bom-ref": "filelock==4.0.10",
+      "bom-ref": "filelock==4.0.11",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1069,9 +1069,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@4.0.10",
+      "purl": "pkg:pypi/filelock@4.0.11",
       "type": "library",
-      "version": "4.0.10"
+      "version": "4.0.11"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -3491,7 +3491,7 @@
       "version": "1.1.0"
     },
     {
-      "bom-ref": "rpds-py==2026.6.3",
+      "bom-ref": "rpds-py==2026.9.1",
       "description": "Python bindings to Rust's persistent data structures (rpds)",
       "externalReferences": [
         {
@@ -3539,9 +3539,9 @@
         }
       ],
       "name": "rpds-py",
-      "purl": "pkg:pypi/rpds-py@2026.6.3",
+      "purl": "pkg:pypi/rpds-py@2026.9.1",
       "type": "library",
-      "version": "2026.6.3"
+      "version": "2026.9.1"
     },
     {
       "bom-ref": "setuptools==79.0.1",
@@ -4523,7 +4523,7 @@
       "ref": "faiss-cpu==1.15.1"
     },
     {
-      "ref": "filelock==4.0.10"
+      "ref": "filelock==4.0.11"
     },
     {
       "ref": "flatbuffers==25.12.19"
@@ -4648,7 +4648,7 @@
         "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
-        "filelock==4.0.10",
+        "filelock==4.0.11",
         "fsspec==2026.9.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -4704,7 +4704,7 @@
         "rfc3339-validator==0.1.4",
         "rfc3986-validator==0.1.1",
         "rfc3987-syntax==1.1.0",
-        "rpds-py==2026.6.3",
+        "rpds-py==2026.9.1",
         "uri-template==1.3.0",
         "webcolors==25.10.0"
       ],
@@ -4978,7 +4978,7 @@
     {
       "dependsOn": [
         "attrs==26.1.0",
-        "rpds-py==2026.6.3",
+        "rpds-py==2026.9.1",
         "typing_extensions==4.16.0"
       ],
       "ref": "referencing==0.37.0"
@@ -5049,11 +5049,11 @@
       "ref": "root-component"
     },
     {
-      "ref": "rpds-py==2026.6.3"
+      "ref": "rpds-py==2026.9.1"
     },
     {
       "dependsOn": [
-        "filelock==4.0.10",
+        "filelock==4.0.11",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -5211,7 +5211,7 @@
       "type": "library",
       "version": "0.13.0"
     },
-    "timestamp": "2026-10-04T06:44:10.495977+00:00",
+    "timestamp": "2026-10-05T11:57:40.139072+00:00",
     "tools": {
       "components": [
         {
@@ -5315,7 +5315,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:2af1105f-f635-4d2a-8451-39689385e2f1",
+  "serialNumber": "urn:uuid:cf9b2d88-cdb5-49d2-b965-5fc3434adace",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",
