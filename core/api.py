@@ -31,6 +31,7 @@ from core import tasks as core_tasks
 from core import proactive_triggers as core_triggers
 from core import autonomy
 from core import agent_loop
+from core import office
 from core import observability
 from core import queue
 from core.employees.sensitivity import is_sensitive_role
@@ -105,7 +106,8 @@ app = FastAPI(
 # to opt in -- that "forget one route" failure mode is exactly the kind of gap
 # that led to this middleware existing in the first place.
 RAGLEAP_API_KEY = os.environ.get("RAGLEAP_API_KEY", "").strip()
-API_KEY_EXEMPT_PATHS = {"/health"}
+# The AI Office page is three fixed static files with no data in them; every data route keeps the key.
+API_KEY_EXEMPT_PATHS = {"/health", "/office", "/office/app.js", "/office/app.css"}
 API_KEY_EXEMPT_PREFIXES = ("/webhook/",)  # these verify platform signatures themselves
 
 if not RAGLEAP_API_KEY:
@@ -894,6 +896,47 @@ def reject_pending_action(action_id: str):
     if reply is None:
         raise HTTPException(status_code=404, detail="No such pending action.")
     return {"result": reply}
+
+
+def _office_file(path: str):
+    got = office.static_response(path)
+    if got is None:
+        raise HTTPException(status_code=404, detail="Not found.")
+    body, content_type, headers = got
+    return Response(content=body, media_type=content_type, headers=headers)
+
+
+@app.get("/office")
+def office_page():
+    return _office_file("/office")
+
+
+@app.get("/office/app.js")
+def office_js():
+    return _office_file("/office/app.js")
+
+
+@app.get("/office/app.css")
+def office_css():
+    return _office_file("/office/app.css")
+
+
+@app.get("/overview")
+def office_overview():
+    """Counts for the AI Office dashboard (approvals, runs, tasks, triggers, roles, usage, autonomy)."""
+    return office.overview()
+
+
+@app.get("/autonomy/log")
+def office_autonomy_log(limit: int = 50, approved: bool | None = None):
+    """The autonomy action log as data, newest first."""
+    return {"log": office.autonomy_log(limit=limit, approved=approved)}
+
+
+@app.get("/usage/summary")
+def office_usage_summary():
+    """Token usage per role and globally, next to any configured budget caps."""
+    return office.usage_summary()
 
 
 @app.get("/agent-runs")
