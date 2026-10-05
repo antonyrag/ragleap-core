@@ -9,7 +9,7 @@
   let stamp = null;
   const tabButtons = {};
   const expanded = new Set();
-  const TABS = [["overview", "Overview"], ["approvals", "Approvals"], ["runs", "Agent runs"], ["log", "Activity"]];
+  const TABS = [["overview", "Overview"], ["approvals", "Approvals"], ["employees", "Employees"], ["tasks", "Tasks"], ["runs", "Agent runs"], ["log", "Activity"]];
 
   // All dynamic text goes in as text nodes; nothing here ever builds HTML from data.
   const add = (el, kid) => {
@@ -23,7 +23,8 @@
       if (k === "class") el.className = v;
       else if (k === "on") Object.entries(v).forEach(([ev, fn]) => el.addEventListener(ev, fn));
       else if (k === "disabled") el.disabled = !!v;
-      else if (["type", "placeholder", "title", "autocomplete"].includes(k)) el.setAttribute(k, String(v));
+      else if (k === "value") el.value = String(v);
+      else if (["type", "placeholder", "title", "autocomplete", "rows", "maxlength"].includes(k)) el.setAttribute(k, String(v));
     });
     kids.forEach((kid) => add(el, kid));
     return el;
@@ -54,6 +55,8 @@
 
   const lock = (msg) => {
     key = "";
+    taskFormEl = null;
+    boardEl = null;
     sessionStorage.removeItem("ragleap_key");
     if (timer) { clearInterval(timer); timer = null; }
     showLogin(msg);
@@ -165,6 +168,82 @@
   };
   const renderLog = (rows) => (rows.length ? h("div", { class: "list" }, rows.map(logCard)) : h("p", { class: "empty" }, "No actions logged yet."));
 
+  const meter = (used, limit) => (limit > 0 ? Math.min(100, Math.round((used * 100) / limit)) + "% of " + num(limit) : "no cap");
+  const roleCard = (r) => {
+    const id = "role" + r.role;
+    const isOpen = expanded.has(id);
+    return h("article", { class: "item" },
+      h("div", { class: "row click", on: { click: () => toggle(id) } },
+        h("strong", null, r.display_name || r.role),
+        r.sensitive ? h("span", { class: "tag warn" }, "sensitive") : null,
+        h("span", { class: "tag " + (r.is_active ? "ok" : "bad") }, r.is_active ? "active" : "off"),
+        r.open_tasks ? h("span", { class: "tag" }, r.open_tasks + " open task(s)") : null,
+        h("span", { class: "sub" }, "today " + num(r.day_used) + " | month " + num(r.month_used))),
+      isOpen ? h("div", null,
+        r.skills_summary ? h("p", null, r.skills_summary) : null,
+        h("div", { class: "sub" }, "skills: " + ((r.skill_tags || []).join(", ") || "none")),
+        h("div", { class: "sub" }, "channels: " + ((r.channels || []).join(", ") || "none")),
+        h("div", { class: "sub" }, "daily budget: " + meter(r.day_used, r.day_limit) + " | monthly: " + meter(r.month_used, r.month_limit)),
+        h("div", { class: "sub" }, "last learned: " + (r.last_learned_at ? when(r.last_learned_at) : "never"))) : null);
+  };
+  const renderOrg = (org) => h("div", { class: "list" },
+    h("div", { class: "card" },
+      h("div", { class: "row" }, h("strong", null, "You (owner)"), h("span", { class: "tag" }, "autonomy: " + org.owner.mode)),
+      h("div", { class: "sub" }, org.router.note)),
+    org.departments.map((d) => h("section", { class: "dept" },
+      h("h2", null, d.name + " (" + d.roles.length + ")"), h("div", { class: "list" }, d.roles.map(roleCard)))));
+
+  const TASK_COLS = [["open", "Open"], ["in_progress", "In progress"], ["blocked", "Blocked"], ["done", "Done"]];
+  let taskFormEl = null;
+  let boardEl = null;
+  const moveTask = async (t, status, msg) => {
+    try { await api("PATCH", "/tasks/" + encodeURIComponent(t.id), { status: status }); refresh(); }
+    catch (e) { msg.textContent = "Failed: " + clip(e.message, 100); }
+  };
+  const taskCard = (t) => {
+    const msg = h("span", { class: "sub" }, "");
+    const i = TASK_COLS.findIndex((c) => c[0] === t.status);
+    const btns = [];
+    if (i > 0) btns.push(h("button", { type: "button", class: "ghost", on: { click: () => moveTask(t, TASK_COLS[i - 1][0], msg) } }, "< " + TASK_COLS[i - 1][1]));
+    if (i >= 0 && i < TASK_COLS.length - 1) btns.push(h("button", { type: "button", on: { click: () => moveTask(t, TASK_COLS[i + 1][0], msg) } }, TASK_COLS[i + 1][1] + " >"));
+    return h("article", { class: "item" },
+      h("strong", null, clip(t.title, 120)),
+      h("div", { class: "row" },
+        h("span", { class: "tag " + (t.priority === "urgent" ? "bad" : (t.priority === "high" ? "warn" : "")) }, t.priority),
+        h("span", { class: "tag" }, t.assigned_role || "unassigned"), h("span", { class: "sub" }, ago(t.created_at))),
+      t.description ? h("div", { class: "sub" }, clip(t.description, 220)) : null,
+      t.result ? h("div", { class: "sub" }, "result: " + clip(t.result, 220)) : null,
+      h("div", { class: "row" }, btns, msg));
+  };
+  const buildTaskForm = (roleNames) => {
+    const title = h("input", { type: "text", placeholder: "New task title", maxlength: 200 });
+    const desc = h("textarea", { rows: 2, placeholder: "Details (optional)" });
+    const prio = h("select", null, ["normal", "low", "high", "urgent"].map((p) => h("option", { value: p }, p)));
+    const who = h("select", null, h("option", { value: "" }, "unassigned"), roleNames.map((r) => h("option", { value: r }, r)));
+    const msg = h("span", { class: "sub" }, "");
+    const go = h("button", { type: "button", class: "ok", on: { click: async () => {
+      const body = { title: title.value.trim(), description: desc.value.trim(), priority: prio.value };
+      if (who.value) body.assigned_role = who.value;
+      if (!body.title) { msg.textContent = "Give the task a title."; return; }
+      try { await api("POST", "/tasks", body); title.value = ""; desc.value = ""; msg.textContent = "Created."; refresh(); }
+      catch (e) { msg.textContent = "Failed: " + clip(e.message, 100); }
+    } } }, "Add task");
+    return h("div", { class: "card" }, h("div", { class: "row" }, title, prio, who), desc, h("div", { class: "row" }, go, msg));
+  };
+  const refreshTasks = async () => {
+    if (!taskFormEl) {
+      const roleNames = (await api("GET", "/employees?active_only=true")).roles.map((r) => r.role);
+      taskFormEl = buildTaskForm(roleNames);
+      boardEl = h("div", null);
+    }
+    if (view.firstChild !== taskFormEl) view.replaceChildren(taskFormEl, boardEl);
+    const tasks = (await api("GET", "/tasks")).tasks;
+    boardEl.replaceChildren(h("div", { class: "grid" }, TASK_COLS.map((col) => {
+      const items = tasks.filter((t) => t.status === col[0]);
+      return h("section", null, h("h2", null, col[1] + " (" + items.length + ")"), h("div", { class: "list" }, items.map(taskCard)));
+    })));
+  };
+
   const refresh = async () => {
     if (armed || !view) return;
     try {
@@ -176,8 +255,10 @@
       if (tab === "overview") content = renderOverview(ov);
       else if (tab === "approvals") content = renderApprovals((await api("GET", "/autonomy/pending")).pending);
       else if (tab === "runs") content = renderRuns((await api("GET", "/agent-runs?limit=30")).runs);
+      else if (tab === "employees") content = renderOrg(await api("GET", "/org"));
+      else if (tab === "tasks") { await refreshTasks(); content = null; }
       else content = renderLog((await api("GET", "/autonomy/log?limit=60")).log);
-      view.replaceChildren(content);
+      if (content) view.replaceChildren(content);
       stamp.textContent = "updated " + new Date().toLocaleTimeString();
     } catch (e) {
       if (String(e.message) !== "unauthorized") stamp.textContent = "error: " + clip(e.message, 80);

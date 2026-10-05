@@ -30,3 +30,7 @@ pre { white-space:pre-wrap; word-break:break-word; background:var(--bg); border:
 .login { max-width:360px; margin:12vh auto; display:flex; flex-direction:column; gap:10px; padding:16px; }
 .login input { font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); }
 .err { color:var(--bad); }
+section h2 { font-size:16px; margin:12px 0 6px; }
+input[type="text"], textarea, select { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--fg); }
+input[type="text"] { flex:1; min-width:180px; }
+textarea { width:100%; margin:8px 0; resize:vertical; }
