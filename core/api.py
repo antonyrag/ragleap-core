@@ -933,6 +933,12 @@ def office_autonomy_log(limit: int = 50, approved: bool | None = None):
     return {"log": office.autonomy_log(limit=limit, approved=approved)}
 
 
+@app.get("/org")
+def office_org():
+    """Org chart for the AI Office: departments with each role's status, usage, caps and open tasks."""
+    return office.org_chart()
+
+
 @app.get("/usage/summary")
 def office_usage_summary():
     """Token usage per role and globally, next to any configured budget caps."""

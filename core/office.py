@@ -163,3 +163,79 @@ def usage_summary() -> Dict:
         "unattributed": {"day_used": un[0], "month_used": un[1], "calls": un[2]},
         "roles": rows,
     }
+
+
+# ---------------- org chart ----------------
+
+REGULATED = "Regulated intake (sensitive)"
+OTHER = "Other roles"
+# Skill tags are too inconsistent to group by, so the departments are defined once, here.
+# tests/test_office_org.py fails if a shipped role is missing, duplicated, or if the regulated
+# group stops matching SENSITIVE_DOMAIN_ROLES.
+DEPARTMENTS = [
+    ("Leadership & admin", ["ceo", "manager", "secretary", "data_analyst"]),
+    ("Sales & marketing", ["sales", "marketing", "content_writer", "social_media_manager",
+                           "b2b_lead_qualifier", "franchise_inquiry_agent", "vehicle_sales_agent",
+                           "real_estate_agent", "podcast_producer_agent"]),
+    ("Customer service", ["support", "it_helpdesk", "returns_refunds_agent", "warranty_claims_agent",
+                          "membership_agent", "admissions_agent", "property_management_agent"]),
+    ("Bookings & appointments", ["hospitality_agent", "event_planner", "travel_agent", "fitness_studio_agent",
+                                 "tutoring_agent", "auto_service_agent", "photography_booking_agent",
+                                 "salon_spa_agent", "coworking_space_agent", "volunteer_coordinator"]),
+    ("Operations & supply chain", ["operations", "procurement_agent", "inventory_agent", "logistics_agent",
+                                   "warehouse_operations_agent", "delivery_dispatch_agent"]),
+    ("Finance & people", ["finance", "collections_agent", "hr", "recruiter"]),
+    (REGULATED, ["legal_intake", "healthcare_intake", "insurance_agent", "compliance_officer",
+                 "veterinary_intake", "tax_preparation_intake", "immigration_intake"]),
+]
+_DEPT_OF = {role: name for name, roles in DEPARTMENTS for role in roles}
+_ORDER = {role: i for i, role in enumerate(r for _n, roles in DEPARTMENTS for r in roles)}
+
+
+def department_of(role: str, sensitive: bool) -> str:
+    if role in _DEPT_OF:
+        return _DEPT_OF[role]
+    return REGULATED if sensitive else OTHER
+
+
+def _iso_any(value):
+    return value.isoformat() if hasattr(value, "isoformat") else value
+
+
+def org_chart() -> Dict:
+    usage = usage_summary()
+    meta = {r["role"]: r for r in employee_roles.list_roles()}
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT assigned_role, count(*) FROM tasks WHERE assigned_role IS NOT NULL "
+                    "AND status IN ('open', 'in_progress', 'blocked') GROUP BY 1")
+        open_tasks = {r[0]: int(r[1]) for r in cur.fetchall()}
+        cur.close()
+    finally:
+        conn.close()
+    groups = {name: [] for name, _roles in DEPARTMENTS}
+    groups[OTHER] = []
+    for u in usage["roles"]:
+        m = meta.get(u["role"], {})
+        entry = {
+            "role": u["role"], "display_name": u["display_name"], "is_active": u["is_active"],
+            "sensitive": u["sensitive"], "channels": list(m.get("channels") or []),
+            "skill_tags": list(m.get("skill_tags") or [])[:8],
+            "skills_summary": (m.get("skills_summary") or "")[:400],
+            "last_learned_at": _iso_any(m.get("last_learned_at")),
+            "day_used": u["day_used"], "month_used": u["month_used"],
+            "day_limit": u["day_limit"], "month_limit": u["month_limit"],
+            "open_tasks": open_tasks.get(u["role"], 0),
+        }
+        groups[department_of(u["role"], u["sensitive"])].append(entry)
+    for roles in groups.values():
+        roles.sort(key=lambda e: (_ORDER.get(e["role"], 10 ** 6), e["role"]))
+    settings = autonomy.get_autonomy_settings()
+    return {
+        "owner": {"mode": settings.get("mode")},
+        "router": {"note": "Incoming messages are routed to the right employee automatically; a multi-part "
+                           "request can be split across several employees."},
+        "departments": [{"name": name, "roles": groups[name]} for name in [n for n, _r in DEPARTMENTS] + [OTHER]
+                        if groups[name]],
+    }
