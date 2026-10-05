@@ -10,6 +10,7 @@ on:
       - 'ragleap-app-chart-v*'
       - 'ragleap-observability-v*'
       - 'ragleap-tools-v*'
+      - 'ragleap-terraform-v*'
   workflow_dispatch:
     inputs:
       package:
@@ -24,6 +25,7 @@ on:
           - ragleap-app-chart
           - ragleap-observability
           - ragleap-tools
+          - ragleap-terraform
       target:
         description: 'Publish target'
         required: true
@@ -283,4 +285,40 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: packages/ragleap-observability/dist/
+          skip-existing: true
+
+  publish-ragleap-terraform:
+    if: |
+      startsWith(github.ref, 'refs/tags/ragleap-terraform-v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.package == 'ragleap-terraform')
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
+    permissions:
+      id-token: write
+    defaults:
+      run:
+        working-directory: packages/ragleap-terraform
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+      - name: Install build tooling
+        run: pip install build
+      - name: Build
+        run: |
+          rm -rf dist/
+          python -m build
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-terraform/dist/
+          repository-url: https://test.pypi.org/legacy/
+      - name: Publish to PyPI
+        if: github.event_name != 'workflow_dispatch' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packages/ragleap-terraform/dist/
           skip-existing: true
