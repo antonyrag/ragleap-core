@@ -4,3 +4,6 @@
 crash.log
 ragleap-tf-config
 tf.plan
+dist/
+*.egg-info/
+__pycache__/
