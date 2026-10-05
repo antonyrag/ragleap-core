@@ -84,6 +84,15 @@ def _limits(role: Optional[str]) -> List[tuple]:
     return checks
 
 
+def limits(role: Optional[str] = None) -> Dict[str, int]:
+    """Configured caps for this scope only (global when role is None); 0 means no cap."""
+    out = {"day": 0, "month": 0}
+    for _scope, r, period, limit in _limits(role):
+        if r == role:
+            out[period] = limit
+    return out
+
+
 _SQL_USED = {
     ("day", False): "SELECT COALESCE(SUM(total_tokens), 0) FROM llm_usage WHERE created_at >= date_trunc('day', now())",
     ("month", False): "SELECT COALESCE(SUM(total_tokens), 0) FROM llm_usage WHERE created_at >= date_trunc('month', now())",
