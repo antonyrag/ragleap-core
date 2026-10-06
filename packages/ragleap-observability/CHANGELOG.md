@@ -5,6 +5,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-06
+
+### Fixed
+
+- **Loki retention was configured but never enforced.** `limits_config.retention_period` was set, but the `compactor` block had no `retention_enabled: true` and no `delete_request_store`, so old data was never deleted. Confirmed from Loki's own `/config` endpoint, then fixed; the new config is valid on Loki 3.6.17 and the live pod reports `retention_enabled: true`. Actual deletion of old chunks has not been observed, because test data is younger than 7 days.
+- **Disabling postgres-exporter produced a permanent false alert.** The `ragleap-postgres` scrape job and the `PostgresExporterDown` rule were not gated on `postgresExporter.enabled`. Both are now gated; with the exporter off, Prometheus has no targets and no alerts (checked on a live cluster), and promtool accepts the empty config.
+- **Config changes did not roll pods.** A ConfigMap change left the old pod running its old config; this hid the Loki retention fix and caught AlertManager earlier. Loki, AlertManager, Prometheus and Grafana now carry checksum annotations. Verified live: `--set loki.retention=72h` rolled the Loki pod with no manual restart.
+
+### Upgrade note
+
+- The first upgrade to 0.6.1 adds the annotations, so Loki, AlertManager, Prometheus and Grafana each restart once.
+- Loki and AlertManager hash their values, so a change to template text alone does not roll them.
+
 ## [0.6.0] - 2026-10-03
 
 ### Changed
