@@ -27,6 +27,10 @@ data:
           index:
             prefix: index_
             period: 24h
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      delete_request_store: filesystem
     limits_config:
       retention_period: {{ .Values.loki.retention }}
       ingestion_rate_mb: 16
