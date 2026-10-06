@@ -14,6 +14,8 @@ spec:
     metadata:
       labels:
         app: ragleap-grafana
+      annotations:
+        checksum/datasources: {{ include (print $.Template.BasePath "/grafana-datasource-configmap.yaml") . | sha256sum }}
     spec:
       automountServiceAccountToken: false
       {{- if .Values.serviceAccount.create }}

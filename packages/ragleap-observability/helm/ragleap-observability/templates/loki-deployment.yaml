@@ -63,6 +63,8 @@ spec:
     metadata:
       labels:
         app: ragleap-loki
+      annotations:
+        checksum/config: {{ toYaml .Values.loki | sha256sum }}
     spec:
       automountServiceAccountToken: false
       {{- if .Values.serviceAccount.create }}
