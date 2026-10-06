@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ragleap-terraform"
+version = "0.1.0"
+description = "Terraform module that creates a kind cluster and installs the RagLeap Helm charts, tested on a real cluster"
+readme = "README.md"
+keywords = ["terraform", "kind", "kubernetes", "helm", "devops", "infrastructure-as-code", "iac", "observability", "rag"]
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "RagLeap Contributors" }
+]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://packages.ragleap.com/docs/ragleap-terraform.html"
+Documentation = "https://packages.ragleap.com/docs/ragleap-terraform.html"
+Source = "https://github.com/antonyrag/ragleap-core/tree/main/packages/ragleap-terraform"
+Changelog = "https://github.com/antonyrag/ragleap-core/blob/main/packages/ragleap-terraform/CHANGELOG.md"
+Issues = "https://github.com/antonyrag/ragleap-core/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragleap_terraform"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"modules" = "ragleap_terraform/modules"
+"examples" = "ragleap_terraform/examples"

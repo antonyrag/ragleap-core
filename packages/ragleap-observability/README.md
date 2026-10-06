@@ -32,6 +32,10 @@ real cluster:
   a human. Firing and resolved delivery were verified end to end on a live
   cluster against a Slack-compatible stand-in; a real Slack/email
   send has not yet been confirmed.
+- Images pinned to current releases (AlertManager v0.34.1, Loki 3.6.17,
+  Grafana 12.4.12, Prometheus v3.13.4); Trivy HIGH/CRITICAL findings with a
+  fix available fell from 383 to 14 across these four. PostgreSQL exporter
+  and Promtail are not yet upgraded.
 - Least-privilege hardening, verified on a live cluster: Prometheus,
   Grafana, Loki, AlertManager and postgres-exporter each run under their
   own zero-permission ServiceAccounts with no API token mounted, and

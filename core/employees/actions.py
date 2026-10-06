@@ -17,6 +17,7 @@ the normal answer is unaffected. Never raises.
 import json
 import logging
 import os
+import time
 from typing import Dict, Optional
 
 from core import action_senders
@@ -39,6 +40,47 @@ ACTION_TOOLS = {
     "run_shell": {"channel": "shell"},
     "fetch_page": {"channel": "fetch"},
 }
+
+
+def call_with_fallback(service, prompt: str, max_tokens: int) -> str:
+    """
+    One planning/summary model call that survives a busy provider: try each configured
+    provider (the primary, then LLM_FALLBACK_PROVIDERS -- the same chain answers use),
+    retrying a failing provider once after a short pause (ACTION_RETRY_DELAY seconds,
+    default 1.5). An empty reply is retried once with double the token budget, then the
+    next provider is tried. Returns "" if every provider answered with nothing; raises the
+    last error if the providers failed.
+    """
+    try:
+        chain = list(service._fallback_chain())
+    except Exception:
+        chain = []
+    if not chain:
+        chain = [service.primary_config]
+    try:
+        delay = max(0.0, float(os.environ.get("ACTION_RETRY_DELAY", "1.5")))
+    except ValueError:
+        delay = 1.5
+    last_error = None
+    for config in chain:
+        for attempt in (0, 1):
+            try:
+                text, _u = service._call_provider(config, prompt, 0.0, max_tokens)
+                if not (text or "").strip():
+                    text, _u = service._call_provider(config, prompt, 0.0, max_tokens * 2)
+                if (text or "").strip():
+                    return text
+                break  # this provider answered but said nothing: try the next one
+            except Exception as e:
+                last_error = e
+                logger.warning("Provider %s failed during planning (%s)%s",
+                               config.get("provider"), type(e).__name__,
+                               "; retrying" if attempt == 0 else "")
+                if attempt == 0 and delay:
+                    time.sleep(delay)
+    if last_error is not None:
+        raise last_error
+    return ""
 
 
 def available_tools() -> Dict[str, str]:
@@ -228,9 +270,7 @@ def plan_action(query: str, answer: str, service) -> Optional[Dict]:
         if not tools or not (query or "").strip():
             return None
         prompt = _build_prompt(query, answer, tools)
-        text, _u = service._call_provider(service.primary_config, prompt, 0.0, ACTION_PLAN_MAX_TOKENS)
-        if not (text or "").strip():
-            text, _u = service._call_provider(service.primary_config, prompt, 0.0, ACTION_PLAN_MAX_TOKENS * 2)
+        text = call_with_fallback(service, prompt, ACTION_PLAN_MAX_TOKENS)
         plan = _parse_plan(text)
         if not plan:
             return None

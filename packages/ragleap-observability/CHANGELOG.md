@@ -5,6 +5,31 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-03
+
+### Changed
+
+- Upgraded four pinned images to clear known HIGH/CRITICAL vulnerabilities. Counts are Trivy findings with a fix available, scanned 2026-10-03 (`--ignore-unfixed`, so they are not a clean bill of health):
+  - AlertManager `v0.27.0` -> `v0.34.1` (96 -> 2)
+  - Loki `3.3.0` -> `3.6.17` (54 -> 8)
+  - Grafana `11.3.1` -> `12.4.12` (135 -> 2)
+  - Prometheus `v2.55.1` -> `v3.13.4` (98 -> 2)
+- Loki's Deployment now sets `strategy: Recreate`. It holds a single-writer `ReadWriteOnce` volume, the same latent rollout problem Prometheus had.
+
+### Verified
+
+- AlertManager `v0.34.1`: `amtool check-config` accepts the Slack and email config, a Slack-format delivery through `api_url_file` succeeded, the image runs as UID 65534, and on the live release `PostgresExporterDown` went pending, firing (delivered) and resolved (delivered).
+- Loki `3.6.17`: `-verify-config` accepts the existing config; on the live release `/ready` returned `ready`, existing data was still queryable (42 series in 24h) and Promtail was still shipping.
+- Grafana `12.4.12`: scratch install and the live release both returned `OK` for the Prometheus and Loki datasources, login worked on the existing database, and the new pod's logs had no panic, fatal or error lines.
+- Prometheus `v3.13.4`: `promtool check config` accepted the config and rule, the 33 MB TSDB from v2 was read (12 hourly samples in 24h), the rule showed `health=ok`, and the full firing and resolved cycle was delivered.
+
+### Known limitations
+
+- Image findings are not zero: PostgreSQL exporter (`v0.15.0`, 48 findings) and Promtail (`3.3.0`, 86 findings) are not yet upgraded.
+- Loki's `retention_period` is set but there is no `compactor` block with `retention_enabled: true`, so retention is probably not enforced. Not yet verified on a running instance.
+- Grafana 12 logs failed update and plugin checks in clusters without internet access, and a few `database is locked` retries at startup. Neither stopped the pod.
+- Prometheus v3 may write TSDB blocks that v2 cannot read, so rolling back needs a data backup.
+
 ## [0.5.1] - 2026-10-03
 
 ### Changed

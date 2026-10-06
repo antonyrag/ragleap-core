@@ -1036,7 +1036,7 @@
       "version": "1.15.1"
     },
     {
-      "bom-ref": "filelock==4.0.9",
+      "bom-ref": "filelock==4.0.11",
       "description": "A platform independent file lock.",
       "externalReferences": [
         {
@@ -1069,9 +1069,9 @@
         }
       ],
       "name": "filelock",
-      "purl": "pkg:pypi/filelock@4.0.9",
+      "purl": "pkg:pypi/filelock@4.0.11",
       "type": "library",
-      "version": "4.0.9"
+      "version": "4.0.11"
     },
     {
       "bom-ref": "flatbuffers==25.12.19",
@@ -1207,7 +1207,7 @@
       "version": "2.59.1"
     },
     {
-      "bom-ref": "google-genai==2.27.0",
+      "bom-ref": "google-genai==2.28.0",
       "description": "GenAI Python SDK",
       "externalReferences": [
         {
@@ -1225,9 +1225,9 @@
         }
       ],
       "name": "google-genai",
-      "purl": "pkg:pypi/google-genai@2.27.0",
+      "purl": "pkg:pypi/google-genai@2.28.0",
       "type": "library",
-      "version": "2.27.0"
+      "version": "2.28.0"
     },
     {
       "bom-ref": "grpcio==1.78.0",
@@ -1405,7 +1405,7 @@
       "version": "4.2.0"
     },
     {
-      "bom-ref": "htmldate==1.10.0",
+      "bom-ref": "htmldate==1.11.0",
       "description": "Fast and robust extraction of original and updated publication dates from URLs and web pages.",
       "externalReferences": [
         {
@@ -1444,9 +1444,9 @@
           "value": "speed"
         }
       ],
-      "purl": "pkg:pypi/htmldate@1.10.0",
+      "purl": "pkg:pypi/htmldate@1.11.0",
       "type": "library",
-      "version": "1.10.0"
+      "version": "1.11.0"
     },
     {
       "bom-ref": "httpcore==1.0.9",
@@ -2216,7 +2216,7 @@
       "version": "1.30.0"
     },
     {
-      "bom-ref": "openai==3.23.0",
+      "bom-ref": "openai==3.24.0",
       "description": "The official Python library for the openai API",
       "externalReferences": [
         {
@@ -2239,9 +2239,9 @@
         }
       ],
       "name": "openai",
-      "purl": "pkg:pypi/openai@3.23.0",
+      "purl": "pkg:pypi/openai@3.24.0",
       "type": "library",
-      "version": "3.23.0"
+      "version": "3.24.0"
     },
     {
       "bom-ref": "openpyxl==3.1.5",
@@ -3184,7 +3184,7 @@
       "version": "1.0.2"
     },
     {
-      "bom-ref": "pytz==2026.4",
+      "bom-ref": "pytz==2026.5",
       "description": "World timezone definitions, modern and historical",
       "externalReferences": [
         {
@@ -3217,9 +3217,9 @@
         }
       ],
       "name": "pytz",
-      "purl": "pkg:pypi/pytz@2026.4",
+      "purl": "pkg:pypi/pytz@2026.5",
       "type": "library",
-      "version": "2026.4"
+      "version": "2026.5"
     },
     {
       "bom-ref": "qdrant-client==1.19.1",
@@ -3491,7 +3491,7 @@
       "version": "1.1.0"
     },
     {
-      "bom-ref": "rpds-py==2026.6.3",
+      "bom-ref": "rpds-py==2026.9.1",
       "description": "Python bindings to Rust's persistent data structures (rpds)",
       "externalReferences": [
         {
@@ -3539,9 +3539,9 @@
         }
       ],
       "name": "rpds-py",
-      "purl": "pkg:pypi/rpds-py@2026.6.3",
+      "purl": "pkg:pypi/rpds-py@2026.9.1",
       "type": "library",
-      "version": "2026.6.3"
+      "version": "2026.9.1"
     },
     {
       "bom-ref": "setuptools==79.0.1",
@@ -3865,7 +3865,7 @@
       "version": "4.70.1"
     },
     {
-      "bom-ref": "trafilatura==2.2.0",
+      "bom-ref": "trafilatura==2.3.0",
       "description": "Python & Command-line tool to gather text and metadata on the Web: Crawling, scraping, extraction, output as CSV, JSON, HTML, MD, TXT, XML.",
       "externalReferences": [
         {
@@ -3898,9 +3898,9 @@
         }
       ],
       "name": "trafilatura",
-      "purl": "pkg:pypi/trafilatura@2.2.0",
+      "purl": "pkg:pypi/trafilatura@2.3.0",
       "type": "library",
-      "version": "2.2.0"
+      "version": "2.3.0"
     },
     {
       "bom-ref": "truststore==0.10.4",
@@ -4017,7 +4017,7 @@
       "version": "4.16.0"
     },
     {
-      "bom-ref": "tzdata==2026.4",
+      "bom-ref": "tzdata==2026.5",
       "description": "Provider of IANA time zone data",
       "externalReferences": [
         {
@@ -4050,9 +4050,9 @@
         }
       ],
       "name": "tzdata",
-      "purl": "pkg:pypi/tzdata@2026.4",
+      "purl": "pkg:pypi/tzdata@2026.5",
       "type": "library",
-      "version": "2026.4"
+      "version": "2026.5"
     },
     {
       "bom-ref": "tzlocal==5.4.4",
@@ -4406,8 +4406,8 @@
       "dependsOn": [
         "dateparser==1.4.3",
         "python-dateutil==2.9.0.post0",
-        "pytz==2026.4",
-        "tzdata==2026.4"
+        "pytz==2026.5",
+        "tzdata==2026.5"
       ],
       "ref": "arrow==1.4.0"
     },
@@ -4416,9 +4416,9 @@
     },
     {
       "dependsOn": [
-        "pytz==2026.4",
+        "pytz==2026.5",
         "setuptools==79.0.1",
-        "tzdata==2026.4"
+        "tzdata==2026.5"
       ],
       "ref": "babel==2.18.0"
     },
@@ -4497,7 +4497,7 @@
     {
       "dependsOn": [
         "python-dateutil==2.9.0.post0",
-        "pytz==2026.4",
+        "pytz==2026.5",
         "regex==2026.9.29",
         "tzlocal==5.4.4"
       ],
@@ -4523,7 +4523,7 @@
       "ref": "faiss-cpu==1.15.1"
     },
     {
-      "ref": "filelock==4.0.9"
+      "ref": "filelock==4.0.11"
     },
     {
       "ref": "flatbuffers==25.12.19"
@@ -4568,7 +4568,7 @@
         "typing_extensions==4.16.0",
         "websockets==16.1.1"
       ],
-      "ref": "google-genai==2.27.0"
+      "ref": "google-genai==2.28.0"
     },
     {
       "dependsOn": [
@@ -4600,7 +4600,7 @@
         "python-dateutil==2.9.0.post0",
         "urllib3==2.8.0"
       ],
-      "ref": "htmldate==1.10.0"
+      "ref": "htmldate==1.11.0"
     },
     {
       "dependsOn": [
@@ -4648,7 +4648,7 @@
         "Authlib==1.8.0",
         "PyYAML==6.0.3",
         "click==8.5.0",
-        "filelock==4.0.9",
+        "filelock==4.0.11",
         "fsspec==2026.9.0",
         "hf-xet==1.6.0",
         "httpx==0.28.1",
@@ -4704,7 +4704,7 @@
         "rfc3339-validator==0.1.4",
         "rfc3986-validator==0.1.1",
         "rfc3987-syntax==1.1.0",
-        "rpds-py==2026.6.3",
+        "rpds-py==2026.9.1",
         "uri-template==1.3.0",
         "webcolors==25.10.0"
       ],
@@ -4778,7 +4778,7 @@
         "urllib3==2.8.0",
         "websockets==16.1.1"
       ],
-      "ref": "openai==3.23.0"
+      "ref": "openai==3.24.0"
     },
     {
       "dependsOn": [
@@ -4808,8 +4808,8 @@
         "openpyxl==3.1.5",
         "pyarrow==25.0.1",
         "python-dateutil==2.9.0.post0",
-        "pytz==2026.4",
-        "tzdata==2026.4",
+        "pytz==2026.5",
+        "tzdata==2026.5",
         "xlrd==2.0.2",
         "xlsxwriter==3.2.9"
       ],
@@ -4882,7 +4882,7 @@
         "pydantic_core==2.46.5",
         "typing-inspection==0.4.4",
         "typing_extensions==4.16.0",
-        "tzdata==2026.4"
+        "tzdata==2026.5"
       ],
       "ref": "pydantic==2.13.5"
     },
@@ -4954,7 +4954,7 @@
       "ref": "python-pptx==1.0.2"
     },
     {
-      "ref": "pytz==2026.4"
+      "ref": "pytz==2026.5"
     },
     {
       "dependsOn": [
@@ -4978,7 +4978,7 @@
     {
       "dependsOn": [
         "attrs==26.1.0",
-        "rpds-py==2026.6.3",
+        "rpds-py==2026.9.1",
         "typing_extensions==4.16.0"
       ],
       "ref": "referencing==0.37.0"
@@ -5018,13 +5018,13 @@
         "anthropic==1.11.0",
         "beautifulsoup4==4.15.0",
         "faiss-cpu==1.15.1",
-        "google-genai==2.27.0",
+        "google-genai==2.28.0",
         "huggingface_hub==1.33.0",
         "jsonschema==4.26.0",
         "lxml_html_clean==0.4.5",
         "odfpy==1.4.1",
         "onnxruntime==1.30.0",
-        "openai==3.23.0",
+        "openai==3.24.0",
         "openpyxl==3.1.5",
         "pandas==3.0.6",
         "pillow==12.3.0",
@@ -5042,18 +5042,18 @@
         "striprtf==0.0.33",
         "tiktoken==0.14.0",
         "tokenizers==0.23.2",
-        "trafilatura==2.2.0",
+        "trafilatura==2.3.0",
         "weaviate-client==4.23.1",
         "xlrd==2.0.2"
       ],
       "ref": "root-component"
     },
     {
-      "ref": "rpds-py==2026.6.3"
+      "ref": "rpds-py==2026.9.1"
     },
     {
       "dependsOn": [
-        "filelock==4.0.9",
+        "filelock==4.0.11",
         "packaging==26.3",
         "pip==26.2.1"
       ],
@@ -5107,14 +5107,13 @@
         "certifi==2026.7.22",
         "charset-normalizer==3.5.2",
         "courlan==1.4.0",
-        "htmldate==1.10.0",
+        "htmldate==1.11.0",
         "jusText==3.0.2",
         "lxml==6.1.3",
         "pandas==3.0.6",
-        "tqdm==4.70.1",
         "urllib3==2.8.0"
       ],
-      "ref": "trafilatura==2.2.0"
+      "ref": "trafilatura==2.3.0"
     },
     {
       "ref": "truststore==0.10.4"
@@ -5129,11 +5128,11 @@
       "ref": "typing_extensions==4.16.0"
     },
     {
-      "ref": "tzdata==2026.4"
+      "ref": "tzdata==2026.5"
     },
     {
       "dependsOn": [
-        "tzdata==2026.4"
+        "tzdata==2026.5"
       ],
       "ref": "tzlocal==5.4.4"
     },
@@ -5210,9 +5209,9 @@
       ],
       "name": "ragleap-rag",
       "type": "library",
-      "version": "0.12.10"
+      "version": "0.13.0"
     },
-    "timestamp": "2026-10-02T04:12:14.949807+00:00",
+    "timestamp": "2026-10-05T11:57:40.139072+00:00",
     "tools": {
       "components": [
         {
@@ -5316,7 +5315,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:362b8209-7f51-4307-93a1-7f8d05761aad",
+  "serialNumber": "urn:uuid:cf9b2d88-cdb5-49d2-b965-5fc3434adace",
   "version": 1,
   "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
   "bomFormat": "CycloneDX",

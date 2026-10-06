@@ -149,6 +149,7 @@ public class FaissBackend implements VectorBackend, AutoCloseable {
         String metaJson = toJson(metadata);
         lock.lock();
         try {
+            checkDimensions(embedding);
             long vid;
             try (PreparedStatement ps = conn.prepareStatement(
                     "INSERT INTO chunks (document_id, document_name, chunk_index, text, token_count, metadata) VALUES (?, ?, ?, ?, ?, ?)")) {
@@ -173,6 +174,13 @@ public class FaissBackend implements VectorBackend, AutoCloseable {
             saveIndexIfPersistent();
         } finally {
             lock.unlock();
+        }
+    }
+
+    /** Rejects an embedding whose length differs from the index dimension, before anything is stored. */
+    private void checkDimensions(List<Double> embedding) throws SQLException {
+        if (dimensions != null && embedding.size() != dimensions) {
+            throw new SQLException("expected " + dimensions + " dimensions, not " + embedding.size());
         }
     }
 

@@ -235,10 +235,7 @@ def _llm(service, prompt: str, role: Optional[str], max_tokens: int = LOOP_MAX_T
     effective = None if role in ("auto", "team") else role
     if budget.check_budget(effective):
         raise _BudgetBlocked()
-    text, _u = service._call_provider(service.primary_config, prompt, 0.0, max_tokens)
-    if not (text or "").strip():
-        text, _u = service._call_provider(service.primary_config, prompt, 0.0, max_tokens * 2)
-    return text or ""
+    return actions.call_with_fallback(service, prompt, max_tokens)
 
 
 def _outcome(run: Dict) -> Dict:

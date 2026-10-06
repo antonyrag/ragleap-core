@@ -157,6 +157,9 @@ public class QdrantBackend implements VectorBackend, AutoCloseable {
     @Override
     public void insertChunk(String documentId, String documentName, int chunkIndex, String text,
                              Integer tokenCount, List<Double> embedding, Map<String, Object> metadata) throws SQLException {
+        if (dimensions != null && embedding.size() != dimensions) {
+            throw new SQLException("expected " + dimensions + " dimensions, not " + embedding.size());
+        }
         String vectorKey = vectorKey(documentId, chunkIndex);
         String qdrantId = deterministicId(vectorKey);
         String metaJson = toJson(metadata);
@@ -205,7 +208,25 @@ public class QdrantBackend implements VectorBackend, AutoCloseable {
         ObjectNode body = MAPPER.createObjectNode();
         body.set("points", points);
 
-        request("PUT", "/collections/" + collectionName + "/points?wait=true", body, false);
+        try {
+            request("PUT", "/collections/" + collectionName + "/points?wait=true", body, false);
+        } catch (SQLException | RuntimeException e) {
+            removeSidecarRow(vectorKey, e);
+            throw e;
+        }
+    }
+
+    /** Removes the local row of a chunk whose server write failed, so the same chunk can be retried. */
+    private void removeSidecarRow(String vectorKey, Exception original) {
+        lock.lock();
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM chunks WHERE vector_key = ?")) {
+            ps.setString(1, vectorKey);
+            ps.executeUpdate();
+        } catch (SQLException cleanupError) {
+            original.addSuppressed(cleanupError);
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override

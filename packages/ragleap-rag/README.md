@@ -418,7 +418,7 @@ Each citation includes source_number (matching the [Source N] label the model wa
 
 ## URL ingestion
 
-ingest_url() fetches a web page and extracts clean, readable text - stripping navigation, ads, and other boilerplate via trafilatura - rather than ingesting raw HTML markup. Requires the web extra.
+ingest_url() fetches a web page and extracts clean, readable text - stripping navigation, ads, and other boilerplate via trafilatura - rather than ingesting raw HTML markup. Requires the web extra. URLs that resolve to non-public addresses (loopback, private, link-local) are refused with `UnsafeURLError` unless you pass `allow_private_urls=True`.
 
 ```bash
 pip install ragleap-rag[web]

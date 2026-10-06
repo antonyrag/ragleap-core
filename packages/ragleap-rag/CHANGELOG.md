@@ -5,6 +5,26 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-03
+### Security
+- `ingest_url()` / `fetch_url_text()` now download pages through a guarded fetcher (`ragleap/_net.py`) instead of `trafilatura.fetch_url`: http/https only, no credentials in the URL, every resolved address must be public (loopback, private, link-local, CGNAT and multicast ranges are refused, including IPv4-mapped IPv6), the connection goes to the validated address so a second DNS lookup cannot swap it, redirects are followed manually (max 3) with every hop re-validated, and size (10 MB) and time are capped. Before this, a page served on a loopback address was fetched. Refusals raise `UnsafeURLError` (a `ValueError`). Pass `allow_private_urls=True` to `ingest_url()` (or `allow_private=True` to `fetch_url_text()`) to reach private networks.
+- Zip-based extraction has limits: archives (`.zip`, `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`, `.epub`) with more than 1,000 members or more than 100 MB of declared uncompressed data are rejected before extraction with a `ValueError`, and `.zip` members are also read under a running byte budget, A header that understates the sizes did not get around this in a test: Python's `zipfile` reads only the declared size and then fails the CRC check (a 40 MB member with its sizes forged to 1,000 bytes raised `ValueError` with peak memory unchanged), so the budget is a second guard. The forged-header case was not tested for the other zip-based formats. Before this, a 39,002-byte zip returned 40,000,016 characters with no error. The limits are module constants (`ragleap.parsers.MAX_ZIP_MEMBERS`, `MAX_ZIP_UNCOMPRESSED_BYTES`).
+
+### Changed
+- Behavior change (hence the minor version): URLs resolving to non-public addresses no longer work unless opted in, archives over the zip limits (including a legitimate `.docx` or `.xlsx` above 100 MB uncompressed) are rejected, and pages are downloaded with Python's `http.client`/`ssl` (system CA certificates; gzip responses are decoded under the same size cap) instead of trafilatura's downloader.
+
+### Verified
+- Local run, Python 3.10, all extras installed (formats, web, qdrant, weaviate, pinecone, milvus), Postgres test database, `CI=true`: 368 tests, 354 passed, 14 skipped (12 live-gated Qdrant/Weaviate tests that need running servers, 2 that need `onnxruntime`).
+- Compared with the previous downloader (`trafilatura.fetch_url`) on 11 public pages (Wikipedia, python.org about and downloads, docs.python.org, docs.pytest.org, GitHub, ragleap.com, docs.ragleap.com, RFC 9110, Hacker News, example.com over http): extracted text length was identical on all 11. The two python.org pages return gzip even when identity is requested, so the first draft of this fetcher returned nothing for them; that is why gzip decoding was added.
+- Real `https://example.com/` and `http://example.com/` fetched through the guard; `http://169.254.169.254/` and `http://127.0.0.1:1/` refused (run before the gzip change, which did not touch the address checks; the attack-case tests cover them in this build).
+- A 40 MB zip member with its header sizes forged to 1,000 bytes raised `ValueError` and peak memory stayed flat (102 MB before and after).
+- Not verified: Python 3.11 on the test host (CI runs 3.11); forged headers for zip-based formats other than `.zip`; sites that block non-browser User-Agents; br/zstd encodings; pages that need JavaScript.
+
+### Known, not fixed here
+- Name resolution (`getaddrinfo`) is not covered by the timeouts. 6to4/NAT64 addresses that embed an IPv4 address are not specially handled. Proxy environment variables are not honored.
+- Responses with a `Content-Encoding` other than identity, gzip or zlib-wrapped deflate (for example br) are not decoded and return `None`. python.org sends gzip even when asked for identity, which the first draft of this fetcher refused; gzip is now decoded under the same 10 MB cap, applied to the compressed and the decompressed size.
+- Tracked in issue #534.
+
 ## [0.12.10] - 2026-10-02
 ### Fixed
 - `pip install "ragleap-rag[web]"` gave a broken `ingest_url()` on a fresh install: `trafilatura` imports `lxml.html.clean`, which is now the separate `lxml_html_clean` package, and nothing installed it. The `web` and `all` extras now include it, and `fetch_url_text()` reports the real import error instead of a generic "requires the 'web' extra" message. (Reproduced on Python 3.10 with lxml 6.1.3 and trafilatura 2.2.0; with `lxml_html_clean` added the import worked and a loopback page extracted correctly.)

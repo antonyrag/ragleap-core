@@ -14,6 +14,10 @@ from typing import Optional
 import pytest
 
 
+# tests never wait between provider retries
+os.environ.setdefault("ACTION_RETRY_DELAY", "0")
+
+
 def database_guard_error(url: Optional[str], env=None) -> Optional[str]:
     env = os.environ if env is None else env
     if env.get("CI") or env.get("RAGLEAP_ALLOW_ANY_DB") == "1":
@@ -36,3 +40,20 @@ def pytest_sessionstart(session):
     msg = database_guard_error(os.environ.get("DATABASE_URL"))
     if msg:
         pytest.exit(msg, returncode=3)
+
+
+# Opt-in feature flags that a developer may have in .env or the shell. Tests must see the
+# documented defaults (everything off); a test that needs a flag sets it with monkeypatch.
+_FEATURE_FLAGS = (
+    "AGENT_LOOP_ENABLED", "AGENT_LOOP_MAX_STEPS", "CODE_EXEC_ENABLED", "SHELL_EXEC_ENABLED",
+    "SANDBOX_TOKEN", "SANDBOX_URL", "BROWSER_FETCH_ENABLED", "BROWSER_ALLOWED_DOMAINS",
+    "MCP_SERVERS", "MCP_ALLOWED_TOOLS", "ACTION_TASKS_ENABLED", "APPROVAL_REPLIES",
+    "BUDGET_DAILY_TOKENS", "BUDGET_MONTHLY_TOKENS", "BUDGET_ROLE_DAILY_TOKENS",
+    "BUDGET_ROLE_MONTHLY_TOKENS", "BUDGET_ROLE_DAILY_OVERRIDES", "BUDGET_ROLE_MONTHLY_OVERRIDES",
+)
+
+
+@pytest.fixture(autouse=True)
+def _feature_flags_off_by_default(monkeypatch):
+    for name in _FEATURE_FLAGS:
+        monkeypatch.delenv(name, raising=False)
