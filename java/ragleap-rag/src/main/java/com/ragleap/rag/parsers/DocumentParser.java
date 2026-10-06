@@ -54,6 +54,26 @@ public final class DocumentParser {
 
     private static final Set<String> UNSUPPORTED_LEGACY = Set.of(".doc", ".ppt");
 
+    /** Default archive limits, the same as the Python package's MAX_ZIP_MEMBERS and MAX_ZIP_UNCOMPRESSED_BYTES. */
+    public static final int DEFAULT_MAX_ZIP_MEMBERS = 1000;
+    public static final long DEFAULT_MAX_ZIP_UNCOMPRESSED_BYTES = 100L * 1024 * 1024;
+    private static volatile int maxZipMembers = DEFAULT_MAX_ZIP_MEMBERS;
+    private static volatile long maxZipUncompressedBytes = DEFAULT_MAX_ZIP_UNCOMPRESSED_BYTES;
+    private static final Set<String> ZIP_BASED_EXTENSIONS =
+            Set.of(".zip", ".docx", ".xlsx", ".pptx", ".odt", ".ods", ".odp", ".epub");
+
+    /**
+     * Sets the archive limits for zip-based formats (.zip, .docx, .xlsx, .pptx, .odt, .ods, .odp, .epub).
+     * Process-wide, like assigning the Python module constants.
+     */
+    public static void setZipLimits(int maxMembers, long maxUncompressedBytes) {
+        if (maxMembers < 0 || maxUncompressedBytes < 0) {
+            throw new IllegalArgumentException("Archive limits must not be negative");
+        }
+        maxZipMembers = maxMembers;
+        maxZipUncompressedBytes = maxUncompressedBytes;
+    }
+
     private static final ObjectMapper JSON = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .build();
@@ -98,6 +118,10 @@ public final class DocumentParser {
             throw new IllegalArgumentException(
                     "Parquet is not supported in the Java port (Java Parquet readers need a very "
                             + "heavy Hadoop dependency tree). Convert to CSV first.");
+        }
+
+        if (ZIP_BASED_EXTENSIONS.contains(ext)) {
+            checkZipLimits(rawBytes);
         }
 
         return switch (ext) {
@@ -288,6 +312,7 @@ public final class DocumentParser {
     /** Extracts and concatenates text from every supported file inside the zip. */
     static String extractZip(byte[] rawBytes) {
         List<String> parts = new ArrayList<>();
+        long budget = maxZipUncompressedBytes;
         try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(rawBytes))) {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
@@ -300,10 +325,18 @@ public final class DocumentParser {
                     continue;
                 }
                 try {
-                    String innerText = extractText(name, zis.readAllBytes());
+                    byte[] inner = zis.readNBytes((int) Math.min(budget + 1, Integer.MAX_VALUE - 8L));
+                    if (inner.length > budget) {
+                        throw new ZipLimitException("Archive member data exceeds the "
+                                + maxZipUncompressedBytes + "-byte uncompressed limit.");
+                    }
+                    budget -= inner.length;
+                    String innerText = extractText(name, inner);
                     if (!PyText.isBlank(innerText)) {
                         parts.add("[File: " + name + "]\n" + innerText);
                     }
+                } catch (ZipLimitException e) {
+                    throw e;
                 } catch (Exception e) {
                     logger.warning("Skipping '" + name + "' inside zip — extraction failed: " + e.getMessage());
                 }
@@ -315,5 +348,48 @@ public final class DocumentParser {
             throw new IllegalArgumentException("No extractable text found in any file inside this zip.");
         }
         return String.join("\n\n", parts);
+    }
+
+    /**
+     * Rejects an archive with too many members or too much declared uncompressed data, before any
+     * extraction (the Python package's _check_zip_limits). An archive that cannot be read as a zip is
+     * left to the format's own parser to report.
+     */
+    static void checkZipLimits(byte[] rawBytes) {
+        java.nio.file.Path tmp = null;
+        try {
+            tmp = java.nio.file.Files.createTempFile("ragleap-zipcheck-", ".zip");
+            java.nio.file.Files.write(tmp, rawBytes);
+            try (java.util.zip.ZipFile zf = new java.util.zip.ZipFile(tmp.toFile())) {
+                int count = zf.size();
+                if (count > maxZipMembers) {
+                    throw new ZipLimitException("Archive has " + count + " members (limit " + maxZipMembers + ").");
+                }
+                long total = 0;
+                java.util.Enumeration<? extends ZipEntry> entries = zf.entries();
+                while (entries.hasMoreElements()) {
+                    long size = entries.nextElement().getSize();
+                    if (size > 0) {
+                        total += size;
+                    }
+                }
+                if (total > maxZipUncompressedBytes) {
+                    throw new ZipLimitException("Archive declares " + total
+                            + " bytes uncompressed (limit " + maxZipUncompressedBytes + ").");
+                }
+            }
+        } catch (java.util.zip.ZipException e) {
+            // not a readable archive: the format's own parser reports that
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Could not read archive: " + e.getMessage(), e);
+        } finally {
+            if (tmp != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(tmp);
+                } catch (IOException ignored) {
+                    // best effort
+                }
+            }
+        }
     }
 }
