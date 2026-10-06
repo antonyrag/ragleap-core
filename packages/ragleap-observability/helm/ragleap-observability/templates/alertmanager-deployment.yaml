@@ -60,6 +60,8 @@ spec:
     metadata:
       labels:
         app: ragleap-alertmanager
+      annotations:
+        checksum/config: {{ toYaml .Values.alertmanager | sha256sum }}
     spec:
       automountServiceAccountToken: false
       {{- if .Values.serviceAccount.create }}

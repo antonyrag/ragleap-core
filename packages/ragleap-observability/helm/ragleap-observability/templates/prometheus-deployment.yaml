@@ -26,6 +26,9 @@ spec:
     metadata:
       labels:
         app: ragleap-prometheus
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/prometheus-configmap.yaml") . | sha256sum }}
+        checksum/rules: {{ include (print $.Template.BasePath "/prometheus-rules-configmap.yaml") . | sha256sum }}
     spec:
       automountServiceAccountToken: false
       {{- if .Values.serviceAccount.create }}
