@@ -229,6 +229,16 @@ def make_server(tls_material):
         s.close()
 
 
+def client_context(cafile):
+    """A verifying client context that trusts only the throwaway test
+    certificate, with the same TLS 1.2 floor the production context has. The
+    floor is set in the function that creates the context, which is where
+    CodeQL's py/insecure-protocol query looks for it."""
+    ctx = ssl.create_default_context(cafile=cafile)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    return ctx
+
+
 class Client:
     """Injected DNS/connect/TLS so the tests run offline."""
 
@@ -236,8 +246,7 @@ class Client:
         self.server = server
         self.connects = []
         cert, _ = tls_material
-        self.ctx = ssl.create_default_context(cafile=cert)
-        self.ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        self.ctx = client_context(cert)
 
     def kwargs(self, **extra):
         def connect(ip, port, timeout):
@@ -424,7 +433,7 @@ def test_stalled_tls_handshake_hits_the_deadline(make_server, tls_material):
 def test_connect_failure_is_a_constant_error(tls_material):
     def refuse(ip, port, timeout):
         raise ConnectionRefusedError("secret library text")
-    ctx = ssl.create_default_context(cafile=tls_material[0])
+    ctx = client_context(tls_material[0])
     with pytest.raises(TransportError) as e:
         https_post(URL, {}, b"{}", resolver=_resolver(PUBLIC_IP), connect=refuse, ssl_context=ctx)
     assert e.value.code == "connect"
