@@ -143,6 +143,9 @@ def _validate(name: str, raw) -> str:
     elif name.endswith("_BASE_URL"):
         if not re.match(r"^https?://\S+$", value):
             raise ValueError(name + " must start with http:// or https://")
+        authority = value.split("//", 1)[1].split("/", 1)[0]
+        if "@" in authority:
+            raise ValueError(name + " must not contain a username or password.")
     return value
 
 
@@ -195,3 +198,30 @@ def describe() -> List[Dict]:
             item["value"] = current
         out.append(item)
     return out
+
+
+def invalid_names(updates: Dict[str, Optional[object]]) -> List[str]:
+    """Names that would be rejected. Returns names only, never exception text."""
+    spec = _spec()
+    bad: List[str] = []
+    for name, raw in updates.items():
+        if name not in spec:
+            bad.append(str(name)[:64])
+            continue
+        if raw is None or (isinstance(raw, str) and not raw.strip()):
+            continue
+        try:
+            _validate(name, raw)
+        except ValueError:
+            bad.append(name)
+    return bad
+
+
+def needs_encryption(updates: Dict[str, Optional[object]]) -> bool:
+    spec = _spec()
+    return any(spec.get(n) and v is not None and not (isinstance(v, str) and not v.strip())
+               for n, v in updates.items())
+
+
+def encryption_ready() -> bool:
+    return _fernet() is not None
