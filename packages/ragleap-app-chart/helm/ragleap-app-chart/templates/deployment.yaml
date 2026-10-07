@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 4 }}
 spec:
+  {{- if not (and $svc.autoscaling $svc.autoscaling.enabled) }}
   replicas: {{ $svc.replicaCount | default 1 }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ $svc.name }}

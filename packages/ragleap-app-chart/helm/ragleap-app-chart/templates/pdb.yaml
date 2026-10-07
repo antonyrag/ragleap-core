@@ -1,0 +1,17 @@
+{{- range $svc := .Values.services }}
+{{- if and $svc.pdb $svc.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  labels:
+    {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 4 }}
+spec:
+  minAvailable: {{ $svc.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+      release: {{ $.Release.Name }}
+{{- end }}
+{{- end }}
