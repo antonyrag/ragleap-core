@@ -95,6 +95,7 @@ def _resolve_provider_config(provider: str, required: bool = True) -> Optional[D
     required=False (fallback providers) returns None and logs a warning.
     """
     provider = provider.lower()
+    from core import settings
 
     def _fail(msg: str) -> Optional[Dict]:
         if required:
@@ -103,37 +104,37 @@ def _resolve_provider_config(provider: str, required: bool = True) -> Optional[D
         return None
 
     if provider == "gemini":
-        api_key = os.environ.get("GEMINI_API_KEY")
+        api_key = settings.get("GEMINI_API_KEY")
         if not api_key:
             return _fail(
                 "GEMINI_API_KEY is not set. Get one at "
                 "https://aistudio.google.com/apikey and add it to .env."
             )
-        return {"provider": "gemini", "api_key": api_key, "model": GEMINI_CHAT_MODEL, "base_url": None}
+        return {"provider": "gemini", "api_key": api_key, "model": settings.get("GEMINI_CHAT_MODEL", GEMINI_CHAT_MODEL), "base_url": None}
 
     elif provider == "anthropic":
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        api_key = settings.get("ANTHROPIC_API_KEY")
         if not api_key:
             return _fail(
                 "ANTHROPIC_API_KEY is not set. Get one at "
                 "https://console.anthropic.com and add it to .env."
             )
-        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+        model = settings.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
         return {"provider": "anthropic", "api_key": api_key, "model": model, "base_url": None}
 
     elif provider in PROVIDER_BASE_URLS:
         key_env = f"{provider.upper()}_API_KEY"
-        api_key = os.environ.get(key_env)
-        model = os.environ.get(f"{provider.upper()}_MODEL", "")
+        api_key = settings.get(key_env) or None
+        model = settings.get(f"{provider.upper()}_MODEL", "")
         # Any provider's base URL can be overridden via {PROVIDER}_BASE_URL,
         # e.g. OLLAMA_BASE_URL=http://host.docker.internal:11434/v1 when
         # running in Docker (the "localhost" default only works when the
         # app runs on bare metal alongside Ollama, not inside a container).
         # 'custom' keeps its own CUSTOM_BASE_URL name for backward compat.
         if provider == "custom":
-            base_url = os.environ.get("CUSTOM_BASE_URL")
+            base_url = settings.get("CUSTOM_BASE_URL") or None
         else:
-            base_url = os.environ.get(f"{provider.upper()}_BASE_URL", PROVIDER_BASE_URLS[provider])
+            base_url = settings.get(f"{provider.upper()}_BASE_URL", PROVIDER_BASE_URLS[provider])
 
         if not api_key and provider != "ollama":
             return _fail(f"{key_env} is not set. Add your {provider} API key to .env.")
@@ -186,12 +187,20 @@ class GenerationService:
     """
 
     def __init__(self):
-        self.primary_config = _resolve_provider_config(LLM_PROVIDER, required=True)
+        from core import settings
+        name = LLM_PROVIDER
+        if settings.source("LLM_PROVIDER") == "dashboard":
+            name = settings.get("LLM_PROVIDER", LLM_PROVIDER).lower()
+        self.primary_config = _resolve_provider_config(name, required=True)
         self.provider = self.primary_config["provider"]
 
     def _fallback_chain(self) -> List[Dict]:
+        from core import settings
+        names = LLM_FALLBACK_PROVIDERS
+        if settings.source("LLM_FALLBACK_PROVIDERS") == "dashboard":
+            names = [p.strip().lower() for p in settings.get("LLM_FALLBACK_PROVIDERS").split(",") if p.strip()]
         chain = [self.primary_config]
-        for name in LLM_FALLBACK_PROVIDERS:
+        for name in names:
             if name == self.primary_config["provider"]:
                 continue
             config = _resolve_provider_config(name, required=False)

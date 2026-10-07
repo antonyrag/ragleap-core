@@ -11,6 +11,8 @@ import time
 import logging
 from typing import List, Optional
 
+from core import settings
+
 logger = logging.getLogger(__name__)
 
 GEMINI_EMBEDDING_MODEL = os.environ.get("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
@@ -44,11 +46,11 @@ OPENAI_COMPATIBLE = {
 
 
 def provider() -> str:
-    return os.environ.get("EMBEDDING_PROVIDER", "gemini").strip().lower() or "gemini"
+    return settings.get("EMBEDDING_PROVIDER", "gemini").strip().lower() or "gemini"
 
 
 def configured_dimensions() -> int:
-    raw = os.environ.get("EMBEDDING_DIMENSIONS", "").strip()
+    raw = settings.get("EMBEDDING_DIMENSIONS", "").strip()
     if raw.isdigit() and int(raw) > 0:
         return int(raw)
     return OPENAI_COMPATIBLE.get(provider(), ("", "", 0))[2] or 3072
@@ -58,9 +60,9 @@ def _compat_settings(p: str):
     base_default, model_default, _dims = OPENAI_COMPATIBLE[p]
     up = p.upper()
     base_var = "CUSTOM_BASE_URL" if p == "custom" else up + "_BASE_URL"
-    base = os.environ.get(base_var, "").strip() or base_default
-    model = os.environ.get(up + "_EMBEDDING_MODEL", "").strip() or model_default
-    key = os.environ.get(up + "_API_KEY", "").strip()
+    base = settings.get(base_var, "").strip() or base_default
+    model = settings.get(up + "_EMBEDDING_MODEL", "").strip() or model_default
+    key = settings.get(up + "_API_KEY", "").strip()
     return base.rstrip("/"), model, key
 
 
@@ -80,8 +82,8 @@ class EmbeddingService:
         self.dimensions = configured_dimensions()
         self.base_url = ""
         if self.provider == "gemini":
-            self.model = GEMINI_EMBEDDING_MODEL
-            self.api_key = os.environ.get("GEMINI_API_KEY")
+            self.model = settings.get("GEMINI_EMBEDDING_MODEL", GEMINI_EMBEDDING_MODEL)
+            self.api_key = settings.get("GEMINI_API_KEY") or None
         elif self.provider in OPENAI_COMPATIBLE:
             up = self.provider.upper()
             self.base_url, self.model, self.api_key = _compat_settings(self.provider)
@@ -91,7 +93,7 @@ class EmbeddingService:
                 raise ValueError("Set " + up + "_EMBEDDING_MODEL for EMBEDDING_PROVIDER=" + self.provider + ".")
             if self.provider != "ollama" and not self.api_key:
                 raise ValueError("Set " + up + "_API_KEY for EMBEDDING_PROVIDER=" + self.provider + ".")
-            if OPENAI_COMPATIBLE[self.provider][2] == 0 and not os.environ.get("EMBEDDING_DIMENSIONS", "").strip().isdigit():
+            if OPENAI_COMPATIBLE[self.provider][2] == 0 and not settings.get("EMBEDDING_DIMENSIONS", "").strip().isdigit():
                 raise ValueError("Set EMBEDDING_DIMENSIONS to the output size of your " + self.provider + " embedding model.")
         else:
             raise ValueError("Unknown EMBEDDING_PROVIDER '" + self.provider + "'. Use gemini or one of: " + ", ".join(sorted(OPENAI_COMPATIBLE)) + ".")
