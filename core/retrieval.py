@@ -15,7 +15,9 @@ from core.graph import graph_service
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://ragleap:ragleap@localhost:5432/ragleap_core")
-EMBEDDING_DIMENSIONS = int(os.environ.get("EMBEDDING_DIMENSIONS", "3072"))
+from core.embedding import configured_dimensions
+
+EMBEDDING_DIMENSIONS = configured_dimensions()  # kept for old imports; use configured_dimensions() at call time
 
 # Reciprocal Rank Fusion constant. Higher = flatter weighting across ranks
 # (top result matters relatively less vs. lower-ranked ones); 60 is the
@@ -53,9 +55,10 @@ class VectorRetrievalService:
         if not query_embedding:
             return []
 
-        if len(query_embedding) != EMBEDDING_DIMENSIONS:
+        dims = configured_dimensions()
+        if len(query_embedding) != dims:
             logger.warning(
-                f"Query embedding dim={len(query_embedding)} != expected {EMBEDDING_DIMENSIONS}; skipping search"
+                f"Query embedding dim={len(query_embedding)} != expected {dims}; skipping search"
             )
             return []
 
@@ -68,7 +71,7 @@ class VectorRetrievalService:
                 document_id,
                 document_name,
                 chunk_index,
-                1 - (embedding::halfvec(3072) <=> %s::halfvec(3072)) / 2 AS similarity_score
+                1 - (embedding::halfvec(__DIMS__) <=> %s::halfvec(__DIMS__)) / 2 AS similarity_score
             FROM chunks
         """
         params = [literal]
@@ -77,8 +80,9 @@ class VectorRetrievalService:
             sql += " WHERE document_id = %s"
             params.append(document_id)
 
-        sql += " ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s"
+        sql += " ORDER BY embedding::halfvec(__DIMS__) <=> %s::halfvec(__DIMS__) LIMIT %s"
         params.extend([literal, top_k])
+        sql = sql.replace("__DIMS__", str(int(dims)))
 
         try:
             conn = self._get_connection()

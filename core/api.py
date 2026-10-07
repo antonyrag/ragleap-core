@@ -81,6 +81,12 @@ async def _run_due_triggers_job():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    try:
+        import asyncio
+        from core import embedding as _embedding, vector_dims
+        await asyncio.to_thread(vector_dims.ensure_all, _embedding.configured_dimensions())
+    except Exception as e:
+        logger.warning("Vector size check skipped: %s", type(e).__name__)
     scheduler = AsyncIOScheduler()
     scheduler.add_job(_sync_job, "interval", minutes=5)
     scheduler.add_job(_run_due_triggers_job, "interval", minutes=1,
