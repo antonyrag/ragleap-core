@@ -9,7 +9,7 @@
   let stamp = null;
   const tabButtons = {};
   const expanded = new Set();
-  const TABS = [["overview", "Overview"], ["approvals", "Approvals"], ["employees", "Employees"], ["tasks", "Tasks"], ["runs", "Agent runs"], ["log", "Activity"]];
+  const TABS = [["overview", "Overview"], ["approvals", "Approvals"], ["employees", "Employees"], ["tasks", "Tasks"], ["runs", "Agent runs"], ["log", "Activity"], ["settings", "Settings"]];
 
   // All dynamic text goes in as text nodes; nothing here ever builds HTML from data.
   const add = (el, kid) => {
@@ -57,6 +57,7 @@
     key = "";
     taskFormEl = null;
     boardEl = null;
+    settingsEl = null;
     sessionStorage.removeItem("ragleap_key");
     if (timer) { clearInterval(timer); timer = null; }
     showLogin(msg);
@@ -244,6 +245,118 @@
     })));
   };
 
+  const SETTINGS_NOTE = "A value saved here wins over the .env file. Saved keys are encrypted and can never be read back.";
+  const sourceTag = (it) => h("span", { class: "tag" }, it.source === "dashboard" ? "set here" : (it.source === "env" ? "from .env" : "default"));
+  const llmFields = (p) => {
+    const up = p.toUpperCase();
+    if (p === "gemini") return [["GEMINI_CHAT_MODEL", "Model", "chat model name"], ["GEMINI_API_KEY", "API key", ""]];
+    if (p === "anthropic") return [["ANTHROPIC_MODEL", "Model", "chat model name"], ["ANTHROPIC_API_KEY", "API key", ""]];
+    const rows = [[up + "_MODEL", "Model", "chat model name"]];
+    if (p !== "ollama") rows.push([up + "_API_KEY", "API key", ""]);
+    rows.push([up + "_BASE_URL", p === "ollama" ? "Address" : "Address (optional)", "include the http prefix, e.g. host.docker.internal:11434/v1"]);
+    return rows;
+  };
+  const embFields = (p) => {
+    if (p === "gemini") return [["GEMINI_EMBEDDING_MODEL", "Model", "embedding model name"], ["GEMINI_API_KEY", "API key", ""]];
+    const up = p.toUpperCase();
+    const rows = [[up + "_EMBEDDING_MODEL", "Model", p === "ollama" ? "nomic-embed-text" : "embedding model name"]];
+    if (p !== "ollama") rows.push([up + "_API_KEY", "API key", ""]);
+    rows.push([up + "_BASE_URL", p === "ollama" ? "Address" : "Address (optional)", "include the http prefix, e.g. host.docker.internal:11434/v1"]);
+    return rows;
+  };
+  let settingsEl = null;
+  const buildSettings = (data, note) => {
+    const items = {};
+    data.settings.forEach((s) => { items[s.name] = s; });
+    const stores = { llm: {}, emb: {}, common: {} };
+    const msg = h("p", { class: "sub" }, note || "");
+    const reload = async (text) => {
+      try { const d = await api("GET", "/settings"); settingsEl = buildSettings(d, text); view.replaceChildren(settingsEl); }
+      catch (e) { if (String(e.message) !== "unauthorized") msg.textContent = "Failed: " + clip(e.message, 120); }
+    };
+    const save = async (values, okText) => {
+      if (!Object.keys(values).length) { msg.textContent = "Nothing to save."; return; }
+      msg.textContent = "Saving...";
+      try {
+        const r = await api("PUT", "/settings", { values: values });
+        let text = okText || "Saved.";
+        const bad = (r.vector_status || []).filter((v) => v.status === "mismatch");
+        if (bad.length) text += " Warning: stored documents use a different vector size, so nothing was resized. Re-ingest after clearing them, or switch back.";
+        reload(text);
+      } catch (e) { msg.textContent = "Failed: " + clip(e.message, 160); }
+    };
+    const field = (store, name, label, hint) => {
+      const it = items[name];
+      if (!it) return null;
+      const el = h("input", { type: it.secret ? "password" : "text", placeholder: it.secret && it.is_set ? "leave blank to keep" : (hint || ""), autocomplete: "off", maxlength: 512 });
+      if (!it.secret) el.value = it.value || "";
+      store[name] = { el: el, secret: it.secret, orig: it.secret ? "" : (it.value || "") };
+      let tag;
+      if (it.secret) tag = h("span", { class: "tag " + (it.is_set ? "ok" : "") }, it.is_set ? (it.source === "dashboard" ? "saved, hidden" : "set in .env, hidden") : "not set");
+      else tag = sourceTag(it);
+      const rm = it.secret && it.source === "dashboard"
+        ? h("button", { type: "button", class: "ghost", on: { click: () => save({ [name]: null }, "Removed.") } }, "Remove") : null;
+      return h("div", { class: "row" }, h("label", { class: "sub" }, label), el, tag, rm);
+    };
+    const select = (list, current) => {
+      const s = h("select", null, list.map((p) => h("option", { value: p }, p)));
+      if (list.includes(current)) s.value = current;
+      return s;
+    };
+    const origLlm = ((items.LLM_PROVIDER && items.LLM_PROVIDER.value) || "gemini").toLowerCase();
+    const origEmb = ((items.EMBEDDING_PROVIDER && items.EMBEDDING_PROVIDER.value) || "gemini").toLowerCase();
+    const llmSel = select(data.providers.llm, origLlm);
+    const embSel = select(data.providers.embedding, origEmb);
+    const llmBox = h("div", { class: "list" });
+    const embBox = h("div", { class: "list" });
+    const draw = (box, store, rows) => {
+      Object.keys(store).forEach((k) => { delete store[k]; });
+      box.replaceChildren(...rows.map((r) => field(store, r[0], r[1], r[2])).filter(Boolean));
+    };
+    const drawLlm = () => draw(llmBox, stores.llm, llmFields(llmSel.value));
+    const drawEmb = () => draw(embBox, stores.emb, embFields(embSel.value));
+    llmSel.addEventListener("change", drawLlm);
+    embSel.addEventListener("change", drawEmb);
+    drawLlm();
+    drawEmb();
+    const fallbackRow = field(stores.common, "LLM_FALLBACK_PROVIDERS", "Fallbacks", "comma separated, e.g. groq,gemini");
+    const dimsRow = field(stores.common, "EMBEDDING_DIMENSIONS", "Vector size", "must match the model, e.g. 768 or 3072");
+    const collect = () => {
+      const out = {};
+      Object.values(stores).forEach((store) => Object.keys(store).forEach((n) => {
+        const f = store[n];
+        const v = f.el.value.trim();
+        if (f.secret) { if (v) out[n] = v; } else if (v !== f.orig) out[n] = v;
+      }));
+      if (llmSel.value !== origLlm) out.LLM_PROVIDER = llmSel.value;
+      if (embSel.value !== origEmb) out.EMBEDDING_PROVIDER = embSel.value;
+      return out;
+    };
+    const testBtn = (label, path) => h("button", { type: "button", on: { click: async () => {
+      msg.textContent = "Testing the saved settings (save first if you changed something)...";
+      try {
+        const r = await api("POST", path);
+        msg.textContent = r.ok ? ("Works: " + r.provider + " / " + r.model + (r.dimensions ? " (" + r.dimensions + " dims)" : "")) : ("Problem: " + (r.hint || r.error));
+      } catch (e) { msg.textContent = "Failed: " + clip(e.message, 120); }
+    } } }, label);
+    return h("div", { class: "list" },
+      h("p", { class: "sub" }, SETTINGS_NOTE),
+      data.encryption_ready ? null : h("p", { class: "err" }, "Keys cannot be saved here: ADDON_ENCRYPTION_KEY is not set on the server."),
+      h("section", { class: "dept" }, h("h2", null, "Chat AI"),
+        h("div", { class: "row" }, h("label", { class: "sub" }, "Provider"), llmSel),
+        llmBox, fallbackRow, h("div", { class: "row" }, testBtn("Test chat AI", "/settings/test/llm"))),
+      h("section", { class: "dept" }, h("h2", null, "Embeddings (document search)"),
+        h("p", { class: "sub" }, "Changing the embedding model after you have added documents means re-adding them."),
+        h("div", { class: "row" }, h("label", { class: "sub" }, "Provider"), embSel),
+        embBox, dimsRow, h("div", { class: "row" }, testBtn("Test embeddings", "/settings/test/embedding"))),
+      h("div", { class: "row" }, h("button", { type: "button", class: "ok", on: { click: () => save(collect()) } }, "Save changes"), msg));
+  };
+  const refreshSettings = async () => {
+    if (settingsEl && view.firstChild === settingsEl) return;
+    settingsEl = buildSettings(await api("GET", "/settings"), "");
+    view.replaceChildren(settingsEl);
+  };
+
   const refresh = async () => {
     if (armed || !view) return;
     try {
@@ -257,6 +370,7 @@
       else if (tab === "runs") content = renderRuns((await api("GET", "/agent-runs?limit=30")).runs);
       else if (tab === "employees") content = renderOrg(await api("GET", "/org"));
       else if (tab === "tasks") { await refreshTasks(); content = null; }
+      else if (tab === "settings") { await refreshSettings(); content = null; }
       else content = renderLog((await api("GET", "/autonomy/log?limit=60")).log);
       if (content) view.replaceChildren(content);
       stamp.textContent = "updated " + new Date().toLocaleTimeString();
