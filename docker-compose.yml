@@ -131,7 +131,18 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["python", "-u", "/runner.py"]
 
+  # Local models (opt-in): docker compose --profile ollama up -d
+  # No published port: only containers on this compose network (the app) can reach it,
+  # so an unauthenticated Ollama is never exposed to the host network or the internet.
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ragleap_core_ollama:/root/.ollama
+
 volumes:
   ragleap_core_data:
   ragleap_core_neo4j_data:
   ragleap_core_redis_data:
+  ragleap_core_ollama:

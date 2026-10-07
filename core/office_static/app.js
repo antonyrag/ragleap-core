@@ -1,6 +1,17 @@
 "use strict";
 (() => {
   const root = document.getElementById("app");
+  // One-click login link: /office#key=... stores the key for this tab and removes it from the
+  // address bar. A URL fragment is never sent to the server.
+  const linkKey = (() => {
+    const m = /^#key=([A-Za-z0-9._~%-]+)$/.exec(location.hash);
+    if (!m) return "";
+    try { return decodeURIComponent(m[1]); } catch (e) { return ""; }
+  })();
+  if (linkKey) {
+    sessionStorage.setItem("ragleap_key", linkKey);
+    history.replaceState(null, "", location.pathname + location.search);
+  }
   let key = sessionStorage.getItem("ragleap_key") || "";
   let tab = "overview";
   let timer = null;

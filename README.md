@@ -251,7 +251,7 @@ curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install
 
 (Windows users: run this in Git Bash, not Command Prompt or PowerShell.)
 
-The script will pause after cloning and ask you to add your Gemini API key to `.env` — get a free one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), then re-run the same command.
+The installer asks which AI to use (Gemini, or fully local Ollama with no API key), generates your API key and secrets, starts everything and prints a one-click link to the dashboard. For local AI run `curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install.sh | bash -s -- --ollama` (small local models on a CPU are slower and less accurate than Gemini). For unattended installs set `RAGLEAP_PROVIDER` (`gemini`, `ollama` or `skip`) and `GEMINI_API_KEY`. An existing `.env` is never modified.
 
 **Or, the manual way** — better if you want to read the code before running anything:
 
