@@ -32,6 +32,8 @@ from core import proactive_triggers as core_triggers
 from core import autonomy
 from core import agent_loop
 from core import office
+from core import settings as core_settings
+from core import vector_dims as core_vector_dims
 from core import observability
 from core import queue
 from core.employees.sensitivity import is_sensitive_role
@@ -943,6 +945,96 @@ def office_autonomy_log(limit: int = 50, approved: bool | None = None):
 def office_org():
     """Org chart for the AI Office: departments with each role's status, usage, caps and open tasks."""
     return office.org_chart()
+
+
+class SettingsUpdateRequest(BaseModel):
+    values: dict[str, str | int | None]
+
+
+@app.get("/settings")
+def get_dashboard_settings():
+    """Every dashboard-editable setting with its source (dashboard/env/default). Secrets are never returned."""
+    return {
+        "settings": core_settings.describe(),
+        "providers": {"llm": core_settings.llm_providers(), "embedding": core_settings.embedding_providers()},
+        "encryption_ready": core_settings.encryption_ready(),
+    }
+
+
+@app.put("/settings")
+def put_dashboard_settings(req: SettingsUpdateRequest):
+    """Save settings. A blank or null value removes the dashboard value (falls back to .env, then default)."""
+    values = req.values
+    if not values or len(values) > 100:
+        raise HTTPException(status_code=400, detail="Send between 1 and 100 settings.")
+    bad = core_settings.invalid_names(values)
+    if bad:
+        raise HTTPException(status_code=400, detail="Some settings are not valid: " + ", ".join(bad))
+    if core_settings.needs_encryption(values) and not core_settings.encryption_ready():
+        raise HTTPException(status_code=400, detail="ADDON_ENCRYPTION_KEY is not set, so secrets cannot be stored.")
+    try:
+        updated = core_settings.set_many(values)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Could not save these settings.")
+    except Exception as e:
+        logger.error("Saving settings failed: %s", type(e).__name__)
+        raise HTTPException(status_code=500, detail="Could not save settings.")
+    vector_status = None
+    if any(n in ("EMBEDDING_PROVIDER", "EMBEDDING_DIMENSIONS") for n in updated):
+        from core import embedding as _emb
+        vector_status = core_vector_dims.ensure_all(_emb.configured_dimensions())
+    return {"updated": updated, "vector_status": vector_status}
+
+
+_TEST_MESSAGES = {
+    "not_configured": "The provider is not fully configured (missing key, model or URL).",
+    "request_failed": "The provider did not answer. Check the key, model name and URL.",
+    "size_mismatch": "The model returned a different vector size than EMBEDDING_DIMENSIONS.",
+}
+
+
+def _test_result(code: str):
+    return {"ok": False, "error": code, "hint": _TEST_MESSAGES[code]}
+
+
+@app.post("/settings/test/llm")
+def test_llm_connection():
+    """One tiny real call to the configured chat provider. Never returns provider response text."""
+    from core import generation
+    try:
+        svc = generation.GenerationService()
+    except ValueError:
+        return _test_result("not_configured")
+    except Exception:
+        return _test_result("request_failed")
+    try:
+        svc._call_provider(svc.primary_config, "Reply with the single word OK.", 0.0, 16)
+    except Exception as e:
+        logger.warning("LLM connection test failed: %s", type(e).__name__)
+        return _test_result("request_failed")
+    return {"ok": True, "provider": svc.primary_config.get("provider"), "model": svc.primary_config.get("model")}
+
+
+@app.post("/settings/test/embedding")
+def test_embedding_connection():
+    """One tiny real embedding call. Reports the vector size, never provider response text."""
+    from core import embedding
+    try:
+        svc = embedding.EmbeddingService()
+    except ValueError:
+        return _test_result("not_configured")
+    except Exception:
+        return _test_result("request_failed")
+    try:
+        vec = svc.embed_text("connection test")
+    except Exception as e:
+        logger.warning("Embedding connection test failed: %s", type(e).__name__)
+        return _test_result("request_failed")
+    if not vec:
+        return _test_result("request_failed")
+    if len(vec) != embedding.configured_dimensions():
+        return _test_result("size_mismatch")
+    return {"ok": True, "provider": svc.provider, "model": svc.model, "dimensions": len(vec)}
 
 
 @app.get("/usage/summary")
