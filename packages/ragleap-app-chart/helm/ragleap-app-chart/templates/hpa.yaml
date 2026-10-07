@@ -1,0 +1,25 @@
+{{- range $svc := .Values.services }}
+{{- if and $svc.autoscaling $svc.autoscaling.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  labels:
+    {{- include "ragleap-app-chart.serviceLabels" (dict "Release" $.Release "service" $svc) | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ragleap-app-chart.serviceName" (dict "Release" $.Release "service" $svc) }}
+  minReplicas: {{ $svc.autoscaling.minReplicas | default 1 }}
+  maxReplicas: {{ required (printf "services[%s].autoscaling.maxReplicas is required when autoscaling is enabled" $svc.name) $svc.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $svc.autoscaling.targetCPUUtilizationPercentage | default 80 }}
+{{- end }}
+{{- end }}
