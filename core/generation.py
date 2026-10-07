@@ -187,12 +187,20 @@ class GenerationService:
     """
 
     def __init__(self):
-        self.primary_config = _resolve_provider_config(LLM_PROVIDER, required=True)
+        from core import settings
+        name = LLM_PROVIDER
+        if settings.source("LLM_PROVIDER") == "dashboard":
+            name = settings.get("LLM_PROVIDER", LLM_PROVIDER).lower()
+        self.primary_config = _resolve_provider_config(name, required=True)
         self.provider = self.primary_config["provider"]
 
     def _fallback_chain(self) -> List[Dict]:
+        from core import settings
+        names = LLM_FALLBACK_PROVIDERS
+        if settings.source("LLM_FALLBACK_PROVIDERS") == "dashboard":
+            names = [p.strip().lower() for p in settings.get("LLM_FALLBACK_PROVIDERS").split(",") if p.strip()]
         chain = [self.primary_config]
-        for name in LLM_FALLBACK_PROVIDERS:
+        for name in names:
             if name == self.primary_config["provider"]:
                 continue
             config = _resolve_provider_config(name, required=False)

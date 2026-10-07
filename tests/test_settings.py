@@ -111,3 +111,19 @@ def test_describe_flags():
     d = {x["name"]: x for x in settings.describe()}
     assert d["OPENAI_API_KEY"]["secret"] is True and d["OLLAMA_MODEL"]["secret"] is False
     assert "LLM_PROVIDER" in d and "GEMINI_API_KEY" in d
+
+
+def test_dashboard_switches_primary_and_fallback(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "gk-env")
+    settings.set_many({"LLM_PROVIDER": "groq", "GROQ_API_KEY": "gk", "GROQ_MODEL": "gm",
+                       "LLM_FALLBACK_PROVIDERS": "gemini"})
+    svc = generation.GenerationService()
+    assert svc.provider == "groq"
+    assert [c["provider"] for c in svc._fallback_chain()] == ["groq", "gemini"]
+
+
+def test_env_provider_still_used_without_dashboard_value(monkeypatch):
+    monkeypatch.setattr(generation, "LLM_PROVIDER", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    monkeypatch.setenv("GROQ_MODEL", "m")
+    assert generation.GenerationService().provider == "groq"
