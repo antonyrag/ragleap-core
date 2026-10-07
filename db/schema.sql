@@ -366,3 +366,11 @@ BEGIN
     END IF;
 END
 $$;
+
+-- Dashboard-editable settings (a dashboard value wins over .env). Secret values are Fernet-encrypted.
+CREATE TABLE IF NOT EXISTS app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    is_secret BOOLEAN NOT NULL DEFAULT false,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
