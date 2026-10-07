@@ -27,6 +27,42 @@ EMBEDDING_RETRY_CODES = {429, 503}
 EMBEDDING_MAX_RETRIES = int(os.environ.get("EMBEDDING_MAX_RETRIES", "3"))
 EMBEDDING_RETRY_BASE_DELAY = float(os.environ.get("EMBEDDING_RETRY_BASE_DELAY", "1.0"))
 
+EMBEDDING_BATCH_SIZE = int(os.environ.get("EMBEDDING_BATCH_SIZE", "64"))
+EMBEDDING_TIMEOUT = float(os.environ.get("EMBEDDING_TIMEOUT", "60"))
+
+# provider -> (default base url, default model, default dimensions)
+OPENAI_COMPATIBLE = {
+    "ollama":     ("http://localhost:11434/v1", "nomic-embed-text", 768),
+    "openai":     ("https://api.openai.com/v1", "text-embedding-3-small", 1536),
+    "mistral":    ("https://api.mistral.ai/v1", "mistral-embed", 1024),
+    "together":   ("https://api.together.xyz/v1", "", 0),
+    "openrouter": ("https://openrouter.ai/api/v1", "", 0),
+    "qwen":       ("https://dashscope.aliyuncs.com/compatible-mode/v1", "", 0),
+    "zhipu":      ("https://open.bigmodel.cn/api/paas/v4", "", 0),
+    "custom":     ("", "", 0),
+}
+
+
+def provider() -> str:
+    return os.environ.get("EMBEDDING_PROVIDER", "gemini").strip().lower() or "gemini"
+
+
+def configured_dimensions() -> int:
+    raw = os.environ.get("EMBEDDING_DIMENSIONS", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return OPENAI_COMPATIBLE.get(provider(), ("", "", 0))[2] or 3072
+
+
+def _compat_settings(p: str):
+    base_default, model_default, _dims = OPENAI_COMPATIBLE[p]
+    up = p.upper()
+    base_var = "CUSTOM_BASE_URL" if p == "custom" else up + "_BASE_URL"
+    base = os.environ.get(base_var, "").strip() or base_default
+    model = os.environ.get(up + "_EMBEDDING_MODEL", "").strip() or model_default
+    key = os.environ.get(up + "_API_KEY", "").strip()
+    return base.rstrip("/"), model, key
+
 
 def _is_transient(exc: Exception) -> bool:
     code = getattr(exc, "code", None)
@@ -40,11 +76,27 @@ class EmbeddingService:
     """
 
     def __init__(self):
-        self.model = GEMINI_EMBEDDING_MODEL
-        self.dimensions = EMBEDDING_DIMENSIONS
-        self.api_key = os.environ.get("GEMINI_API_KEY")
+        self.provider = provider()
+        self.dimensions = configured_dimensions()
+        self.base_url = ""
+        if self.provider == "gemini":
+            self.model = GEMINI_EMBEDDING_MODEL
+            self.api_key = os.environ.get("GEMINI_API_KEY")
+        elif self.provider in OPENAI_COMPATIBLE:
+            up = self.provider.upper()
+            self.base_url, self.model, self.api_key = _compat_settings(self.provider)
+            if not self.base_url:
+                raise ValueError("Set " + ("CUSTOM" if self.provider == "custom" else up) + "_BASE_URL for EMBEDDING_PROVIDER=" + self.provider + ".")
+            if not self.model:
+                raise ValueError("Set " + up + "_EMBEDDING_MODEL for EMBEDDING_PROVIDER=" + self.provider + ".")
+            if self.provider != "ollama" and not self.api_key:
+                raise ValueError("Set " + up + "_API_KEY for EMBEDDING_PROVIDER=" + self.provider + ".")
+            if OPENAI_COMPATIBLE[self.provider][2] == 0 and not os.environ.get("EMBEDDING_DIMENSIONS", "").strip().isdigit():
+                raise ValueError("Set EMBEDDING_DIMENSIONS to the output size of your " + self.provider + " embedding model.")
+        else:
+            raise ValueError("Unknown EMBEDDING_PROVIDER '" + self.provider + "'. Use gemini or one of: " + ", ".join(sorted(OPENAI_COMPATIBLE)) + ".")
 
-        if not self.api_key:
+        if self.provider == "gemini" and not self.api_key:
             raise ValueError(
                 "GEMINI_API_KEY is not set. RagLeap Core requires your own "
                 "Gemini API key — get one at https://aistudio.google.com/apikey "
@@ -53,6 +105,23 @@ class EmbeddingService:
 
     def embed_text(self, text: str) -> Optional[List[float]]:
         """Generate an embedding vector for a single piece of text."""
+        if not text or not text.strip():
+            logger.warning("Empty text provided for embedding")
+            return None
+        if self.provider == "gemini":
+            return self._embed_text_gemini(text)
+        return self._embed_compat([text])[0]
+
+    def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """Generate embeddings for multiple texts."""
+        if not texts:
+            return []
+        if self.provider == "gemini":
+            return self._embed_batch_gemini(texts)
+        return self._embed_compat(texts)
+
+    def _embed_text_gemini(self, text: str) -> Optional[List[float]]:
+        """Generate an embedding vector for a single piece of text (Gemini)."""
         if not text or not text.strip():
             logger.warning("Empty text provided for embedding")
             return None
@@ -82,8 +151,8 @@ class EmbeddingService:
             logger.error(f"Embedding generation failed: {e}")
             return None
 
-    def embed_batch(self, texts: List[str]) -> List[Optional[List[float]]]:
-        """Generate embeddings for multiple texts."""
+    def _embed_batch_gemini(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """Generate embeddings for multiple texts (Gemini)."""
         if not texts:
             return []
 
@@ -111,3 +180,34 @@ class EmbeddingService:
         except Exception as e:
             logger.error(f"Batch embedding generation failed: {e}")
             return [None] * len(texts)
+
+    def _embed_compat(self, texts):
+        import requests
+        url = self.base_url + "/embeddings"
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = "Bearer " + self.api_key
+        out = []
+        for i in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+            batch = texts[i:i + EMBEDDING_BATCH_SIZE]
+            vectors = None
+            for attempt in range(EMBEDDING_MAX_RETRIES + 1):
+                try:
+                    resp = requests.post(url, json={"model": self.model, "input": batch},
+                                         headers=headers, timeout=EMBEDDING_TIMEOUT)
+                    if resp.status_code in EMBEDDING_RETRY_CODES and attempt < EMBEDDING_MAX_RETRIES:
+                        time.sleep(EMBEDDING_RETRY_BASE_DELAY * (2 ** attempt))
+                        continue
+                    resp.raise_for_status()
+                    data = sorted(resp.json()["data"], key=lambda d: d.get("index", 0))
+                    vectors = [d["embedding"] for d in data]
+                    break
+                except Exception as e:
+                    logger.error("Embedding request failed: %s", type(e).__name__)
+                    break
+            ok = (vectors is not None and len(vectors) == len(batch)
+                  and all(len(v) == self.dimensions for v in vectors))
+            if vectors is not None and not ok:
+                logger.error("Embedding size mismatch: expected %s dims (EMBEDDING_DIMENSIONS)", self.dimensions)
+            out.extend(vectors if ok else [None] * len(batch))
+        return out

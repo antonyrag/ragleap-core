@@ -9,13 +9,17 @@ import json
 import logging
 from typing import List, Dict, Optional
 
-from core.embedding import EmbeddingService
+from core.embedding import EmbeddingService, configured_dimensions
 from core.employees._db import get_connection
 from core.employees.defaults import DEFAULT_MEMORY_SEEDS
 
 logger = logging.getLogger(__name__)
 
 SEED_SOURCE = "default_seed"
+
+
+def _dims() -> str:
+    return str(int(configured_dimensions()))
 
 
 def seed_default_memory_seeds() -> int:
@@ -179,7 +183,7 @@ def semantic_search(query: str, top_k: int = 8, tags: Optional[List[str]] = None
                 SELECT id, text_content, summary, tags, importance, created_at
                 FROM employee_memory
                 WHERE embedding IS NOT NULL AND tags ?| %s::text[]
-                ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s
+                ORDER BY embedding::halfvec(""" + _dims() + """) <=> %s::halfvec(""" + _dims() + """) LIMIT %s
                 """,
                 (list(tags), literal, top_k),
             )
@@ -188,7 +192,7 @@ def semantic_search(query: str, top_k: int = 8, tags: Optional[List[str]] = None
                 """
                 SELECT id, text_content, summary, tags, importance, created_at
                 FROM employee_memory WHERE embedding IS NOT NULL
-                ORDER BY embedding::halfvec(3072) <=> %s::halfvec(3072) LIMIT %s
+                ORDER BY embedding::halfvec(""" + _dims() + """) <=> %s::halfvec(""" + _dims() + """) LIMIT %s
                 """,
                 (literal, top_k),
             )
