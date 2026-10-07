@@ -6,7 +6,7 @@
 
     <groupId>io.github.antonyrag</groupId>
     <artifactId>ragleap-rag</artifactId>
-    <version>0.11.0</version>
+    <version>0.12.0</version>
     <packaging>jar</packaging>
 
     <name>ragleap-rag (Java port)</name>
@@ -17,17 +17,21 @@
         and Pinecone are not live-verified; sparse and hybrid RRF
         search on pgvector), retrieval, generation (streaming,
         structured output, provider fallback, vision captioning),
-        conversation memory, query rewriting, and a document parser
-        for 27 of the Python package's 28 formats (no Parquet; legacy
-        .xls needs the optional Apache POI dependency) - plus
-        standalone utilities (chunking, sanitization, guardrails,
-        cost tracking, evaluation scoring, structured-output
-        validation, observability hooks). Independently versioned from
-        the Python ragleap-rag package (see
-        https://pypi.org/project/ragleap-rag/) rather than kept in
-        lockstep; OCR, web, audio and video ingestion are not yet
-        ported. Every module here is genuinely tested; documented
-        per-class where it is not live-verified.
+        conversation memory, query rewriting, and ingestion: a document
+        parser for 27 of the Python package's 28 formats (no Parquet;
+        legacy .xls needs the optional Apache POI dependency), OCR
+        through the Tesseract binary, audio extraction from video
+        through the ffmpeg binary, audio transcription (OpenAI Whisper,
+        Deepgram or a custom function; not live-verified), and an
+        ingestion service that ties them together - plus standalone
+        utilities (chunking, sanitization, guardrails, cost tracking,
+        evaluation scoring, structured-output validation,
+        observability hooks). Independently versioned from the Python
+        ragleap-rag package (see https://pypi.org/project/ragleap-rag/)
+        rather than kept in lockstep; URL and batch ingestion and the
+        high-level RagLeap entry point (ask, streaming, evaluation) are
+        not yet ported. Every module here is genuinely tested;
+        documented per-class where it is not live-verified.
     </description>
     <url>https://github.com/antonyrag/ragleap-core</url>
 
