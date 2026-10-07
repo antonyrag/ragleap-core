@@ -10,9 +10,16 @@ import threading
 import time
 from typing import Dict, List, Optional, Tuple
 
-from core.employees._db import get_connection
-
 logger = logging.getLogger(__name__)
+
+
+
+def get_connection():
+    # Own helper (no core.employees import): core.embedding imports this module, and the
+    # employees package imports core.embedding, so importing it here would be circular.
+    import psycopg2
+    return psycopg2.connect(os.environ.get("DATABASE_URL", "postgresql://ragleap:ragleap@localhost:5432/ragleap_core"))
+
 
 CACHE_SECONDS = 5.0
 MAX_VALUE_LENGTH = 512
