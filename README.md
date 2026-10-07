@@ -218,7 +218,7 @@ flowchart TD
 ragleap-core/
 ├── core/                  # RAG engine — chunking, embedding, retrieval, generation
 │   ├── chunker.py
-│   ├── embedding.py       # Gemini embeddings (gemini-embedding-001, 3072-dim)
+│   ├── embedding.py       # Embeddings: Gemini (default, 3072-dim) or Ollama/OpenAI/Mistral/...
 │   ├── retrieval.py       # pgvector cosine search
 │   ├── generation.py      # 19-provider BYOK generation (Gemini, OpenAI, Anthropic, etc.)
 │   ├── ingest.py          # chunk -> embed -> store pipeline
@@ -263,7 +263,7 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Requirements: Docker, Docker Compose, and a Gemini API key (embeddings currently always use Gemini). For chat you can use Gemini or any of the 19 providers listed under [Supported LLM Providers](#supported-llm-providers-byok), including a local Ollama model and any OpenAI-compatible endpoint.
+Requirements: Docker, Docker Compose, and a Gemini API key (embeddings use Gemini by default; set `EMBEDDING_PROVIDER=ollama` or another provider to run without a Gemini key). For chat you can use Gemini or any of the 19 providers listed under [Supported LLM Providers](#supported-llm-providers-byok), including a local Ollama model and any OpenAI-compatible endpoint.
 
 **Try it in 30 seconds** — with the stack running, see [examples/](examples/) for two verified, runnable scripts:
 - `examples/01_ingest_and_query.py` — upload a document and ask a question via the API
