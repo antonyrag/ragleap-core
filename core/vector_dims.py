@@ -69,3 +69,40 @@ def ensure_all(dims: int) -> List[Dict]:
     except Exception as e:
         logger.warning("Vector size check skipped: %s", type(e).__name__)
     return results
+
+
+def status(dims: int) -> List[Dict]:
+    """Read-only: how each embedding column compares with the configured size. Changes nothing."""
+    dims = int(dims)
+    out: List[Dict] = []
+    try:
+        conn = get_connection()
+    except Exception as e:
+        logger.warning("Vector size status unavailable: %s", type(e).__name__)
+        return out
+    try:
+        cur = conn.cursor()
+        for table, column, _index in TARGETS:
+            try:
+                have = column_dims(cur, table, column)
+                rows = 0
+                if have is not None:
+                    cur.execute(f"SELECT count(*) FROM {table} WHERE {column} IS NOT NULL")
+                    rows = int(cur.fetchone()[0])
+            except Exception:
+                conn.rollback()
+                out.append({"table": table, "status": "missing", "have": None, "want": dims, "rows": 0})
+                continue
+            if have is None:
+                state = "missing"
+            elif have == dims:
+                state = "ok"
+            elif rows:
+                state = "mismatch"
+            else:
+                state = "will_resize"
+            out.append({"table": table, "status": state, "have": have, "want": dims, "rows": rows})
+        cur.close()
+    finally:
+        conn.close()
+    return out

@@ -20,7 +20,7 @@
   let stamp = null;
   const tabButtons = {};
   const expanded = new Set();
-  const TABS = [["overview", "Overview"], ["approvals", "Approvals"], ["employees", "Employees"], ["tasks", "Tasks"], ["runs", "Agent runs"], ["log", "Activity"], ["settings", "Settings"]];
+  const TABS = [["setup", "Setup"], ["overview", "Overview"], ["approvals", "Approvals"], ["employees", "Employees"], ["tasks", "Tasks"], ["runs", "Agent runs"], ["log", "Activity"], ["settings", "Settings"]];
 
   // All dynamic text goes in as text nodes; nothing here ever builds HTML from data.
   const add = (el, kid) => {
@@ -368,6 +368,22 @@
     view.replaceChildren(settingsEl);
   };
 
+  const SETUP_TAG = { ok: "ok", todo: "bad", warn: "warn", info: "" };
+  const SETUP_WORD = { ok: "done", todo: "needs setup", warn: "check this", info: "info" };
+  const renderSetup = (s) => h("div", { class: "list" },
+    h("div", { class: "card" + (s.ready ? "" : " warn") },
+      h("div", { class: "lab" }, "Setup"),
+      h("div", { class: "big" }, s.ready ? "Ready" : "Almost there"),
+      h("div", { class: "sub" }, s.summary)),
+    s.items.map((it) => h("article", { class: "item" },
+      h("div", { class: "row" },
+        h("strong", null, it.title),
+        h("span", { class: "tag " + (SETUP_TAG[it.state] || "") }, SETUP_WORD[it.state] || it.state),
+        it.required ? h("span", { class: "tag" }, "required") : null),
+      h("div", { class: "sub" }, it.detail),
+      it.action ? h("div", { class: "sub" }, "What to do: " + it.action) : null,
+      it.fix === "settings" ? h("div", { class: "row" }, h("button", { type: "button", on: { click: () => { tab = "settings"; armed = false; refresh(); } } }, "Open Settings")) : null)));
+
   const refresh = async () => {
     if (armed || !view) return;
     try {
@@ -382,6 +398,7 @@
       else if (tab === "employees") content = renderOrg(await api("GET", "/org"));
       else if (tab === "tasks") { await refreshTasks(); content = null; }
       else if (tab === "settings") { await refreshSettings(); content = null; }
+      else if (tab === "setup") content = renderSetup(await api("GET", "/setup/status"));
       else content = renderLog((await api("GET", "/autonomy/log?limit=60")).log);
       if (content) view.replaceChildren(content);
       stamp.textContent = "updated " + new Date().toLocaleTimeString();
@@ -412,6 +429,7 @@
       return;
     }
     buildShell();
+    try { const s = await api("GET", "/setup/status"); if (!s.ready) tab = "setup"; } catch (e) { /* the checklist is optional */ }
     await refresh();
     if (timer) clearInterval(timer);
     timer = setInterval(refresh, 10000);

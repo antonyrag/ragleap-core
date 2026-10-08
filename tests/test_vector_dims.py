@@ -64,3 +64,20 @@ def test_big_dims_no_index(conn):
 def test_invalid_and_missing(conn):
     assert vd.ensure_table(conn, T, "embedding", IDX, 0)["status"] == "invalid"
     assert vd.ensure_table(conn, "zz_no_such_table", "embedding", "zz_i", 768)["status"] == "missing"
+
+
+def test_status_is_read_only_and_reports_each_case(conn, monkeypatch):
+    monkeypatch.setattr(vd, "TARGETS", [(T, "embedding", IDX)])
+    assert vd.status(3072) == [{"table": T, "status": "ok", "have": 3072, "want": 3072, "rows": 0}]
+    r = vd.status(768)[0]
+    assert r["status"] == "will_resize" and r["have"] == 3072 and _col(conn) == 3072
+    cur = conn.cursor()
+    cur.execute(f"INSERT INTO {T} (embedding) VALUES (%s::vector)", ("[" + ",".join(["0.1"] * 3072) + "]",))
+    conn.commit()
+    r = vd.status(768)[0]
+    assert r["status"] == "mismatch" and r["rows"] == 1 and _col(conn) == 3072
+
+
+def test_status_missing_table(monkeypatch):
+    monkeypatch.setattr(vd, "TARGETS", [("zz_no_such_table", "embedding", "zz_i")])
+    assert vd.status(768)[0]["status"] == "missing"
