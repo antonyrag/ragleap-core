@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ragleap-agents"
+version = "0.1.0"
+description = "A small, provider-neutral agent loop over ragleap-tools Tool objects: a step cap, a taint rule that forces approval for outbound actions after untrusted content, pause/resume approval gates, and a per-run transcript. No database, no provider code - bring your own model as a plain callable. BYOK, no vendor lock-in."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Antony", email = "antony@ragleap.com" }
+]
+keywords = ["llm", "agents", "tool-calling", "human-in-the-loop", "approval", "agent-loop", "self-hosted", "byok"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "ragleap-tools>=0.4.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/antonyrag/ragleap-core"
+Repository = "https://github.com/antonyrag/ragleap-core"
+Issues = "https://github.com/antonyrag/ragleap-core/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragleap_agents"]

@@ -202,6 +202,26 @@ jobs:
         run: |
           python -m pytest tests/ -v
 
+  ragleap-agents-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install ragleap-agents with test deps
+        working-directory: packages/ragleap-agents
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - name: Run ragleap-agents test suite
+        working-directory: packages/ragleap-agents
+        run: |
+          python -m pytest tests/ -v
+
   ragleap-graph-tests:
     runs-on: ubuntu-latest
     services:
