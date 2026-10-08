@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ragleap-app-chart"
-version = "0.2.1"
+version = "0.3.0"
 description = "Generic, reusable Helm chart for deploying arbitrary services to Kubernetes — not RagLeap-specific"
 readme = "README.md"
 keywords = ["helm", "helm-chart", "kubernetes", "k8s", "devops", "generic-chart", "deployment", "ingress", "autoscaling", "microservices"]

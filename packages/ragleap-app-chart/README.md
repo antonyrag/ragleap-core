@@ -55,3 +55,31 @@ override of the example `services:` list, not a partial one. If you
 add or change services in your own `values.yaml`, you'll need to keep
 your own `values-{env}.yaml` files' `services:` lists in sync manually
 — this chart does not (yet) merge list entries automatically.
+
+## Autoscaling and disruption budgets
+
+Each service can optionally enable a HorizontalPodAutoscaler and a PodDisruptionBudget. Both are off by default.
+
+```yaml
+services:
+  - name: web
+    image: myorg/myapp:latest
+    port: 3000
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }   # required for CPU-percentage autoscaling
+    autoscaling:
+      enabled: true
+      minReplicas: 2            # default 1
+      maxReplicas: 6            # required
+      targetCPUUtilizationPercentage: 70   # default 80
+    pdb:
+      enabled: true
+      minAvailable: 1           # default 1
+```
+
+Notes:
+
+- When autoscaling is enabled the Deployment omits `replicas`, so `helm upgrade` does not reset the autoscaler's count.
+- Autoscaling needs metrics-server in the cluster.
+- A PDB with `minAvailable: 1` on a single-replica service blocks voluntary node drains.
+- Scale-up was verified on `kind`. Scale-down and PDB behaviour during a real drain were not tested.

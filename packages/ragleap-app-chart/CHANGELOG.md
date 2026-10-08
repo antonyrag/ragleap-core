@@ -5,6 +5,27 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-08
+
+### Added
+
+- Optional per-service `autoscaling` (HorizontalPodAutoscaler): `enabled`, `minReplicas` (default 1), `maxReplicas` (required), `targetCPUUtilizationPercentage` (default 80). Off by default.
+- Optional per-service `pdb` (PodDisruptionBudget): `enabled`, `minAvailable` (default 1). Off by default.
+- The Deployment omits `replicas` when autoscaling is enabled, so a Helm upgrade does not reset the HPA's replica count.
+
+### Verified (live on kind)
+
+- Defaults render no HPA and no PDB; a missing `maxReplicas` fails with a clear message.
+- Scale-up from 1 to 4 replicas under CPU load, with all new pods Running.
+- PDB `ALLOWED DISRUPTIONS` went from 0 (1 replica) to 3 (4 replicas).
+
+### Known limitations
+
+- Scale-down was not observed; the test was cleaned up before the 5-minute stabilization window ended.
+- PDB behaviour during a real node drain is untested.
+- A PDB with `minAvailable: 1` on a single replica blocks voluntary drains.
+- CPU-percentage autoscaling needs a CPU `requests` value on the service and metrics-server in the cluster.
+
 ## [0.2.1] - 2026-10-03
 
 ### Changed
