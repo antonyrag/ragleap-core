@@ -1,0 +1,8 @@
+chart-dirs:
+  - packages/ragleap-app-chart/helm
+  - packages/ragleap-observability/helm
+  - packages/ragleap-ops/helm
+target-branch: main
+check-version-increment: true
+validate-maintainers: false
+validate-yaml: false

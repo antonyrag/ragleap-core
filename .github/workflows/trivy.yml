@@ -1,0 +1,41 @@
+name: Trivy
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'packages/*/helm/**'
+      - '.github/workflows/trivy.yml'
+jobs:
+  chart-config-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: packages
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+  image-scan:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with the ragleap-observability chart values.
+        image:
+          - prom/prometheus:v3.13.4
+          - grafana/grafana:12.4.12
+          - grafana/loki:3.6.17
+          - prom/alertmanager:v0.34.1
+          - grafana/promtail:3.3.0
+          - quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    steps:
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ matrix.image }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '0'
