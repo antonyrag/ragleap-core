@@ -11,8 +11,8 @@ jobs:
   chart-config-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: packages
@@ -33,7 +33,7 @@ jobs:
           - grafana/promtail:3.3.0
           - quay.io/prometheuscommunity/postgres-exporter:v0.20.1
     steps:
-      - uses: aquasecurity/trivy-action@v0.36.0
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ matrix.image }}
           severity: HIGH,CRITICAL
