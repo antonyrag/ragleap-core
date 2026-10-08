@@ -16,3 +16,8 @@ def test_login_link_never_uses_local_storage_or_the_server():
     start = JS.index("const linkKey")
     block = JS[start:JS.index('let key = sessionStorage')]
     assert "fetch(" not in block and "api(" not in block
+
+
+def test_login_link_uses_match_not_exec():
+    # a regex .exec( call looks like dynamic code execution to static scanners
+    assert ".exec(" not in JS
