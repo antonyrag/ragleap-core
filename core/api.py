@@ -35,6 +35,7 @@ from core import auth_throttle
 from core import office
 from core import settings as core_settings
 from core import vector_dims as core_vector_dims
+from core import setup_status
 from core import observability
 from core import queue
 from core.employees.sensitivity import is_sensitive_role
@@ -1060,6 +1061,12 @@ def test_embedding_connection():
     if len(vec) != embedding.configured_dimensions():
         return _test_result("size_mismatch")
     return {"ok": True, "provider": svc.provider, "model": svc.model, "dimensions": len(vec)}
+
+
+@app.get("/setup/status")
+def get_setup_status():
+    """Read-only setup checklist for the AI Office Setup tab. Never returns secrets or error text."""
+    return setup_status.build(api_key_set=bool(RAGLEAP_API_KEY))
 
 
 @app.get("/usage/summary")

@@ -4,7 +4,8 @@ import sys
 import pytest
 
 MODULES = ["core.embedding", "core.settings", "core.generation", "core.employees.memory",
-           "core.retrieval", "core.chat", "core.ingest", "core.api"]
+           "core.retrieval", "core.chat", "core.ingest", "core.api", "core.setup_status", "core.vector_dims",
+           "core.auth_throttle"]
 
 
 @pytest.mark.parametrize("module", MODULES)
