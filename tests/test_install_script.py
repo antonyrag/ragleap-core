@@ -150,3 +150,21 @@ def test_docs_match_the_installer():
     readme = (ROOT / "README.md").read_text()
     assert "will pause after cloning" not in readme and "--ollama" in readme
     assert "no login of its own" not in (ROOT / ".env.example").read_text()
+
+
+def test_ollama_models_are_ready_before_ragleap_starts(tmp_path):
+    r, proj, log = run(tmp_path, args=("--ollama",))
+    lines = log.splitlines()
+    i_ollama = next(i for i, l in enumerate(lines) if l.endswith("up -d ollama"))
+    i_pull = next(i for i, l in enumerate(lines) if "ollama pull qwen2.5:3b" in l)
+    i_up = next(i for i, l in enumerate(lines) if l.endswith("up --build -d"))
+    assert i_ollama < i_pull < i_up
+
+
+def test_installer_installs_the_ragleap_command(tmp_path):
+    r, proj, log = run(tmp_path, env={"RAGLEAP_PROVIDER": "skip"})
+    shim = tmp_path / ".local" / "bin" / "ragleap"
+    assert shim.exists() and os.access(shim, os.X_OK)
+    body = shim.read_text()
+    assert str(proj) in body and "scripts/ragleap" in body
+    assert "PATH" in r.stdout
