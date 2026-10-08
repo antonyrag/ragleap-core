@@ -6,7 +6,7 @@
 
 postgresExporter:
   enabled: true
-  image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+  image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1
   # Connects to ragleap-db using a read-only monitoring role — NOT the
   # app's own credentials. This role does not exist yet in ragleap-ops's
   # db schema and needs to be created there first (real dependency,

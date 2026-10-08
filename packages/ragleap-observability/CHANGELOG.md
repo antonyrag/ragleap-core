@@ -5,6 +5,34 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-08
+
+### Changed
+
+- **postgres-exporter upgraded from `v0.15.0` to `v0.20.1`.** The Trivy scan on v0.15.0 reported 48 HIGH/CRITICAL findings with a fix available; the scan of the new image has not been read yet (the first run of the scheduled Trivy workflow will report it).
+
+### Upstream changes worth knowing
+
+None of these affect this chart's defaults, because the exporter container is started with no custom `args` and no dashboards or alert rules in this chart use the renamed metrics. They matter if you add your own flags, dashboards or log queries.
+
+- v0.16.0: logging moved to Go `slog`. Messages and levels are the same, but fields are renamed (`ts` is now `time`, `caller` is now `source`, levels are upper-case).
+- v0.20.0: the `replication_slot` collector is now `replication_slots` (flags `--collector.replication_slots` and `--no-collector.replication_slots`).
+- v0.20.0: `--disable-settings-metrics` and `PG_EXPORTER_DISABLE_SETTINGS_METRICS` are removed; use `--no-collector.settings`.
+- v0.20.0: `pg_replication_slot_*` metrics are renamed `pg_replication_slots_*`.
+
+### Verified (live on kind)
+
+- With only the exporter image changed (`kubectl set image`), against PostgreSQL 16.15: one pod Running on `v0.20.1`, 0 restarts, `postgres_exporter_build_info` reports `version="0.20.1"`, `pg_up 1`, `pg_exporter_last_scrape_error 0`.
+- `DATA_SOURCE_NAME` from the existing Secret is still honoured by v0.20.1.
+- Prometheus reports `up{job="ragleap-postgres"} 1` and `PostgresExporterDown` is not pending or firing.
+- The container still runs as UID 65534, matching the chart's `securityContext`.
+
+### Known limitations
+
+- Tested by swapping the image on a running release, not by a full `helm upgrade` of this chart version.
+- Tested on one PostgreSQL version (16.15) and one database. Release notes for v0.18.x and v0.19.x were not reviewed.
+- Promtail `3.3.0` is still shipped. Grafana documents Promtail as end of life since March 2, 2026, so bumping it is not worthwhile; a migration to Grafana Alloy is planned instead.
+
 ## [0.6.1] - 2026-10-06
 
 ### Fixed
