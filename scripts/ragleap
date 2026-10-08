@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+# ragleap: control your RagLeap install (launch | stop | status | logs | update | key).
+set -uo pipefail
+
+BASE_URL="http://localhost:8000"
+WAIT_TRIES="${RAGLEAP_WAIT_TRIES:-60}"
+
+say() { printf '%s\n' "$*"; }
+die() { printf '%s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat << 'USAGE'
+Usage: ragleap <command>
+  launch [--ollama]  Start RagLeap. With --ollama, also run the local AI service and switch to it.
+  stop               Stop everything (your data is kept).
+  status             Show what is running and whether RagLeap answers.
+  logs [service]     Follow the logs (default: app).
+  update             Back up the database, download the latest version and restart.
+  key                Print your one-click dashboard link.
+USAGE
+}
+
+case "${1:-help}" in
+  help|-h|--help) usage; exit 0 ;;
+  launch|stop|status|logs|update|key) ;;
+  *) printf 'Unknown command: %s\n\n' "$1" >&2; usage >&2; exit 2 ;;
+esac
+CMD="$1"; shift
+
+HOME_DIR="${RAGLEAP_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+cd "$HOME_DIR" 2>/dev/null || die "RagLeap folder not found: $HOME_DIR"
+[ -f docker-compose.yml ] || die "This does not look like a RagLeap folder (no docker-compose.yml): $HOME_DIR"
+
+env_value() { grep "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r\n' || true; }
+valid_name() { printf '%s' "$1" | grep -Eq '^[A-Za-z0-9._:/-]+$'; }
+use_ollama() { [ -f .ragleap-ollama ] || { [ -f .env ] && grep -q '^OLLAMA_BASE_URL=http://ollama:' .env; }; }
+
+need_compose() {
+  command -v docker >/dev/null 2>&1 || die "Docker is not installed."
+  if docker compose version >/dev/null 2>&1; then COMPOSE="docker compose"
+  elif command -v docker-compose >/dev/null 2>&1; then COMPOSE="docker-compose"
+  else die "Docker Compose was not found."; fi
+}
+
+wait_health() {
+  local n=0
+  until curl -sf "$BASE_URL/health" >/dev/null 2>&1; do
+    n=$((n + 1))
+    [ "$n" -ge "$WAIT_TRIES" ] && return 1
+    sleep 2
+  done
+  return 0
+}
+
+# api METHOD PATH [JSON]: the API key goes through stdin so it never shows in a process list.
+api() {
+  local method="$1" path="$2" body="${3:-}" key
+  key="$(env_value RAGLEAP_API_KEY)"
+  local args=(-s -X "$method" "$BASE_URL$path")
+  [ -n "$body" ] && args+=(-H "Content-Type: application/json" -d "$body")
+  if [ -n "$key" ]; then
+    printf 'header = "x-api-key: %s"\n' "$key" | curl -K - "${args[@]}"
+  else
+    curl "${args[@]}"
+  fi
+}
+
+cmd_key() {
+  local k
+  k="$(env_value RAGLEAP_API_KEY)"
+  [ -n "$k" ] || die "No RAGLEAP_API_KEY found in $HOME_DIR/.env"
+  say "$BASE_URL/office#key=$k"
+  printf '%s\n' "Keep this link private: it contains your API key." >&2
+}
+
+ollama_prepare() {
+  local m e n=0
+  say "Starting the local Ollama service..."
+  $COMPOSE --profile ollama up -d ollama || die "Could not start the Ollama service."
+  until $COMPOSE --profile ollama exec -T ollama ollama list >/dev/null 2>&1; do
+    n=$((n + 1))
+    [ "$n" -ge "$WAIT_TRIES" ] && die "The Ollama service did not start. Check: ragleap logs ollama"
+    sleep 2
+  done
+  m="$(env_value OLLAMA_MODEL)"; m="${m:-qwen2.5:3b}"
+  e="$(env_value OLLAMA_EMBEDDING_MODEL)"; e="${e:-nomic-embed-text}"
+  say "Downloading local models (a few GB, once). Small models on a CPU answer slowly and less accurately than Gemini."
+  $COMPOSE --profile ollama exec -T ollama ollama pull "$m" || say "Could not download $m."
+  $COMPOSE --profile ollama exec -T ollama ollama pull "$e" || say "Could not download $e."
+}
+
+switch_to_ollama() {
+  local m e rows body resp
+  if grep -q '^LLM_PROVIDER=ollama' .env 2>/dev/null && grep -q '^OLLAMA_BASE_URL=http://ollama:' .env; then
+    say "Your .env already uses Ollama."
+    return 0
+  fi
+  m="$(env_value OLLAMA_MODEL)"; m="${m:-qwen2.5:3b}"
+  e="$(env_value OLLAMA_EMBEDDING_MODEL)"; e="${e:-nomic-embed-text}"
+  valid_name "$m" && valid_name "$e" || { say "Model names in .env look unusual; choose Ollama in the dashboard Settings tab instead."; return 0; }
+  rows="$($COMPOSE exec -T db psql -U ragleap -d ragleap_core -At -c "select (select count(*) from chunks where embedding is not null) + (select count(*) from employee_memory where embedding is not null)" 2>/dev/null | tr -d '[:space:]')"
+  body='{"values":{"LLM_PROVIDER":"ollama","OLLAMA_MODEL":"'"$m"'","OLLAMA_BASE_URL":"http://ollama:11434/v1"'
+  if [ "$rows" = "0" ]; then
+    body="$body"',"EMBEDDING_PROVIDER":"ollama","OLLAMA_EMBEDDING_MODEL":"'"$e"'","EMBEDDING_DIMENSIONS":"768"'
+  fi
+  body="$body"'}}'
+  resp="$(api PUT /settings "$body")"
+  if printf '%s' "$resp" | grep -q '"updated"'; then
+    if [ "$rows" = "0" ]; then
+      say "Chat and embeddings now use local Ollama."
+    else
+      say "Chat now uses local Ollama. Embeddings were left unchanged because documents already use the current embedding model."
+      say "To switch embeddings too, clear your documents first, then change them in the Settings tab."
+    fi
+    if printf '%s' "$resp" | grep -q '"status":"mismatch"'; then
+      say "Warning: some stored data uses a different vector size and was not resized. See the Settings tab."
+    fi
+  else
+    say "Could not switch automatically. Open the dashboard Settings tab and choose Ollama (address http://ollama:11434/v1, models $m and $e)."
+  fi
+}
+
+cmd_launch() {
+  local want=0 a prof=""
+  for a in "$@"; do
+    case "$a" in --ollama) want=1 ;; *) die "Unknown option: $a" ;; esac
+  done
+  need_compose
+  [ -f .env ] || die "No .env found. Run the installer first: curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install.sh | bash"
+  if [ "$want" = 1 ]; then : > .ragleap-ollama; fi
+  use_ollama && prof="--profile ollama"
+  if [ "$want" = 1 ]; then ollama_prepare; fi
+  say "Starting RagLeap..."
+  $COMPOSE $prof up -d || die "Could not start RagLeap. Check: ragleap logs"
+  wait_health || die "RagLeap did not become healthy in time. Check: ragleap logs"
+  if [ "$want" = 1 ]; then switch_to_ollama; fi
+  say "RagLeap is running. Your dashboard link:"
+  cmd_key
+}
+
+cmd_stop() {
+  need_compose
+  $COMPOSE --profile ollama stop
+  say "Stopped. Your data is kept. Start again with: ragleap launch"
+}
+
+cmd_status() {
+  need_compose
+  $COMPOSE --profile ollama ps
+  if curl -sf "$BASE_URL/health" >/dev/null 2>&1; then
+    say "RagLeap answers on $BASE_URL (healthy)."
+  else
+    say "RagLeap is not answering on $BASE_URL."
+  fi
+}
+
+cmd_logs() {
+  need_compose
+  $COMPOSE --profile ollama logs --tail 100 -f "${1:-app}"
+}
+
+cmd_update() {
+  need_compose
+  command -v git >/dev/null 2>&1 || die "Git is not installed."
+  [ -d .git ] || die "This folder is not a git checkout, so it cannot update itself."
+  [ -f .env ] || die "No .env found. Run the installer first."
+  local before after b prof="" out
+  before="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  mkdir -p backups
+  b="backups/ragleap_core_$(date +%Y%m%d_%H%M%S)_pre-update.sql"
+  if ! ( umask 077; $COMPOSE exec -T db pg_dump -U ragleap ragleap_core > "$b" 2>/dev/null ) || [ ! -s "$b" ]; then
+    rm -f "$b"
+    die "Could not back up the database, so nothing was changed. Is RagLeap running? Start it with: ragleap launch"
+  fi
+  say "Database backup saved: $b"
+  git pull --ff-only || die "Could not update the code (local changes?). Nothing else was changed."
+  after="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  if [ "$before" = "$after" ]; then
+    rm -f "$b"
+    say "Already up to date ($after)."
+    return 0
+  fi
+  out="$($COMPOSE exec -T db psql -U ragleap -d ragleap_core -q < db/schema.sql 2>&1 || true)"
+  if printf '%s' "$out" | grep -q '^ERROR'; then
+    say "Warning: the database update reported a problem:"
+    printf '%s\n' "$out" | grep '^ERROR' | head -3
+  fi
+  use_ollama && prof="--profile ollama"
+  say "Rebuilding (this takes a few minutes)..."
+  $COMPOSE $prof up --build -d || die "The rebuild failed. Your data is untouched. Previous version: $before. Backup: $b"
+  wait_health || die "RagLeap did not become healthy. Check: ragleap logs. Previous version: $before. Backup: $b"
+  say "Updated $before -> $after. Backup: $b"
+}
+
+case "$CMD" in
+  launch) cmd_launch "$@" ;;
+  stop) cmd_stop ;;
+  status) cmd_status ;;
+  logs) cmd_logs "$@" ;;
+  update) cmd_update ;;
+  key) cmd_key ;;
+esac

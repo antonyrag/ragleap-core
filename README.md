@@ -253,6 +253,8 @@ curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install
 
 The installer asks which AI to use (Gemini, or fully local Ollama with no API key), generates your API key and secrets, starts everything and prints a one-click link to the dashboard. For local AI run `curl -fsSL https://raw.githubusercontent.com/antonyrag/ragleap-core/main/install.sh | bash -s -- --ollama` (small local models on a CPU are slower and less accurate than Gemini). For unattended installs set `RAGLEAP_PROVIDER` (`gemini`, `ollama` or `skip`) and `GEMINI_API_KEY`. An existing `.env` is never modified.
 
+After installing, control RagLeap with the `ragleap` command: `ragleap launch` (start; `--ollama` also runs the local AI service and switches to it), `ragleap stop`, `ragleap status`, `ragleap logs`, `ragleap update` (backs up the database first) and `ragleap key` (prints your one-click dashboard link).
+
 **Or, the manual way** — better if you want to read the code before running anything:
 
 ```bash

@@ -30,3 +30,7 @@ Thumbs.db
 # Package build artifacts
 dist/
 build/
+
+# RagLeap command
+.ragleap-ollama
+backups/

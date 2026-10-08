@@ -155,10 +155,9 @@ fi
 PROFILE=""
 if [ "$USE_OLLAMA" = 1 ]; then PROFILE="--profile ollama"; fi
 
-say "Building and starting RagLeap (the first run takes a few minutes)..."
-$COMPOSE $PROFILE up --build -d
-
 if [ "$USE_OLLAMA" = 1 ]; then
+  say "Starting the local Ollama service first (the models must be ready before RagLeap starts)..."
+  $COMPOSE $PROFILE up -d ollama
   say "Waiting for the local Ollama service..."
   n=0
   until $COMPOSE $PROFILE exec -T ollama ollama list >/dev/null 2>&1; do
@@ -172,6 +171,9 @@ if [ "$USE_OLLAMA" = 1 ]; then
   $COMPOSE $PROFILE exec -T ollama ollama pull "$m" || say "Could not download $m. Retry: $COMPOSE $PROFILE exec ollama ollama pull $m"
   $COMPOSE $PROFILE exec -T ollama ollama pull "$e" || say "Could not download $e. Retry: $COMPOSE $PROFILE exec ollama ollama pull $e"
 fi
+
+say "Building and starting RagLeap (the first run takes a few minutes)..."
+$COMPOSE $PROFILE up --build -d
 
 n=0
 until curl -sf "$BASE_URL/health" >/dev/null 2>&1; do
@@ -193,3 +195,12 @@ else
   say "Open your dashboard: $BASE_URL/office"
 fi
 say "API docs: $BASE_URL/docs"
+
+
+SHIM_DIR="${HOME:-.}/.local/bin"
+if mkdir -p "$SHIM_DIR" 2>/dev/null && printf '#!/bin/sh\nRAGLEAP_HOME=%s exec bash %s/scripts/ragleap "$@"\n' "$(printf '%q' "$PWD")" "$(printf '%q' "$PWD")" > "$SHIM_DIR/ragleap" && chmod 755 "$SHIM_DIR/ragleap"; then
+  say "Installed the ragleap command: $SHIM_DIR/ragleap (ragleap launch | stop | status | logs | update | key)"
+  case ":$PATH:" in *":$SHIM_DIR:"*) ;; *) say "Add it to your PATH to use it from anywhere: export PATH=\"$SHIM_DIR:\$PATH\"" ;; esac
+else
+  say "Could not install the ragleap command (optional). You can run: bash $PWD/scripts/ragleap"
+fi
