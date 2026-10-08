@@ -91,8 +91,8 @@ Also open: rotating a previously-exposed `GEMINI_API_KEY` ([#155](../../issues/1
 The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Nothing in this phase has shipped code yet — statuses below are honest planning labels, not commitments with dates. The canonical, most-current version of this list lives in the [wiki Roadmap](https://github.com/antonyrag/ragleap-core/wiki/Roadmap); this section mirrors it for repo-local visibility.
 
 - [x] `ragleap-vectorstores` — SHIPPED v0.5.1. Pluggable vector backends beyond what already ships inside `ragleap-rag` core (6 backends today) — Chroma, LanceDB, Redis (RediSearch/Redis Stack), Upstash Vector, and OpenSearch
-- [x] `ragleap-tools` — SHIPPED v0.1.0. Stateless tools + sandboxed file ops for LLM tool-calling (search/code-exec/HTTP-fetch/connectors deliberately deferred to their own security-focused design passes)
-- [ ] `ragleap-integrations` (NEXT) — MCP-native connectors + curated native integrations, building on the existing WhatsApp/Telegram/Discord/Voice channel code
+- [x] `ragleap-tools` — SHIPPED (v0.4.0). Stateless tools, sandboxed file ops, document search, web and GitHub search, and image description, all BYOK (code execution, HTTP fetch and business-system connectors deliberately deferred to their own security-focused design passes)
+- [x] `ragleap-integrations` — SHIPPED v0.1.0: MCP client only (Streamable HTTP, owner-configured allowlist). Curated native connectors and channel integrations are NOT built yet; connectors need a read-only audit and a design pass first
 - [ ] `ragleap-agents` (AFTER) — role-based crews, tool-calling, human-in-the-loop approval gates
 - [ ] `ragleap-flows` (AFTER) — low-code orchestration + HITL checkpoints, bootstrapped from the existing n8n integration
 - [ ] `ragleap-observability` (DECISION NEEDED) — tracing, hallucination detection, and a full LLM-as-judge evaluation framework; this is new engineering, not extraction, since nothing like the eval-framework half exists internally today
