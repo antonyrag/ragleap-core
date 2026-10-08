@@ -52,6 +52,7 @@ _FEATURE_FLAGS = (
     "BUDGET_ROLE_MONTHLY_TOKENS", "BUDGET_ROLE_DAILY_OVERRIDES", "BUDGET_ROLE_MONTHLY_OVERRIDES",
     "EMBEDDING_PROVIDER", "EMBEDDING_DIMENSIONS", "EMBEDDING_BATCH_SIZE", "OLLAMA_EMBEDDING_MODEL",
     "OPENAI_EMBEDDING_MODEL", "MISTRAL_EMBEDDING_MODEL", "CUSTOM_EMBEDDING_MODEL",
+    "AUTH_THROTTLE", "AUTH_MAX_FAILURES", "AUTH_WINDOW_SECONDS", "AUTH_LOCKOUT_SECONDS", "TRUSTED_PROXIES",
 )
 
 
@@ -59,3 +60,11 @@ _FEATURE_FLAGS = (
 def _feature_flags_off_by_default(monkeypatch):
     for name in _FEATURE_FLAGS:
         monkeypatch.delenv(name, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_throttle():
+    from core import auth_throttle
+    auth_throttle.reset()
+    yield
+    auth_throttle.reset()

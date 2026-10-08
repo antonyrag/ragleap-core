@@ -31,6 +31,7 @@ from core import tasks as core_tasks
 from core import proactive_triggers as core_triggers
 from core import autonomy
 from core import agent_loop
+from core import auth_throttle
 from core import office
 from core import settings as core_settings
 from core import vector_dims as core_vector_dims
@@ -127,6 +128,14 @@ if not RAGLEAP_API_KEY:
     )
 
 
+def _too_many_attempts(wait_seconds: int):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Too many failed attempts. Try again later."},
+        headers={"Retry-After": str(int(wait_seconds))},
+    )
+
+
 @app.middleware("http")
 async def require_api_key(request: Request, call_next):
     if not RAGLEAP_API_KEY:
@@ -134,9 +143,25 @@ async def require_api_key(request: Request, call_next):
     path = request.url.path
     if path in API_KEY_EXEMPT_PATHS or path.startswith(API_KEY_EXEMPT_PREFIXES):
         return await call_next(request)
+    peer = getattr(getattr(request, "client", None), "host", "") or ""
+    client = auth_throttle.client_id(peer, request.headers.get("x-forwarded-for", ""))
+    throttle = auth_throttle.enabled()
+    if throttle:
+        wait = auth_throttle.blocked_seconds(client)
+        if wait:
+            return _too_many_attempts(wait)
     supplied = request.headers.get("x-api-key", "")
-    if not supplied or not hmac.compare_digest(supplied, RAGLEAP_API_KEY):
+    if not supplied:
         return JSONResponse(status_code=401, content={"detail": "Missing or invalid API key."})
+    if not hmac.compare_digest(supplied.encode("utf-8"), RAGLEAP_API_KEY.encode("utf-8")):
+        if throttle:
+            locked = auth_throttle.record_failure(client)
+            if locked:
+                logger.warning("Too many failed API-key attempts; refusing one client for %s seconds.", locked)
+                return _too_many_attempts(locked)
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid API key."})
+    if throttle:
+        auth_throttle.record_success(client)
     return await call_next(request)
 
 
