@@ -10,4 +10,4 @@ manifests alongside this src/ tree, matching the release discipline of
 ragleap-rag, ragleap-graph, and ragleap-vectorstores.
 """
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"
