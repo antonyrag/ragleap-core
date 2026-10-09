@@ -5,7 +5,9 @@ metadata:
   labels:
     app: ragleap-voice
 spec:
+  {{- if not .Values.voice.autoscaling.enabled }}
   replicas: {{ .Values.voice.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: ragleap-voice
@@ -35,6 +37,10 @@ spec:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+          {{- with .Values.voice.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           command: {{ .Values.voice.command | toJson }}
           ports:
             - containerPort: {{ .Values.voice.port }}

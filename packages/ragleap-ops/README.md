@@ -237,3 +237,28 @@ wrapper itself (RBAC, scale-down init container, timing) was validated
 structurally (`python3 -c "import yaml..."` parse + document/kind
 checks) but not exercised end-to-end via an actual cron trigger this
 session.
+
+## Autoscaling and disruption budgets
+
+The stateless `app` and `voice` workloads can optionally use a HorizontalPodAutoscaler and a PodDisruptionBudget. Both are off by default, and `db` and `neo4j` are never autoscaled.
+
+```yaml
+app:
+  resources:
+    requests: { cpu: 200m, memory: 128Mi }   # required for CPU-percentage autoscaling
+  autoscaling:
+    enabled: true
+    minReplicas: 2            # default 1
+    maxReplicas: 6            # required
+    targetCPUUtilizationPercentage: 70   # default 80
+  pdb:
+    enabled: true
+    minAvailable: 1           # default 1
+```
+
+Notes:
+
+- When autoscaling is enabled, `replicaCount` is ignored for that workload.
+- Autoscaling needs metrics-server in the cluster.
+- A PDB with `minAvailable: 1` on a single-replica workload blocks voluntary node drains.
+- Scale-up and scale-down were verified live for `app` on `kind`. `voice` was verified by render only, and PDB behaviour during a real drain was not tested.

@@ -21,6 +21,17 @@ app:
   image: ghcr.io/antonyrag/ragleap-app:latest
   imagePullSecret: ghcr-pull-secret
   port: 8000
+  # Optional container resources. Empty by default (no behaviour change).
+  # CPU-percentage autoscaling needs resources.requests.cpu to be set.
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    # maxReplicas is required when enabled is true
+    targetCPUUtilizationPercentage: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
   probes:
     readiness:
       initialDelaySeconds: 5
@@ -32,6 +43,17 @@ voice:
   image: ghcr.io/antonyrag/ragleap-app:latest
   imagePullSecret: ghcr-pull-secret
   port: 8765
+  # Optional container resources. Empty by default (no behaviour change).
+  # CPU-percentage autoscaling needs resources.requests.cpu to be set.
+  resources: {}
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    # maxReplicas is required when enabled is true
+    targetCPUUtilizationPercentage: 80
+  pdb:
+    enabled: false
+    minAvailable: 1
   command: ["python3", "-m", "channels.voice.server"]
 
 neo4j:

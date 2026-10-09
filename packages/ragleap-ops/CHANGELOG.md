@@ -5,6 +5,30 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-09
+
+### Added
+
+- Optional `autoscaling` (HorizontalPodAutoscaler) and `pdb` (PodDisruptionBudget) for the stateless `app` and `voice` workloads. Both are off by default. `db` and `neo4j` are stateful and are intentionally not autoscaled.
+- `autoscaling` fields: `enabled`, `minReplicas` (default 1), `maxReplicas` (required), `targetCPUUtilizationPercentage` (default 80). `pdb` fields: `enabled`, `minAvailable` (default 1).
+- Optional `app.resources` and `voice.resources`, empty by default and rendered only when set. CPU-percentage autoscaling needs `resources.requests.cpu`; enabling autoscaling without it, or without `maxReplicas`, fails at render time with a message naming the missing field.
+- When autoscaling is enabled the Deployment omits `replicas`, so `helm upgrade` does not reset the autoscaler's count. `replicaCount` is ignored for that workload.
+
+### Verified (live on kind, `app` only, stand-in image)
+
+- With autoscaling off, `helm template` output is byte-identical to 0.4.1 for both the default values and `values-prod.yaml`.
+- Scale-up from 1 to 4 replicas under CPU load, all new pods Running.
+- The PDB tracked the replica count: 0 allowed disruptions at 1 replica, 3 at 4.
+- Scale-down from 4 back to 1 after the load stopped, with the default 5-minute stabilization.
+
+### Known limitations
+
+- `voice` was verified by render only. Its autoscaling was not run live, because it needs the private application image. It also has no readiness probe, and scaling it down cuts any live voice sessions on the removed pods.
+- The live test used a stand-in image and a dummy `ragleap-app-env` Secret in a scratch namespace, on a single busy `kind` node.
+- PDB behaviour during a real node drain was not tested. A PDB with `minAvailable: 1` on a single replica blocks voluntary drains.
+- `SuccessfulRescale` events did not appear in `kubectl describe hpa` during the test; scaling was confirmed from pod counts and HPA status.
+- Autoscaling needs metrics-server in the cluster.
+
 ## [0.4.1] - 2026-10-03
 
 ### Changed

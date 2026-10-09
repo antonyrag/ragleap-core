@@ -1,0 +1,17 @@
+{{- range $name := list "app" "voice" }}
+{{- $w := index $.Values $name }}
+{{- if $w.pdb.enabled }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ragleap-{{ $name }}
+  labels:
+    app: ragleap-{{ $name }}
+spec:
+  minAvailable: {{ $w.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app: ragleap-{{ $name }}
+{{- end }}
+{{- end }}
