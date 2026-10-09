@@ -21,15 +21,29 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   proposal, the model is asked again with a short note naming the problem. The note
   never repeats the bad reply or an unknown tool name. A repaired proposal goes
   through the same validation, taint rule and approval gate as any other.
+- `ragleap_agents.openai_compatible(base_url, api_key, model, mode="json"|"native", tools=...)`
+  returns an `llm(prompt) -> str` for `Agent` over `POST {base_url}/chat/completions`.
+  Standard library only; https required (http only with `allow_insecure_http=True`);
+  no redirects; response size cap; retries with backoff on 408/429/5xx and network
+  errors (capped at 5, `Retry-After` honoured up to 30 s); errors carry only a status
+  code or exception type (`ProviderError`), never a body, URL or key. In `native` mode
+  the first tool call is re-serialised as the JSON action and a reply with no tool call
+  becomes an explicit `done`; `Agent` still validates, taints and gates every proposal.
+  The owner sets the base URL: there is no address guard, so never build it from
+  untrusted input.
 
 ### Verified
 
-- 57 tests with a scripted model pass on Python 3.10, 3.11 and 3.12 (sandbox).
-  Mutation-checked: each new behaviour above makes at least one test fail when removed.
+- 92 tests pass on Python 3.10, 3.11 and 3.12 (sandbox): 57 with a scripted model and
+  35 for the adapter against a real local HTTP server (127.0.0.1, no external network).
+  Mutation-checked: each new behaviour above makes at least one test fail when removed
+  (the one survivor, dropping `from None` on the retry-exhausted error, cannot leak:
+  the chained exception holds only a status).
 
 ### Not verified
 
 - Whether repair actually helps with any real model: it has not been measured.
+- The adapter has not been run against any real provider, in either mode.
 
 ## [0.1.0] - 2026-10-09
 

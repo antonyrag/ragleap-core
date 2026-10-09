@@ -17,6 +17,7 @@ from ragleap_agents.agent import (
     parse_plan,
     validate_arguments,
 )
+from ragleap_agents.providers import ProviderError, openai_compatible
 from ragleap_agents.state import InMemoryStateStore, StateStore
 
 __version__ = "0.1.0"
@@ -26,11 +27,13 @@ __all__ = [
     "HARD_MAX_STEPS",
     "InMemoryStateStore",
     "Policy",
+    "ProviderError",
     "ResumeError",
     "RunResult",
     "StateStore",
     "TRUSTED",
     "ToolPolicy",
+    "openai_compatible",
     "parse_plan",
     "validate_arguments",
     "__version__",
