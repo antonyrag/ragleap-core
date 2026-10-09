@@ -1,0 +1,14 @@
+{
+  "name": "ragleap",
+  "version": "0.1.0",
+  "description": "Read-only skill for coding agents: ask your self-hosted RagLeap Core server questions grounded in your own documents, and list its AI employee roles.",
+  "author": {
+    "name": "antonyrag",
+    "url": "https://github.com/antonyrag"
+  },
+  "homepage": "https://github.com/antonyrag/ragleap-core",
+  "repository": "https://github.com/antonyrag/ragleap-core",
+  "license": "MIT",
+  "keywords": ["rag", "self-hosted", "ai-employees", "knowledge-base", "documents", "agents"],
+  "skills": "./skills/"
+}
