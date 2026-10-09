@@ -91,10 +91,11 @@ def test_done_with_an_answer_is_used_when_no_step_was_taken():
     assert agent.run("hello").answer == "hi there"
 
 
-def test_prose_instead_of_json_ends_the_run_as_done():
+def test_prose_instead_of_json_stops_the_run_as_unparseable():
+    # 0.1.0 reported this as status=done; from 0.2.0 it is a stop, so a model failure is not success
     agent, _, log = build(["I would love to help!"])
     r = agent.run("hello")
-    assert r.status == "done" and r.steps == [] and log == []
+    assert (r.status, r.stop_reason) == ("stopped", "unparseable_reply") and r.steps == [] and log == []
 
 
 # ---- the loop ----

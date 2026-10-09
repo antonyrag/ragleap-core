@@ -40,6 +40,7 @@ from ragleap_agents.state import InMemoryStateStore, StateStore
 logger = logging.getLogger(__name__)
 
 HARD_MAX_STEPS = 8
+MAX_REPAIR_ATTEMPTS = 2
 _NAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 _DONE = ("", "done", "none")
 _TYPES = {"string": str, "integer": int, "number": (int, float), "boolean": bool, "array": list, "object": dict}
@@ -73,6 +74,7 @@ class Policy:
     obs_cap: int = 1500  # characters kept per tool result
     obs_prompt_cap: int = 4000  # characters of results shown to the model in total
     text_cap: int = 2000  # task and summary length
+    repair_attempts: int = 0  # extra model calls allowed per proposal after an invalid reply; capped at MAX_REPAIR_ATTEMPTS
 
     def for_tool(self, name: str) -> ToolPolicy:
         return self.tools.get(name, ToolPolicy())
@@ -239,21 +241,44 @@ class Agent:
                 return self._finish(state, "stopped", "step_limit")
             if deadline is not None and _now() >= deadline:
                 return self._finish(state, "stopped", "deadline")
-            try:
-                text = self.llm(self._prompt(state, limit - len(state["steps"])))
-            except Exception as e:
-                logger.warning("model call failed: %s", type(e).__name__)
-                return self._finish(state, "failed", "model_error", use_llm=False)
-            plan = parse_plan(text if isinstance(text, str) else "")
-            name = str((plan or {}).get("tool", "")).strip()
-            if not plan or name in _DONE:
-                answer = plan.get("answer") if plan else None
-                return self._finish(state, "done", "done", plan_answer=answer if isinstance(answer, str) else "")
-            tool = self.tools.get(name)
-            args = plan.get("arguments")
-            args = {} if args is None else args
-            if tool is None or validate_arguments(tool.parameters, args):
-                return self._finish(state, "stopped", "invalid_plan")
+            base_prompt = self._prompt(state, limit - len(state["steps"]))
+            prompt = base_prompt
+            repairs_left = max(0, min(int(self.policy.repair_attempts), MAX_REPAIR_ATTEMPTS))
+            while True:
+                try:
+                    text = self.llm(prompt)
+                except Exception as e:
+                    logger.warning("model call failed: %s", type(e).__name__)
+                    return self._finish(state, "failed", "model_error", use_llm=False)
+                plan = parse_plan(text if isinstance(text, str) else "")
+                problem, reason = None, "invalid_plan"
+                if plan is None:
+                    problem, reason = "it was not a single JSON object", "unparseable_reply"
+                elif "tool" not in plan:
+                    problem = 'the JSON object has no "tool" key'
+                else:
+                    name = str(plan.get("tool", "")).strip()
+                    if name in _DONE:
+                        answer = plan.get("answer")
+                        return self._finish(state, "done", "done", plan_answer=answer if isinstance(answer, str) else "")
+                    tool = self.tools.get(name)
+                    args = plan.get("arguments")
+                    args = {} if args is None else args
+                    if tool is None:
+                        problem = "it named an action that is not available"
+                    else:
+                        err = validate_arguments(tool.parameters, args)
+                        if err:
+                            problem = " ".join(err.split())[:120]
+                if problem is None:
+                    break
+                if repairs_left <= 0:
+                    return self._finish(state, "stopped", reason)
+                if deadline is not None and _now() >= deadline:
+                    return self._finish(state, "stopped", "deadline")
+                repairs_left -= 1
+                prompt = (base_prompt + "\n\nYour previous reply was rejected: " + problem
+                          + ". Reply again with ONLY one valid JSON object.")
             sig = _sig(name, args)
             if any(s.get("sig") == sig for s in state["steps"]):
                 return self._finish(state, "stopped", "duplicate_action")
@@ -340,9 +365,10 @@ class Agent:
     # ---- finishing ----
 
     def _fallback(self, state: Dict[str, Any], status: str, reason: str) -> str:
-        names = ", ".join(s["tool"] for s in state["steps"]) or "no actions"
-        last = next((s["observation"] for s in reversed(state["steps"]) if s.get("observation")), "")
-        bits = [f"{len(state['steps'])} step(s): {names}."]
+        ran = [s for s in state["steps"] if s.get("status") != "rejected"]  # a rejected call never ran
+        names = ", ".join(s["tool"] for s in ran) or "no actions"
+        last = next((s["observation"] for s in reversed(ran) if s.get("observation")), "")
+        bits = [f"{len(ran)} step(s): {names}."]
         if last:
             bits.append("Last result: " + last.split("\n", 1)[0][:200])
         if status != "done":
