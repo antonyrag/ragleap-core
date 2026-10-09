@@ -81,12 +81,12 @@ set_env() {
 env_value() { grep "^$1=" .env | head -1 | cut -d= -f2- | tr -d '\r\n' || true; }
 
 USE_OLLAMA=0
-API_KEY=""
+DASH_LOGIN=""
 if [ -f .env ]; then
   say "Keeping your existing .env (it is not changed). Change the AI provider any time in the dashboard: Settings tab."
   if [ -n "$PROVIDER" ]; then say "(The AI choice you passed is ignored because .env already exists.)"; fi
-  API_KEY="$(env_value RAGLEAP_API_KEY)"
-  if [ -z "$API_KEY" ]; then say "WARNING: your .env has no RAGLEAP_API_KEY, so the API has no password. Set one."; fi
+  DASH_LOGIN="$(env_value RAGLEAP_API_KEY)"
+  if [ -z "$DASH_LOGIN" ]; then say "WARNING: your .env has no RAGLEAP_API_KEY, so the API has no password. Set one."; fi
   if grep -q '^OLLAMA_BASE_URL=http://ollama:' .env; then USE_OLLAMA=1; fi
 else
   [ -f .env.example ] || die ".env.example is missing in $DIR."
@@ -123,8 +123,8 @@ else
   OLD_UMASK="$(umask)"
   umask 077
   cp .env.example .env
-  API_KEY="$(rand_hex 24)"
-  set_env RAGLEAP_API_KEY "$API_KEY"
+  DASH_LOGIN="$(rand_hex 24)"
+  set_env RAGLEAP_API_KEY "$DASH_LOGIN"
   set_env ADDON_ENCRYPTION_KEY "$(fernet_key)"
   set_env SANDBOX_TOKEN "$(rand_hex 24)"
   if docker volume ls -q 2>/dev/null | grep -q 'ragleap_core_data'; then
@@ -187,9 +187,9 @@ done
 
 say ""
 say "RagLeap is running."
-if [ -n "$API_KEY" ]; then
+if [ -n "$DASH_LOGIN" ]; then
   say "Open your dashboard (one click; the key stays in your browser tab):"
-  say "  $BASE_URL/office#key=$API_KEY"
+  say "  $BASE_URL/office#key=$DASH_LOGIN"
   say "Keep that link private: it contains your API key. The key is also in $PWD/.env"
 else
   say "Open your dashboard: $BASE_URL/office"
