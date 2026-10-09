@@ -10,8 +10,8 @@ from ragleap_tools import Tool, ToolResult
 from ragleap_agents import Agent, Policy, ProviderError, TRUSTED, openai_compatible
 from ragleap_agents.agent import SUMMARY_PROMPT_PREFIX
 
-KEY = "sk-SECRET-KEY-123"
-BODY_SECRET = "BODY-SECRET-xyz"
+KEY = "placeholder-key-for-tests"
+BODY_MARKER = "BODY-MARKER-xyz"
 
 
 def completion(content=None, tool_calls=None):
@@ -231,7 +231,7 @@ def test_backoff_doubles_and_bad_retry_after_falls_back(srv):
 
 
 def test_retries_are_bounded_and_the_error_has_only_the_status(srv):
-    s = srv([(500, {}, {"error": BODY_SECRET})] * 10)
+    s = srv([(500, {}, {"error": BODY_MARKER})] * 10)
     with pytest.raises(ProviderError) as e:
         make(s, max_retries=2)("p")
     assert str(e.value) == "request failed: status 500" and len(s.requests) == 3
@@ -242,12 +242,12 @@ def test_retries_are_bounded_and_the_error_has_only_the_status(srv):
 
 
 def test_a_client_error_is_not_retried_and_leaks_nothing(srv):
-    s = srv([(401, {}, {"error": BODY_SECRET + KEY}), (200, {}, completion("late"))])
+    s = srv([(401, {}, {"error": BODY_MARKER + KEY}), (200, {}, completion("late"))])
     with pytest.raises(ProviderError) as e:
         make(s)("p")
     text = "".join(traceback.format_exception(type(e.value), e.value, e.value.__traceback__))
     assert str(e.value) == "request failed: status 401" and len(s.requests) == 1
-    assert KEY not in text and BODY_SECRET not in text
+    assert KEY not in text and BODY_MARKER not in text
 
 
 def test_connection_failure_is_retried_then_reported_by_type_only():
