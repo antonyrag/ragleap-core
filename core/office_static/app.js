@@ -4,7 +4,7 @@
   // One-click login link: /office#key=... stores the key for this tab and removes it from the
   // address bar. A URL fragment is never sent to the server.
   const linkKey = (() => {
-    const m = location.hash.match(/^#key=([A-Za-z0-9._~%-]+)$/);
+    const m = /^#key=([A-Za-z0-9._~%-]+)$/.exec(location.hash);
     if (!m) return "";
     try { return decodeURIComponent(m[1]); } catch (e) { return ""; }
   })();
