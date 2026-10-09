@@ -17,7 +17,7 @@ pytestmark = pytest.mark.skipif(not qdrant_available, reason="qdrant-client not 
 
 def _make_backend(tmp_path, **kwargs):
     from ragleap.vectorstores.qdrant_backend import QdrantBackend
-    return QdrantBackend(persist_directory=str(tmp_path / "qd_data"), url="https://fake.qdrant.cloud", api_key="fake-key", **kwargs)
+    return QdrantBackend(persist_directory=str(tmp_path / "qd_data"), url="https://fake.qdrant.cloud", api_key="example-key", **kwargs)
 
 
 def test_requires_persist_directory():

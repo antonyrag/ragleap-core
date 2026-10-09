@@ -110,7 +110,7 @@ def test_tavily_provider_builds_correct_request(mock_urlopen):
     mock_urlopen.return_value = _fake_response({
         "results": [{"title": "T", "url": "http://t", "content": "tavily snippet"}]
     })
-    provider = TavilySearchProvider(api_key="fake-key")
+    provider = TavilySearchProvider(api_key="example-key")
 
     results = provider.search("test query", num_results=3)
 
@@ -119,13 +119,13 @@ def test_tavily_provider_builds_correct_request(mock_urlopen):
     sent_payload = json.loads(sent_request.data.decode("utf-8"))
     assert sent_payload == {"query": "test query", "max_results": 3}
     assert "api_key" not in sent_payload  # key belongs in the header, not the body
-    assert sent_request.headers.get("Authorization") == "Bearer fake-key"
+    assert sent_request.headers.get("Authorization") == "Bearer example-key"
 
 
 @patch("ragleap_tools.web_search.urllib.request.urlopen")
 def test_tavily_provider_handles_empty_results(mock_urlopen):
     mock_urlopen.return_value = _fake_response({"results": []})
-    provider = TavilySearchProvider(api_key="fake-key")
+    provider = TavilySearchProvider(api_key="example-key")
 
     results = provider.search("query")
 
@@ -137,7 +137,7 @@ def test_serper_provider_builds_correct_request(mock_urlopen):
     mock_urlopen.return_value = _fake_response({
         "organic": [{"title": "S", "link": "http://s", "snippet": "serper snippet"}]
     })
-    provider = SerperSearchProvider(api_key="fake-key")
+    provider = SerperSearchProvider(api_key="example-key")
 
     results = provider.search("test query", num_results=7)
 
@@ -145,13 +145,13 @@ def test_serper_provider_builds_correct_request(mock_urlopen):
     sent_request = mock_urlopen.call_args[0][0]
     sent_payload = json.loads(sent_request.data.decode("utf-8"))
     assert sent_payload == {"q": "test query", "num": 7}
-    assert sent_request.headers.get("X-api-key") == "fake-key"
+    assert sent_request.headers.get("X-api-key") == "example-key"
 
 
 @patch("ragleap_tools.web_search.urllib.request.urlopen")
 def test_serper_provider_handles_empty_results(mock_urlopen):
     mock_urlopen.return_value = _fake_response({"organic": []})
-    provider = SerperSearchProvider(api_key="fake-key")
+    provider = SerperSearchProvider(api_key="example-key")
 
     results = provider.search("query")
 
@@ -162,7 +162,7 @@ def test_serper_provider_handles_empty_results(mock_urlopen):
 def test_search_web_wraps_network_error_from_real_provider(mock_urlopen):
     import urllib.error
     mock_urlopen.side_effect = urllib.error.URLError("connection refused")
-    provider = TavilySearchProvider(api_key="fake-key")
+    provider = TavilySearchProvider(api_key="example-key")
     config = WebSearchConfig(provider=provider)
 
     result = search_web(config, "query")

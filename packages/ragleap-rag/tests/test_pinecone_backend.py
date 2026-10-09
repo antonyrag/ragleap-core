@@ -25,7 +25,7 @@ pytestmark = pytest.mark.skipif(not pinecone_available, reason="pinecone package
 def test_requires_persist_directory(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
     with pytest.raises(ValueError, match="requires persist_directory"):
-        PineconeBackend(persist_directory="", api_key="fake-key")
+        PineconeBackend(persist_directory="", api_key="example-key")
 
 
 def test_requires_api_key(tmp_path):
@@ -45,7 +45,7 @@ def test_default_index_name_and_region():
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
     import tempfile
     with tempfile.TemporaryDirectory() as d:
-        backend = PineconeBackend(persist_directory=d, api_key="fake-key")
+        backend = PineconeBackend(persist_directory=d, api_key="example-key")
         assert backend.index_name == "ragleap"
         assert backend.cloud == "aws"
         assert backend.region == "us-east-1"
@@ -53,7 +53,7 @@ def test_default_index_name_and_region():
 
 def test_creates_sqlite_tables_on_init(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key")
     tables = backend._conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     table_names = {t[0] for t in tables}
     assert "documents" in table_names
@@ -64,21 +64,21 @@ def test_creates_sqlite_tables_on_init(tmp_path):
 
 def test_vector_id_construction(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key")
     assert backend._vector_id("doc1", 0) == "doc1:0"
     assert backend._vector_id("doc1", 5) == "doc1:5"
 
 
 def test_build_filter_none_when_no_filter(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key")
     assert backend._build_filter(None) is None
     assert backend._build_filter({}) is None
 
 
 def test_build_filter_translates_to_pinecone_eq_syntax(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key")
     result = backend._build_filter({"tenant": "acme", "region": "us"})
     assert result == {"tenant": {"$eq": "acme"}, "region": {"$eq": "us"}}
 
@@ -87,7 +87,7 @@ def test_build_filter_translates_to_pinecone_eq_syntax(tmp_path):
 
 def test_insert_document_and_list_documents(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key")
     backend.insert_document("doc1", "test.txt", {"tenant": "acme"})
     docs = backend.list_documents(limit=10, offset=0)
     assert len(docs) == 1
@@ -99,7 +99,7 @@ def test_insert_document_and_list_documents(tmp_path):
 
 def test_get_document_filename(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key")
     backend.insert_document("doc1", "test.txt", {})
     assert backend.get_document_filename("doc1") == "test.txt"
     assert backend.get_document_filename("nonexistent") is None
@@ -109,7 +109,7 @@ def test_get_document_filename(tmp_path):
 
 def _make_backend_with_mock_pinecone(tmp_path):
     from ragleap.vectorstores.pinecone_backend import PineconeBackend
-    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="fake-key", index_name="test-idx")
+    backend = PineconeBackend(persist_directory=str(tmp_path / "pc_data"), api_key="example-key", index_name="test-idx")
     return backend
 
 
