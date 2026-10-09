@@ -5,6 +5,8 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-09
+
 ### Added
 
 - Initial version. `Agent(llm, tools, policy, store, summarize)` runs an
