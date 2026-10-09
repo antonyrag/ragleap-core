@@ -74,6 +74,10 @@ class Tool:
             "parameters": self.parameters,
         }
 
-    def call(self, **kwargs: Any) -> ToolResult:
-        """Invokes the handler with the given keyword arguments."""
+    def call(self, /, **kwargs: Any) -> ToolResult:
+        """Invokes the handler with the given keyword arguments.
+
+        self is positional-only, so a tool argument literally named
+        "self" (a model can choose any argument name) reaches the
+        handler instead of raising TypeError."""
         return self.handler(**kwargs)

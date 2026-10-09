@@ -184,6 +184,30 @@ live-checked. `AnthropicVisionProvider` has not been called against a live
 account - its request shape was checked against current public
 documentation only, so treat it as best-effort until confirmed live.
 
+## Network limits (all HTTP providers)
+
+Every provider that makes an HTTP request (Tavily, Serper, GitHub search,
+Gemini and Anthropic vision) enforces a response-size cap and a hard total
+deadline. Both are configurable on the provider (or on `GitHubSearchConfig`):
+
+```python
+from ragleap_tools import TavilySearchProvider
+
+provider = TavilySearchProvider(
+    api_key="...",
+    max_response_bytes=2_000_000,  # default 1,048,576
+    total_timeout=30,              # seconds; default 20 (90 for vision)
+)
+```
+
+An oversize response or an exceeded deadline returns a failed `ToolResult`
+instead of hanging your tool-calling loop. The per-operation socket timeout
+is unchanged (15 seconds; 60 for vision). Python cannot kill a thread, so
+after the deadline an abandoned request is stopped on a best-effort basis
+(its socket is shut down; failing that it ends within one per-operation
+timeout), and DNS resolution is not covered by the per-operation timeout.
+See `docs/design/http-limits.md`.
+
 ## Deliberately out of scope
 
 Each of these needs its own security-focused design pass, not a
@@ -201,7 +225,7 @@ rushed inclusion here:
 
 ## Status
 
-v0.4.0. 133 tests, all passing, including real security verification
+v0.4.1. 200 tests, all passing, including real security verification
 for the two risk-sensitive tools (calculator's code-injection
 rejection, file ops' path-traversal and symlink-escape rejection) -
 not just documented as safe, actually tested against real attack
@@ -210,7 +234,9 @@ vectors.
 Not live-verified: the web search providers (Tavily, Serper), the
 Anthropic vision provider, and authenticated GitHub requests - request
 shapes were checked against current public documentation only. The Gemini
-vision provider was live-checked once (see above).
+vision provider was live-checked once (see above). The v0.4.1 bounded
+transport was live-checked for Gemini vision (2026-10-09) and for
+unauthenticated GitHub search.
 
 ## License
 

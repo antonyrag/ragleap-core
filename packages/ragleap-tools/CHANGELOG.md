@@ -5,6 +5,61 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-09
+
+### Added
+
+- A response-size cap and a hard total deadline for every HTTP provider
+  (Tavily, Serper, GitHub search, Gemini and Anthropic vision). New optional,
+  validated fields `max_response_bytes` (default 1,048,576 bytes) and
+  `total_timeout` (default 20 seconds; 90 seconds for the vision providers)
+  on `TavilySearchProvider`, `SerperSearchProvider`, `GitHubSearchConfig`,
+  `GeminiVisionProvider` and `AnthropicVisionProvider`. Before this, urllib's
+  timeout covered each socket operation rather than the whole request and the
+  body was read without a limit, so a server dripping bytes (or sending a huge
+  body) could hold a tool-calling loop indefinitely. An oversize response or
+  an exceeded deadline now returns a failed `ToolResult` ("response exceeded N
+  bytes" / "request exceeded N seconds"). GitHub error bodies are capped at
+  16,384 bytes and still surfaced. Per-operation timeouts are unchanged (15
+  seconds; 60 for vision). See `docs/design/http-limits.md`.
+
+### Fixed
+
+- `Tool.call(self, **kwargs)` raised `TypeError` when a model-chosen tool
+  argument was literally named `self`. `self` is now positional-only.
+
+### Verified
+
+- 200 tests (the existing 133 unchanged, plus 67 new), passing locally on
+  Python 3.10.12 and 3.12.3. The new tests use a real local HTTP server
+  (slow-drip body, stalled body, a server that never answers, oversize with
+  and without Content-Length, chunked, truncated, huge error body).
+  Mutation-tested: 38 deliberate breaks, all caught.
+- Live, on the new transport: Gemini vision (model `gemini-3.6-flash`, a
+  generated 64x64 red PNG) returned "Red" on Python 3.10.12 on 2026-10-09;
+  unauthenticated GitHub search returned results over real HTTPS, and the
+  size cap, the deadline and a real HTTP 422 error body were exercised
+  against api.github.com.
+
+### Not verified
+
+- The Anthropic vision provider, Tavily, Serper and authenticated GitHub
+  requests have still not been called against live services (their requests
+  now also go through the new transport, covered by local-server tests only).
+- Gemini JPEG/WebP, large images and error responses have not been checked
+  live.
+
+### Known limitations
+
+- Python cannot kill a thread. After the deadline the worker is told to stop
+  and its socket is shut down on a best-effort basis (this uses private
+  attributes of urllib's response object and could silently stop working in a
+  future Python); if so, the worker exits within one per-operation timeout.
+  Control always returns to the caller at the deadline.
+- DNS resolution is not covered by the per-operation timeout.
+- Responses over the cap (1 MiB by default) now fail where they previously
+  succeeded; raise `max_response_bytes` if you need more.
+
 ## [0.4.0] - 2026-10-03
 
 ### Added

@@ -36,6 +36,13 @@ providers). Reads images only from the sandbox directory; URLs are
 deliberately not accepted. Standard library only. See
 docs/design/vision-tool.md.
 
+v0.4.1 - hardening of the network tools: every HTTP provider now has a
+response-size cap and a hard total deadline (a server that drips bytes
+can no longer hold a tool-calling loop), and Tool.call accepts a tool
+argument literally named "self". New optional fields max_response_bytes
+and total_timeout on the providers and GitHubSearchConfig. Standard
+library only. See docs/design/http-limits.md.
+
 Deliberately out of scope for now (each needs its own security-focused
 design pass, not a rushed inclusion here): code execution,
 HTTP fetch, and database/business-system connectors (SQL,
@@ -70,7 +77,7 @@ from ragleap_tools.vision import (
     make_vision_tool,
 )
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 # Tools with no config/state needed - usable directly.
 STATELESS_TOOLS = [
