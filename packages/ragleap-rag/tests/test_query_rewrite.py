@@ -22,8 +22,8 @@ from conftest import TEST_DATABASE_URL, TEST_DIMENSIONS
 def _make_rag(**kwargs):
     return RagLeap(
         database_url=TEST_DATABASE_URL,
-        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=TEST_DIMENSIONS, api_key="fake-test-key"),
-        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
+        embedder=EmbeddingConfig(provider="gemini", model="models/gemini-embedding-001", dimensions=TEST_DIMENSIONS, api_key="example-test-key"),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="example-test-key"),
         **kwargs,
     )
 

@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(not weaviate_available, reason="weaviate-client 
 
 def _make_backend(tmp_path, **kwargs):
     from ragleap.vectorstores.weaviate_backend import WeaviateBackend
-    return WeaviateBackend(persist_directory=str(tmp_path / "wv_data"), cluster_url="https://fake.weaviate.cloud", api_key="fake-key", **kwargs)
+    return WeaviateBackend(persist_directory=str(tmp_path / "wv_data"), cluster_url="https://fake.weaviate.cloud", api_key="example-key", **kwargs)
 
 
 def test_requires_persist_directory():

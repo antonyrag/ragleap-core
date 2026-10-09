@@ -133,7 +133,7 @@ migration registered with the proposed migration framework).
   ```python
   from ragleap_graph import GraphIndex, GraphConfig
   g = GraphIndex(config=GraphConfig(uri="bolt://localhost:7688",
-                                     user="neo4j", password="ragleapgraph"))
+                                     user="neo4j", password="your-neo4j-password"))
   assert g.health_check(), "Neo4j is not responding after restart"
   ```
 - [ ] **Now run the migration.** If it fails partway, see the restore
@@ -198,7 +198,7 @@ Verify the graph is back to pre-migration state:
 from ragleap_graph import GraphIndex, GraphConfig
 
 g = GraphIndex(config=GraphConfig(uri="bolt://localhost:7688",
-                                   user="neo4j", password="ragleapgraph"))
+                                   user="neo4j", password="your-neo4j-password"))
 assert g.health_check()
 
 # Spot-check: confirm node counts match expectations

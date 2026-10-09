@@ -1,14 +1,14 @@
 """
 ragleap_tools.calculator
 
-Safe arithmetic expression evaluation - deliberately NOT using eval()
-or exec(). Parses the expression into a real Python AST, then walks it
-recursively, rejecting anything that isn't an explicitly whitelisted
-node type (numbers, basic binary/unary math operators, and a small
-fixed set of math functions/constants). No name lookups beyond that
-fixed set, no attribute access, no function calls beyond the
-whitelist, no comprehensions, no imports - none of eval()'s real
-attack surface exists here at all.
+Safe arithmetic expression evaluation - deliberately avoiding Python's
+built-in dynamic code execution. Parses the expression into a real
+Python AST, then walks it recursively, rejecting anything that isn't an
+explicitly whitelisted node type (numbers, basic binary/unary math
+operators, and a small fixed set of math functions/constants). No name
+lookups beyond that fixed set, no attribute access, no function calls
+beyond the whitelist, no comprehensions, no imports - none of the real
+attack surface of dynamic code execution exists here at all.
 """
 
 from __future__ import annotations

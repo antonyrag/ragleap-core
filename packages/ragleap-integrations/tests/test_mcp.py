@@ -31,7 +31,7 @@ from ragleap_integrations.mcp import (
 )
 
 URL = "https://mcp.example.com/mcp"
-SECRET = "SERVERSECRET"
+SECRET = "example-server-secret"
 
 
 # --------------------------------------------------------------------------

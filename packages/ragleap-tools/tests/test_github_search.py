@@ -75,10 +75,10 @@ def test_no_token_sends_no_authorization_header(mock_urlopen):
 @patch("ragleap_tools.github_search.urllib.request.urlopen")
 def test_token_sends_bearer_authorization_header(mock_urlopen):
     mock_urlopen.return_value = _fake_response({"items": []})
-    search_github_repositories(GitHubSearchConfig(token="fake-token"), "query")
+    search_github_repositories(GitHubSearchConfig(token="example-token"), "query")
 
     sent_request = mock_urlopen.call_args[0][0]
-    assert sent_request.headers.get("Authorization") == "Bearer fake-token"
+    assert sent_request.headers.get("Authorization") == "Bearer example-token"
 
 
 @patch("ragleap_tools.github_search.urllib.request.urlopen")

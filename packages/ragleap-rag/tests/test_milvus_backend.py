@@ -19,7 +19,7 @@ pytestmark = pytest.mark.skipif(not pymilvus_available, reason="pymilvus not ins
 
 def _make_backend(tmp_path, **kwargs):
     from ragleap.vectorstores.milvus_backend import MilvusBackend
-    return MilvusBackend(persist_directory=str(tmp_path / "mv_data"), uri="https://fake.zillizcloud.com", token="fake-token", **kwargs)
+    return MilvusBackend(persist_directory=str(tmp_path / "mv_data"), uri="https://fake.zillizcloud.com", token="example-token", **kwargs)
 
 
 def test_requires_persist_directory():

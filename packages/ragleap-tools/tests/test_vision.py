@@ -282,16 +282,16 @@ def test_empty_description_becomes_tool_result(tmp_path):
 
 def test_gemini_builds_real_request_and_parses_text():
     payload = {"candidates": [{"content": {"parts": [{"text": "A red "}, {"text": "square."}]}}]}
-    provider = GeminiVisionProvider(api_key="secret-key", model="gemini-test")
+    provider = GeminiVisionProvider(api_key="example-secret-key", model="gemini-test")
     with patch("ragleap_tools.vision.urllib.request.urlopen", return_value=_fake_response(payload)) as m:
         out = provider.describe(PNG, "image/png", "What is it?")
     assert out == "A red square."
     request = m.call_args[0][0]
     assert request.full_url == "https://generativelanguage.googleapis.com/v1beta/models/gemini-test:generateContent"
-    assert "secret-key" not in request.full_url
+    assert "example-secret-key" not in request.full_url
     assert request.get_method() == "POST"
     headers = _headers(request)
-    assert headers["x-goog-api-key"] == "secret-key"
+    assert headers["x-goog-api-key"] == "example-secret-key"
     assert headers["content-type"] == "application/json"
     parts = json.loads(request.data)["contents"][0]["parts"]
     assert parts[0]["inline_data"]["mime_type"] == "image/png"
@@ -319,7 +319,7 @@ def test_gemini_requires_api_key_and_model():
 
 def test_anthropic_builds_real_request_and_parses_text():
     payload = {"content": [{"type": "text", "text": "A "}, {"type": "other"}, {"type": "text", "text": "cat"}]}
-    provider = AnthropicVisionProvider(api_key="secret-key", model="claude-test", max_tokens=256)
+    provider = AnthropicVisionProvider(api_key="example-secret-key", model="claude-test", max_tokens=256)
     with patch("ragleap_tools.vision.urllib.request.urlopen", return_value=_fake_response(payload)) as m:
         out = provider.describe(JPEG, "image/jpeg", "Describe.")
     assert out == "A cat"
@@ -327,7 +327,7 @@ def test_anthropic_builds_real_request_and_parses_text():
     assert request.full_url == "https://api.anthropic.com/v1/messages"
     assert request.get_method() == "POST"
     headers = _headers(request)
-    assert headers["x-api-key"] == "secret-key"
+    assert headers["x-api-key"] == "example-secret-key"
     assert headers["anthropic-version"] == "2023-06-01"
     assert headers["content-type"] == "application/json"
     body = json.loads(request.data)

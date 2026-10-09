@@ -27,11 +27,11 @@ except Exception:
 
 def test_mistral_requires_explicit_model_and_dimensions():
     with pytest.raises(ValueError, match="No embedding model specified"):
-        EmbeddingConfig(provider="mistral", api_key="fake-key")
+        EmbeddingConfig(provider="mistral", api_key="example-key")
 
 
 def test_mistral_works_with_explicit_model_and_dimensions():
-    config = EmbeddingConfig(provider="mistral", api_key="fake-key", model="mistral-embed", dimensions=1024)
+    config = EmbeddingConfig(provider="mistral", api_key="example-key", model="mistral-embed", dimensions=1024)
     assert config.model == "mistral-embed"
     assert config.dimensions == 1024
     assert config.base_url == "https://api.mistral.ai/v1"
@@ -39,11 +39,11 @@ def test_mistral_works_with_explicit_model_and_dimensions():
 
 def test_together_requires_explicit_model_and_dimensions():
     with pytest.raises(ValueError, match="No embedding model specified"):
-        EmbeddingConfig(provider="together", api_key="fake-key")
+        EmbeddingConfig(provider="together", api_key="example-key")
 
 
 def test_together_works_with_explicit_model_and_dimensions():
-    config = EmbeddingConfig(provider="together", api_key="fake-key", model="some-model", dimensions=512)
+    config = EmbeddingConfig(provider="together", api_key="example-key", model="some-model", dimensions=512)
     assert config.model == "some-model"
     assert config.dimensions == 512
     assert config.base_url == "https://api.together.xyz/v1"
@@ -51,11 +51,11 @@ def test_together_works_with_explicit_model_and_dimensions():
 
 def test_cohere_requires_explicit_model_and_dimensions():
     with pytest.raises(ValueError, match="No embedding model specified"):
-        EmbeddingConfig(provider="cohere", api_key="fake-key")
+        EmbeddingConfig(provider="cohere", api_key="example-key")
 
 
 def test_cohere_works_with_explicit_model_and_dimensions():
-    config = EmbeddingConfig(provider="cohere", api_key="fake-key", model="embed-english-v3.0", dimensions=1024)
+    config = EmbeddingConfig(provider="cohere", api_key="example-key", model="embed-english-v3.0", dimensions=1024)
     assert config.model == "embed-english-v3.0"
     assert config.dimensions == 1024
 
@@ -66,7 +66,7 @@ def test_cohere_defaults_base_url_to_first_party_when_unset():
     _embed_cohere -- the wire request always went to the first-party
     URL regardless of what base_url was set to. Default behavior for
     existing users (no base_url passed) must stay unchanged."""
-    config = EmbeddingConfig(provider="cohere", api_key="fake-key", model="embed-english-v3.0", dimensions=1024)
+    config = EmbeddingConfig(provider="cohere", api_key="example-key", model="embed-english-v3.0", dimensions=1024)
     assert config.base_url == "https://api.cohere.ai/v1"
 
 
@@ -76,7 +76,7 @@ def test_cohere_honors_explicit_base_url():
     from unittest.mock import patch, MagicMock
 
     config = EmbeddingConfig(
-        provider="cohere", api_key="fake-key", model="embed-english-v3.0",
+        provider="cohere", api_key="example-key", model="embed-english-v3.0",
         dimensions=1024, base_url="https://gateway.example.com/v1",
     )
     service = EmbeddingService(config)
@@ -91,18 +91,18 @@ def test_cohere_honors_explicit_base_url():
 
 def test_voyage_requires_explicit_model_and_dimensions():
     with pytest.raises(ValueError, match="No embedding model specified"):
-        EmbeddingConfig(provider="voyage", api_key="fake-key")
+        EmbeddingConfig(provider="voyage", api_key="example-key")
 
 
 def test_voyage_works_with_explicit_model_and_dimensions():
-    config = EmbeddingConfig(provider="voyage", api_key="fake-key", model="voyage-3", dimensions=1024)
+    config = EmbeddingConfig(provider="voyage", api_key="example-key", model="voyage-3", dimensions=1024)
     assert config.model == "voyage-3"
     assert config.dimensions == 1024
 
 
 def test_voyage_defaults_base_url_to_first_party_when_unset():
     """Same regression coverage as cohere's, for V1's finding."""
-    config = EmbeddingConfig(provider="voyage", api_key="fake-key", model="voyage-3", dimensions=1024)
+    config = EmbeddingConfig(provider="voyage", api_key="example-key", model="voyage-3", dimensions=1024)
     assert config.base_url == "https://api.voyageai.com/v1"
 
 
@@ -110,7 +110,7 @@ def test_voyage_honors_explicit_base_url():
     from unittest.mock import patch, MagicMock
 
     config = EmbeddingConfig(
-        provider="voyage", api_key="fake-key", model="voyage-3",
+        provider="voyage", api_key="example-key", model="voyage-3",
         dimensions=1024, base_url="https://gateway.example.com/v1",
     )
     service = EmbeddingService(config)
@@ -142,12 +142,12 @@ def test_missing_model_raises_even_with_valid_api_key():
     """The core of the v0.9.0 change - having an API key isn't enough,
     model= (and dimensions=) are always required regardless of provider."""
     with pytest.raises(ValueError, match="No embedding model specified"):
-        EmbeddingConfig(provider="cohere", api_key="real-looking-key")
+        EmbeddingConfig(provider="cohere", api_key="example-real-looking-key")
 
 
 def test_missing_dimensions_raises_even_with_model_specified():
     with pytest.raises(ValueError, match="No dimensions specified"):
-        EmbeddingConfig(provider="cohere", api_key="fake-key", model="embed-english-v3.0")
+        EmbeddingConfig(provider="cohere", api_key="example-key", model="embed-english-v3.0")
 
 
 def test_ollama_needs_no_api_key_but_still_needs_model_and_dimensions():
@@ -177,19 +177,19 @@ def test_env_var_fallback_for_mistral(monkeypatch):
 
 def test_unknown_provider_raises():
     with pytest.raises(ValueError, match="Unknown embedding provider"):
-        EmbeddingConfig(provider="not-a-real-provider", api_key="fake-key", model="whatever", dimensions=100)
+        EmbeddingConfig(provider="not-a-real-provider", api_key="example-key", model="whatever", dimensions=100)
 
 
 def test_explicit_dimensions_always_required_no_override_concept():
     """There's no "default to override" anymore - dimensions must always
     be passed explicitly one way or another."""
-    config = EmbeddingConfig(provider="cohere", api_key="fake-key", model="embed-english-v3.0", dimensions=256)
+    config = EmbeddingConfig(provider="cohere", api_key="example-key", model="embed-english-v3.0", dimensions=256)
     assert config.dimensions == 256
 
 
 def test_custom_provider_requires_base_url():
     with pytest.raises(ValueError, match="No base_url for provider 'custom'"):
-        EmbeddingConfig(provider="custom", api_key="fake-key", model="some-model", dimensions=512)
+        EmbeddingConfig(provider="custom", api_key="example-key", model="some-model", dimensions=512)
 
 
 def test_custom_provider_works_with_all_fields_explicit():
@@ -200,7 +200,7 @@ def test_custom_provider_works_with_all_fields_explicit():
     modes and work via this path today)."""
     config = EmbeddingConfig(
         provider="custom",
-        api_key="fake-key",
+        api_key="example-key",
         model="some-chinese-provider-embedding-model",
         dimensions=1024,
         base_url="https://api.some-provider.example.com/v1",
@@ -235,7 +235,7 @@ def test_custom_provider_dispatches_to_openai_compatible_path(monkeypatch):
     monkeypatch.setattr(EmbeddingService, "embed_text", _REAL_EMBED_TEXT)
 
     config = EmbeddingConfig(
-        provider="custom", api_key="fake-key", model="test-model",
+        provider="custom", api_key="example-key", model="test-model",
         dimensions=4, base_url="https://fake.example.com/v1",
     )
     service = EmbeddingService(config)
@@ -292,7 +292,7 @@ def test_ollama_full_rag_integration_with_faiss(tmp_path, database_url):
         database_url=database_url,
         embedder=EC(provider="ollama", model="nomic-embed-text", dimensions=768),
         vector_backend=backend,
-        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="fake-test-key"),
+        primary=ProviderConfig(provider="gemini", model="gemini-3.6-flash", api_key="example-test-key"),
     )
     rag.init_schema()
 
