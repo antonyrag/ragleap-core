@@ -31,7 +31,7 @@ def test_missing_token_fails_gracefully():
 
 
 def test_connection_success():
-    ds = DataSource(id="1", name="test", source_type="slack", api_key="xoxb-fake")
+    ds = DataSource(id="1", name="test", source_type="slack", api_key="slack-test-credential")
     with patch("core.integrations.slack_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response({"ok": True, "team": "TestCo", "user": "ragleap-bot"})
         ok, msg = SlackConnector(ds).test_connection()
@@ -40,7 +40,7 @@ def test_connection_success():
 
 
 def test_slack_api_error_surfaces_message():
-    ds = DataSource(id="1", name="test", source_type="slack", api_key="xoxb-fake")
+    ds = DataSource(id="1", name="test", source_type="slack", api_key="slack-test-credential")
     with patch("core.integrations.slack_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response({"ok": False, "error": "invalid_auth"})
         ok, msg = SlackConnector(ds).test_connection()
@@ -49,7 +49,7 @@ def test_slack_api_error_surfaces_message():
 
 
 def test_fetch_channels_default():
-    ds = DataSource(id="1", name="test", source_type="slack", api_key="xoxb-fake")
+    ds = DataSource(id="1", name="test", source_type="slack", api_key="slack-test-credential")
     with patch("core.integrations.slack_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response({"ok": True, "channels": [{"id": "C1", "name": "general"}]})
         data = SlackConnector(ds).fetch_data()
@@ -57,7 +57,7 @@ def test_fetch_channels_default():
 
 
 def test_fetch_users():
-    ds = DataSource(id="1", name="test", source_type="slack", api_key="xoxb-fake", query_template="users")
+    ds = DataSource(id="1", name="test", source_type="slack", api_key="slack-test-credential", query_template="users")
     with patch("core.integrations.slack_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response({"ok": True, "members": [{"id": "U1", "name": "alice"}]})
         data = SlackConnector(ds).fetch_data()
@@ -65,14 +65,14 @@ def test_fetch_users():
 
 
 def test_fetch_messages_requires_channel_id():
-    ds = DataSource(id="1", name="test", source_type="slack", api_key="xoxb-fake", query_template="messages")
+    ds = DataSource(id="1", name="test", source_type="slack", api_key="slack-test-credential", query_template="messages")
     with pytest.raises(ValueError, match="api_endpoint"):
         SlackConnector(ds).fetch_data()
 
 
 def test_fetch_messages_filters_by_user():
     ds = DataSource(
-        id="1", name="test", source_type="slack", api_key="xoxb-fake",
+        id="1", name="test", source_type="slack", api_key="slack-test-credential",
         query_template="messages", api_endpoint="C123",
     )
     with patch("core.integrations.slack_connector.requests.get") as mock_get:
@@ -85,6 +85,6 @@ def test_fetch_messages_filters_by_user():
 
 
 def test_unsupported_query_template_raises():
-    ds = DataSource(id="1", name="test", source_type="slack", api_key="xoxb-fake", query_template="bogus")
+    ds = DataSource(id="1", name="test", source_type="slack", api_key="slack-test-credential", query_template="bogus")
     with pytest.raises(ValueError, match="Unsupported Slack query_template"):
         SlackConnector(ds).fetch_data()

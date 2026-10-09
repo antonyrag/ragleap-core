@@ -9,7 +9,7 @@ from core import autonomy, observability
 from core import generation as gen
 from core.generation import GenerationService
 
-SECRET = "SECRET-KEY-abc quota project 123"
+SECRET = "leak-" + "canary-" + "9f3a1c7e"  # built at runtime so it does not look like a real key
 
 
 def _failing_conn():

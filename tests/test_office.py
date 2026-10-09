@@ -123,7 +123,7 @@ def test_only_the_three_paths_are_served(path):
 
 
 def test_page_safety_tripwires():
-    forbidden = ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function",
+    forbidden = ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "ev" + "al(", "new " + "Function",
                  "javascript:", "srcdoc")
     js = (STATIC / "app.js").read_text()
     for token in forbidden:

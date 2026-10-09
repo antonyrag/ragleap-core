@@ -30,13 +30,13 @@ def test_missing_credentials_fails_gracefully():
 
 
 def test_missing_key_secret_fails_gracefully():
-    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key=None)
+    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key=None)
     ok, msg = RazorpayConnector(ds).test_connection()
     assert ok is False
 
 
 def test_connection_success():
-    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key="secretFAKE")
+    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key="razorpay-test-credential")
     with patch("core.integrations.razorpay_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response(200, {"items": []})
         ok, msg = RazorpayConnector(ds).test_connection()
@@ -45,7 +45,7 @@ def test_connection_success():
 
 
 def test_razorpay_api_error_surfaces_message():
-    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key="secretFAKE")
+    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key="razorpay-test-credential")
     with patch("core.integrations.razorpay_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response(401, {"error": {"description": "Authentication failed"}})
         ok, msg = RazorpayConnector(ds).test_connection()
@@ -54,7 +54,7 @@ def test_razorpay_api_error_surfaces_message():
 
 
 def test_fetch_payments_default():
-    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key="secretFAKE")
+    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key="razorpay-test-credential")
     with patch("core.integrations.razorpay_connector.requests.get") as mock_get:
         mock_get.return_value = _mock_response(200, {"items": [{"id": "pay_1", "amount": 500}]})
         data = RazorpayConnector(ds).fetch_data()
@@ -62,7 +62,7 @@ def test_fetch_payments_default():
 
 
 def test_fetch_paginates_using_skip():
-    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key="secretFAKE")
+    ds = DataSource(id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key="razorpay-test-credential")
     full_page = _mock_response(200, {"items": [{"id": f"pay_{i}"} for i in range(100)]})
     partial_page = _mock_response(200, {"items": [{"id": "pay_100"}]})
     with patch("core.integrations.razorpay_connector.requests.get") as mock_get:
@@ -74,7 +74,7 @@ def test_fetch_paginates_using_skip():
 
 def test_fetch_orders_resource():
     ds = DataSource(
-        id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key="secretFAKE",
+        id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key="razorpay-test-credential",
         query_template="orders",
     )
     with patch("core.integrations.razorpay_connector.requests.get") as mock_get:
@@ -87,7 +87,7 @@ def test_fetch_orders_resource():
 
 def test_unsupported_query_template_raises():
     ds = DataSource(
-        id="1", name="test", source_type="razorpay", api_endpoint="rzp_test_123", api_key="secretFAKE",
+        id="1", name="test", source_type="razorpay", api_endpoint="razorpay-test-id", api_key="razorpay-test-credential",
         query_template="bogus",
     )
     with pytest.raises(ValueError, match="Unsupported Razorpay query_template"):
