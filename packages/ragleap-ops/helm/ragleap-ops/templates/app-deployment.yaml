@@ -5,7 +5,9 @@ metadata:
   labels:
     app: ragleap-app
 spec:
+  {{- if not .Values.app.autoscaling.enabled }}
   replicas: {{ .Values.app.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: ragleap-app
@@ -35,6 +37,10 @@ spec:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+          {{- with .Values.app.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.app.port }}
           envFrom:

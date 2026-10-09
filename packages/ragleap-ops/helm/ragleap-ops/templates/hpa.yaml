@@ -1,0 +1,32 @@
+{{- range $name := list "app" "voice" }}
+{{- $w := index $.Values $name }}
+{{- if $w.autoscaling.enabled }}
+{{- if not $w.autoscaling.maxReplicas }}
+{{- fail (printf "%s.autoscaling.maxReplicas is required when %s.autoscaling.enabled is true" $name $name) }}
+{{- end }}
+{{- if not (dig "requests" "cpu" "" $w.resources) }}
+{{- fail (printf "%s.resources.requests.cpu is required when %s.autoscaling.enabled is true (CPU-percentage autoscaling needs a CPU request)" $name $name) }}
+{{- end }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ragleap-{{ $name }}
+  labels:
+    app: ragleap-{{ $name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ragleap-{{ $name }}
+  minReplicas: {{ $w.autoscaling.minReplicas }}
+  maxReplicas: {{ $w.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $w.autoscaling.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- end }}
