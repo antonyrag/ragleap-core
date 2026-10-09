@@ -20,6 +20,12 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from ragleap_tools._http import (
+    DEFAULT_MAX_RESPONSE_BYTES,
+    DEFAULT_TOTAL_TIMEOUT,
+    fetch,
+    validate_limits,
+)
 from ragleap_tools.base import Tool, ToolResult
 
 BASE_URL = "https://api.github.com/search/repositories"
@@ -41,6 +47,11 @@ class GitHubSearchConfig:
     wanted, pass it explicitly, same BYOK stance as every other tool
     in this package."""
     token: Optional[str] = None
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    total_timeout: float = DEFAULT_TOTAL_TIMEOUT
+
+    def __post_init__(self) -> None:
+        validate_limits(self.max_response_bytes, self.total_timeout)
 
 
 def search_github_repositories(
@@ -68,8 +79,8 @@ def search_github_repositories(
 
     request = urllib.request.Request(url, headers=headers, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        raw = fetch(request, max_bytes=config.max_response_bytes, total_timeout=config.total_timeout)
+        data = json.loads(raw.decode("utf-8"))
         results = [
             {
                 "full_name": item.get("full_name", ""),

@@ -29,6 +29,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, FrozenSet, Optional
 
+from ragleap_tools._http import DEFAULT_MAX_RESPONSE_BYTES, fetch, validate_limits
 from ragleap_tools.base import Tool, ToolResult
 from ragleap_tools.file_ops import FileOpsConfig, _resolve_safe_path
 
@@ -41,6 +42,7 @@ DEFAULT_PROMPT = (
 DEFAULT_MAX_IMAGE_BYTES = 5_000_000
 DEFAULT_MAX_PROMPT_CHARS = 2_000
 REQUEST_TIMEOUT_SECONDS = 60
+DEFAULT_VISION_TOTAL_TIMEOUT = 90.0
 
 
 def _detect_mime_type(data: bytes) -> Optional[str]:
@@ -58,15 +60,26 @@ def _detect_mime_type(data: bytes) -> Optional[str]:
     return None
 
 
-def _post_json(url: str, headers: Dict[str, str], body: Dict[str, Any]) -> Dict[str, Any]:
+def _post_json(
+    url: str,
+    headers: Dict[str, str],
+    body: Dict[str, Any],
+    max_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+    total_timeout: float = DEFAULT_VISION_TOTAL_TIMEOUT,
+) -> Dict[str, Any]:
     request = urllib.request.Request(
         url,
         data=json.dumps(body).encode("utf-8"),
         headers=headers,
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
-        return json.loads(response.read().decode("utf-8"))
+    raw = fetch(
+        request,
+        max_bytes=max_bytes,
+        total_timeout=total_timeout,
+        op_timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+    return json.loads(raw.decode("utf-8"))
 
 
 def _require_non_empty(value: Any, name: str) -> None:
@@ -103,6 +116,8 @@ class GeminiVisionProvider(VisionProvider):
     api_key: str
     model: str
     base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    total_timeout: float = DEFAULT_VISION_TOTAL_TIMEOUT
 
     # Conservative subset; not re-confirmed against Gemini's docs in
     # this version (see the design doc's verification section).
@@ -111,6 +126,7 @@ class GeminiVisionProvider(VisionProvider):
     def __post_init__(self) -> None:
         _require_non_empty(self.api_key, "api_key")
         _require_non_empty(self.model, "model")
+        validate_limits(self.max_response_bytes, self.total_timeout)
 
     def describe(self, image_bytes: bytes, mime_type: str, prompt: str) -> str:
         url = f"{self.base_url}/models/{urllib.parse.quote(self.model, safe='')}:generateContent"
@@ -133,6 +149,8 @@ class GeminiVisionProvider(VisionProvider):
             url,
             {"Content-Type": "application/json", "x-goog-api-key": self.api_key},
             body,
+            max_bytes=self.max_response_bytes,
+            total_timeout=self.total_timeout,
         )
         parts = data["candidates"][0]["content"]["parts"]
         text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
@@ -153,12 +171,15 @@ class AnthropicVisionProvider(VisionProvider):
     max_tokens: int = 1024
     base_url: str = "https://api.anthropic.com/v1/messages"
     api_version: str = "2023-06-01"
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    total_timeout: float = DEFAULT_VISION_TOTAL_TIMEOUT
 
     supported_mime_types = frozenset({"image/jpeg", "image/png", "image/gif", "image/webp"})
 
     def __post_init__(self) -> None:
         _require_non_empty(self.api_key, "api_key")
         _require_non_empty(self.model, "model")
+        validate_limits(self.max_response_bytes, self.total_timeout)
 
     def describe(self, image_bytes: bytes, mime_type: str, prompt: str) -> str:
         body = {
@@ -189,6 +210,8 @@ class AnthropicVisionProvider(VisionProvider):
                 "anthropic-version": self.api_version,
             },
             body,
+            max_bytes=self.max_response_bytes,
+            total_timeout=self.total_timeout,
         )
         text = "".join(
             block.get("text", "")

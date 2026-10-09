@@ -23,6 +23,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from ragleap_tools._http import (
+    DEFAULT_MAX_RESPONSE_BYTES,
+    DEFAULT_TOTAL_TIMEOUT,
+    fetch,
+    validate_limits,
+)
 from ragleap_tools.base import Tool, ToolResult
 
 
@@ -50,6 +56,11 @@ class TavilySearchProvider(SearchProvider):
 
     api_key: str
     base_url: str = "https://api.tavily.com/search"
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    total_timeout: float = DEFAULT_TOTAL_TIMEOUT
+
+    def __post_init__(self) -> None:
+        validate_limits(self.max_response_bytes, self.total_timeout)
 
     def search(self, query: str, num_results: int = 5) -> List[Dict[str, str]]:
         # Bearer-header auth, per Tavily's current API docs. (An earlier
@@ -65,8 +76,8 @@ class TavilySearchProvider(SearchProvider):
             },
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=15) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        raw = fetch(request, max_bytes=self.max_response_bytes, total_timeout=self.total_timeout)
+        data = json.loads(raw.decode("utf-8"))
         return [
             {
                 "title": item.get("title", ""),
@@ -86,6 +97,11 @@ class SerperSearchProvider(SearchProvider):
 
     api_key: str
     base_url: str = "https://google.serper.dev/search"
+    max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES
+    total_timeout: float = DEFAULT_TOTAL_TIMEOUT
+
+    def __post_init__(self) -> None:
+        validate_limits(self.max_response_bytes, self.total_timeout)
 
     def search(self, query: str, num_results: int = 5) -> List[Dict[str, str]]:
         payload = json.dumps({"q": query, "num": num_results}).encode("utf-8")
@@ -95,8 +111,8 @@ class SerperSearchProvider(SearchProvider):
             headers={"Content-Type": "application/json", "X-API-KEY": self.api_key},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=15) as response:
-            data = json.loads(response.read().decode("utf-8"))
+        raw = fetch(request, max_bytes=self.max_response_bytes, total_timeout=self.total_timeout)
+        data = json.loads(raw.decode("utf-8"))
         return [
             {
                 "title": item.get("title", ""),
