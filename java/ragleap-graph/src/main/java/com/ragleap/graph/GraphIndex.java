@@ -138,6 +138,91 @@ public final class GraphIndex implements AutoCloseable {
             LIMIT 50
             """;
 
+    private static final String SEARCH_RELATED = """
+            MATCH (start:Entity)
+            WHERE start.name IN $entity_names
+              AND start.namespace = $namespace
+              AND coalesce(start.user_id, '') = $user_id
+            MATCH path = (start)-[*1..{max_depth}]-(related:Entity)
+            WHERE related.namespace = $namespace
+              AND coalesce(related.user_id, '') = $user_id
+            RETURN DISTINCT related.name AS entity_id,
+                   related.display_name AS entity_name,
+                   type(relationships(path)[0]) AS relationship,
+                   length(path) AS depth
+            ORDER BY depth ASC
+            LIMIT $limit
+            """;
+    private static final String FIND_RELATIONS_OUT = """
+            MATCH (s:Entity {name: $subject, namespace: $namespace})
+                  -[r:RELATES_AS]->(o:Entity {namespace: $namespace})
+            WHERE ($relation_type IS NULL OR r.relation_type = $relation_type)
+              AND coalesce(s.user_id, '') = $user_id
+              AND coalesce(o.user_id, '') = $user_id
+            RETURN s.display_name AS subject,
+                   r.relation_type AS relation_type,
+                   o.display_name AS object,
+                   coalesce(r.weight, 1.0) AS weight
+            ORDER BY weight DESC
+            LIMIT $limit
+            """;
+    private static final String FIND_RELATIONS_IN = """
+            MATCH (o:Entity {name: $subject, namespace: $namespace})
+                  <-[r:RELATES_AS]-(s:Entity {namespace: $namespace})
+            WHERE ($relation_type IS NULL OR r.relation_type = $relation_type)
+              AND coalesce(s.user_id, '') = $user_id
+              AND coalesce(o.user_id, '') = $user_id
+            RETURN s.display_name AS subject,
+                   r.relation_type AS relation_type,
+                   o.display_name AS object,
+                   coalesce(r.weight, 1.0) AS weight
+            ORDER BY weight DESC
+            LIMIT $limit
+            """;
+    private static final String FIND_RELATIONS_BOTH = """
+            MATCH (a:Entity {namespace: $namespace})
+                  -[r:RELATES_AS]-(b:Entity {namespace: $namespace})
+            WHERE (a.name = $subject OR b.name = $subject)
+              AND ($relation_type IS NULL OR r.relation_type = $relation_type)
+              AND coalesce(a.user_id, '') = $user_id
+              AND coalesce(b.user_id, '') = $user_id
+            WITH DISTINCT startNode(r) AS s, endNode(r) AS o, r
+            RETURN s.display_name AS subject,
+                   r.relation_type AS relation_type,
+                   o.display_name AS object,
+                   coalesce(r.weight, 1.0) AS weight
+            ORDER BY weight DESC
+            LIMIT $limit
+            """;
+    private static final String LINEAGE_PAIRS = """
+            MATCH (pw:PairWeight {namespace: $namespace})
+            WHERE ((pw.entity_a = $a AND pw.entity_b = $b)
+                OR (pw.entity_a = $b AND pw.entity_b = $a))
+              AND coalesce(pw.user_id, '') = $user_id
+            RETURN pw.document_id AS document_id, pw.weight AS weight
+            LIMIT $limit
+            """;
+    private static final String LINEAGE_RELATIONS = """
+            MATCH (rw:RelationWeight {namespace: $namespace})
+            WHERE ((rw.subject = $a AND rw.object = $b)
+                OR (rw.subject = $b AND rw.object = $a))
+              AND ($relation_type IS NULL OR rw.relation_type = $relation_type)
+              AND coalesce(rw.user_id, '') = $user_id
+            RETURN rw.document_id AS document_id,
+                   rw.relation_type AS relation_name,
+                   rw.weight AS weight
+            LIMIT $limit
+            """;
+    private static final String ENTITIES_BY_TYPE = """
+            MATCH (e:Entity {namespace: $namespace})
+            WHERE toLower(e.entity_type) = toLower($entity_type)
+              AND coalesce(e.user_id, '') = $user_id
+            RETURN e.name AS entity_id,
+                   e.display_name AS entity_name,
+                   e.entity_type AS entity_type
+            LIMIT $limit
+            """;
+
     private final CypherRunner runner;
     private final AuditSink audit;
     private final Sleeper sleeper;
@@ -412,6 +497,182 @@ public final class GraphIndex implements AutoCloseable {
             LOG.log(Level.ERROR, "Graph document lookup error: " + e.getMessage(), e);
             return List.of();
         }
+    }
+
+    public List<RelatedEntity> searchRelatedEntities(List<String> entityNames) {
+        return searchRelatedEntities(entityNames, null, null, 2, 10);
+    }
+
+    /**
+     * Entities related to the given names through graph traversal of up to maxDepth hops (1 to MAX_ALLOWED_DEPTH).
+     * The depth is checked first, even when the server is unreachable, because it is formatted into the query text.
+     */
+    public List<RelatedEntity> searchRelatedEntities(List<String> entityNames, String namespace, String userId,
+                                                     int maxDepth, int limit) {
+        if (maxDepth < 1 || maxDepth > MAX_ALLOWED_DEPTH) {
+            throw new IllegalArgumentException(
+                    "max_depth must be between 1 and " + MAX_ALLOWED_DEPTH + ", got " + maxDepth);
+        }
+        if (runner == null) {
+            LOG.log(Level.WARNING, NOT_AVAILABLE);
+            return List.of();
+        }
+        List<String> normalized = EntityExtraction.normalizeEntityList(entityNames);
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+        String ns = namespace == null ? "" : namespace;
+        String uid = userId == null ? "" : userId;
+        try {
+            String query = SEARCH_RELATED.replace("{max_depth}", Integer.toString(maxDepth));
+            List<RelatedEntity> related = new ArrayList<>();
+            for (Map<String, Object> row : exec(query, "entity_names", normalized, "namespace", ns,
+                    "user_id", uid, "limit", Math.max(1, limit))) {
+                related.add(new RelatedEntity(str(row.get("entity_id")), str(row.get("entity_name")),
+                        str(row.get("relationship")), asInt(row.get("depth"))));
+            }
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("entity_names", normalized);
+            detail.put("max_depth", maxDepth);
+            detail.put("result_count", related.size());
+            audit("search_related_entities", uid, ns, null, null, detail);
+            return related;
+        } catch (RuntimeException e) {
+            LOG.log(Level.ERROR, "Related-entity search error: " + e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public List<RelationHit> findRelations(String entityName) {
+        return findRelations(entityName, null, null, null, 25, "outgoing");
+    }
+
+    /** Typed relations involving an entity; direction is "outgoing", "incoming" or "both". */
+    public List<RelationHit> findRelations(String entityName, String relationType, String namespace, String userId,
+                                           int limit, String direction) {
+        if (!"outgoing".equals(direction) && !"incoming".equals(direction) && !"both".equals(direction)) {
+            throw new IllegalArgumentException("direction must be \"outgoing\", \"incoming\", or \"both\", got "
+                    + (direction == null ? "None" : "'" + direction + "'"));
+        }
+        if (runner == null) {
+            LOG.log(Level.WARNING, NOT_AVAILABLE);
+            return List.of();
+        }
+        String normalized = EntityExtraction.normalizeEntityName(entityName);
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+        String ns = namespace == null ? "" : namespace;
+        String uid = userId == null ? "" : userId;
+        String query = switch (direction) {
+            case "outgoing" -> FIND_RELATIONS_OUT;
+            case "incoming" -> FIND_RELATIONS_IN;
+            default -> FIND_RELATIONS_BOTH;
+        };
+        try {
+            List<RelationHit> relations = new ArrayList<>();
+            for (Map<String, Object> row : exec(query, "subject", PyText.lower(normalized), "namespace", ns,
+                    "user_id", uid, "relation_type", relationType, "limit", Math.max(1, limit))) {
+                relations.add(new RelationHit(str(row.get("subject")), str(row.get("relation_type")),
+                        str(row.get("object")), asDouble(row.get("weight"))));
+            }
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("entity_name", entityName);
+            detail.put("direction", direction);
+            detail.put("result_count", relations.size());
+            audit("find_relations", uid, ns, null, null, detail);
+            return relations;
+        } catch (RuntimeException e) {
+            LOG.log(Level.ERROR, "Relation search error: " + e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public List<LineageEntry> findLineage(String entityA, String entityB) {
+        return findLineage(entityA, entityB, null, null, null, 25);
+    }
+
+    /**
+     * Per-document contributions to the edges between two entities (order does not matter). The names are only
+     * lower-cased, not normalized, as in the Python package.
+     */
+    public List<LineageEntry> findLineage(String entityA, String entityB, String relationType, String namespace,
+                                          String userId, int limit) {
+        if (runner == null) {
+            LOG.log(Level.WARNING, NOT_AVAILABLE);
+            return List.of();
+        }
+        if (entityA == null || PyText.strip(entityA).isEmpty() || entityB == null || PyText.strip(entityB).isEmpty()) {
+            return List.of();
+        }
+        String ns = namespace == null ? "" : namespace;
+        String uid = userId == null ? "" : userId;
+        String a = PyText.lower(entityA);
+        String b = PyText.lower(entityB);
+        int max = Math.max(1, limit);
+        try {
+            List<LineageEntry> contributions = new ArrayList<>();
+            for (Map<String, Object> row : exec(LINEAGE_PAIRS, "namespace", ns, "user_id", uid, "a", a, "b", b,
+                    "limit", max)) {
+                contributions.add(new LineageEntry(str(row.get("document_id")), "CO_OCCURS_WITH", null,
+                        boxed(row.get("weight"))));
+            }
+            for (Map<String, Object> row : exec(LINEAGE_RELATIONS, "namespace", ns, "user_id", uid, "a", a,
+                    "b", b, "relation_type", relationType, "limit", max)) {
+                contributions.add(new LineageEntry(str(row.get("document_id")), "RELATES_AS",
+                        str(row.get("relation_name")), boxed(row.get("weight"))));
+            }
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("entity_a", entityA);
+            detail.put("entity_b", entityB);
+            detail.put("result_count", contributions.size());
+            audit("find_lineage", uid, ns, null, null, detail);
+            return new ArrayList<>(contributions.subList(0, Math.min(max, contributions.size())));
+        } catch (RuntimeException e) {
+            LOG.log(Level.ERROR, "Lineage lookup error: " + e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    public List<TypedEntity> findEntitiesByType(String entityType) {
+        return findEntitiesByType(entityType, null, null, 25);
+    }
+
+    /** Entities of a given type, matched case-insensitively. */
+    public List<TypedEntity> findEntitiesByType(String entityType, String namespace, String userId, int limit) {
+        if (runner == null) {
+            LOG.log(Level.WARNING, NOT_AVAILABLE);
+            return List.of();
+        }
+        if (entityType == null || PyText.strip(entityType).isEmpty()) {
+            return List.of();
+        }
+        String ns = namespace == null ? "" : namespace;
+        String uid = userId == null ? "" : userId;
+        try {
+            List<TypedEntity> entities = new ArrayList<>();
+            for (Map<String, Object> row : exec(ENTITIES_BY_TYPE, "namespace", ns, "user_id", uid,
+                    "entity_type", entityType, "limit", Math.max(1, limit))) {
+                entities.add(new TypedEntity(str(row.get("entity_id")), str(row.get("entity_name")),
+                        str(row.get("entity_type"))));
+            }
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("entity_type", entityType);
+            detail.put("result_count", entities.size());
+            audit("find_entities_by_type", uid, ns, null, null, detail);
+            return entities;
+        } catch (RuntimeException e) {
+            LOG.log(Level.ERROR, "Entity-by-type search error: " + e.getMessage(), e);
+            return List.of();
+        }
+    }
+
+    private static String str(Object o) {
+        return o == null ? null : o.toString();
+    }
+
+    private static Double boxed(Object o) {
+        return o instanceof Number n ? n.doubleValue() : null;
     }
 
     /** All entities linked to a specific document (at most 50). */
