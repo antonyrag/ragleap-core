@@ -38,11 +38,22 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   read by environment-variable name and never printed or logged; results are written
   to `~/ragleap-live-runs` unless `--out` is given.
 
+### Fixed
+
+- `openai_compatible` and the runner's `--list-models` sent Python's default
+  `User-Agent`, which Groq's gateway rejects with HTTP 403 (error code 1010) before it
+  looks at the key. Found by the first real call. The adapter now sends
+  `ragleap-agents (+https://github.com/antonyrag/ragleap-core)`, and `user_agent=`
+  overrides it (a value with a line break is refused). Checked against Groq only;
+  Gemini has not been tried.
+- The runner's test double no longer parses prompts with a regular expression
+  (CodeQL `py/polynomial-redos` on test code).
+
 ### Verified
 
-- 98 tests pass on Python 3.10, 3.11 and 3.12 (sandbox): 57 with a scripted model, 35 for
-  the adapter against a real local HTTP server (127.0.0.1, no external network), and 6 for
-  the live runner against a deterministic fake model (12 of 12 runner mutations caught).
+- 105 tests pass on Python 3.10, 3.11 and 3.12 (sandbox): 57 with a scripted model, 40 for
+  the adapter against a real local HTTP server (127.0.0.1, no external network), and 8 for
+  the live runner against a deterministic fake model (13 of 13 runner mutations caught).
   Mutation-checked: each new behaviour above makes at least one test fail when removed
   (the one survivor, dropping `from None` on the retry-exhausted error, cannot leak:
   the chained exception holds only a status).

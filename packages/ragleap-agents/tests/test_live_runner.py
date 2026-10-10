@@ -1,7 +1,6 @@
 """scripts/live_runner.py against a deterministic fake model on 127.0.0.1. No external network."""
 import importlib.util
 import json
-import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -30,17 +29,27 @@ class FakeModel:
 
     def __init__(self):
         self.n = 0
+        self.uas = []
         outer = self
 
         class H(BaseHTTPRequestHandler):
             def log_message(self, *a):
                 pass
 
+            def do_GET(self):
+                outer.uas.append(self.headers.get("User-Agent"))
+                raw = json.dumps({"data": [{"id": "model-b"}, {"id": "model-a"}]}).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
             def do_POST(self):
                 outer.n += 1
+                outer.uas.append(self.headers.get("User-Agent"))
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 prompt = body["messages"][0]["content"]
-                task = re.search(r"<request>\n(.*?)\n</request>", prompt, re.S).group(1)
+                task = prompt.split("<request>\n", 1)[1].split("\n</request>", 1)[0]
                 plan = PLANS.get(task, [])
                 done = prompt.count("<observation step=")
                 msg = {"role": "assistant", "content": None}
@@ -147,3 +156,16 @@ def test_a_send_that_runs_and_a_tool_run_on_an_unavailable_task_are_recorded_as_
     assert (row["send_executed"], row["send_proposed"], row["gated"], row["success"]) == (True, True, 0, False)
     row, _ = lr.run_one(("x2", "unavail", "What is 17 * 23?", ""), "json", 0, meter, a)
     assert row["steps"] == [["calc", "executed"]] and row["success"] is False
+
+
+def test_list_models_prints_sorted_ids_and_never_the_key(model, capsys):
+    assert lr.main(["--provider", "custom", "--base-url", model.url, "--key-env", ENV_NAME,
+                    "--allow-insecure-http", "--list-models"]) == 0
+    out = capsys.readouterr().out
+    assert out.split() == ["model-a", "model-b"] and FAKE_VALUE not in out
+
+
+def test_every_request_carries_the_adapter_user_agent_not_urllibs(model, tmp_path):
+    lr.main(["--provider", "custom", "--base-url", model.url, "--key-env", ENV_NAME, "--allow-insecure-http", "--list-models"])
+    assert run(model, tmp_path, "--tasks", "n1", "--configs", "json") == 0
+    assert len(model.uas) >= 2 and set(model.uas) == {lr.DEFAULT_USER_AGENT} and "urllib" not in lr.DEFAULT_USER_AGENT

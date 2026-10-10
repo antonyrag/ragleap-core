@@ -23,6 +23,7 @@ from ragleap_agents.agent import SUMMARY_PROMPT_PREFIX, parse_plan
 MAX_RETRIES = 5
 MAX_RETRY_AFTER = 30.0
 _RETRY_STATUS = {408, 429, 500, 502, 503, 504}
+DEFAULT_USER_AGENT = "ragleap-agents (+https://github.com/antonyrag/ragleap-core)"
 
 
 class ProviderError(RuntimeError):
@@ -53,6 +54,7 @@ def openai_compatible(
     backoff: float = 1.0,
     max_response_bytes: int = 1_000_000,
     allow_insecure_http: bool = False,
+    user_agent: Optional[str] = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Callable[[str], str]:
     """Return llm(prompt) -> str for Agent, over POST {base_url}/chat/completions.
@@ -68,6 +70,8 @@ def openai_compatible(
         raise ValueError("native mode needs the tools list")
     if not isinstance(api_key, str) or not api_key.strip():
         raise ValueError("api_key is required")
+    if user_agent is not None and (not user_agent.strip() or "\r" in user_agent or "\n" in user_agent):
+        raise ValueError("user_agent must be a single non-empty line")
     p = urllib.parse.urlsplit(base_url)
     if p.scheme not in ("https", "http") or not p.hostname:
         raise ValueError("base_url must be an http(s) URL")
@@ -79,7 +83,8 @@ def openai_compatible(
     schemas = [t.to_openai_schema() for t in tools] if tools else []
     retries = max(0, min(int(max_retries), MAX_RETRIES))
     opener = urllib.request.build_opener(_NoRedirect)
-    headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json", "Accept": "application/json"}
+    headers = {"Authorization": "Bearer " + api_key, "Content-Type": "application/json", "Accept": "application/json",
+               "User-Agent": user_agent or DEFAULT_USER_AGENT}
 
     def once(payload: Dict[str, Any]) -> Any:
         req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")

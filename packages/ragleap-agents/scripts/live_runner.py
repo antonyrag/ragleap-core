@@ -19,7 +19,6 @@ import ast
 import json
 import operator
 import os
-import re
 import statistics
 import sys
 import time
@@ -30,6 +29,7 @@ from pathlib import Path
 
 import ragleap_agents
 from ragleap_agents import Agent, InMemoryStateStore, Policy, ProviderError, TRUSTED, ToolPolicy, openai_compatible
+from ragleap_agents.providers import DEFAULT_USER_AGENT
 from ragleap_tools import Tool, ToolResult
 
 PROVIDERS = {
@@ -272,7 +272,8 @@ def write_private(path, text):
 
 
 def list_models(a):
-    req = urllib.request.Request(a.base_url.rstrip("/") + "/models", headers={"Authorization": "Bearer " + a.key})
+    req = urllib.request.Request(a.base_url.rstrip("/") + "/models",
+                                 headers={"Authorization": "Bearer " + a.key, "User-Agent": DEFAULT_USER_AGENT})
     opener = urllib.request.build_opener()
     try:
         with opener.open(req, timeout=a.timeout) as resp:
