@@ -1,0 +1,7 @@
+---
+# Targets only the group ragleap_servers. It never defaults to localhost.
+- name: Bootstrap a RagLeap server
+  hosts: ragleap_servers
+  become: true
+  roles:
+    - ragleap_base
