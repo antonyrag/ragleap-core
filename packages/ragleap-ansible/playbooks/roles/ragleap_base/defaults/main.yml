@@ -1,0 +1,15 @@
+---
+# Account that runs day-to-day administration. Must not be root.
+ragleap_base_deploy_user: ragleap
+
+# Public key for the deploy user. Leave empty to create the account without a key.
+ragleap_base_deploy_ssh_public_key: ""
+
+# The deploy user has no password, so sudo needs NOPASSWD to be usable.
+ragleap_base_deploy_passwordless_sudo: true
+
+ragleap_base_packages:
+  - ca-certificates
+  - curl
+  - sudo
+  - unattended-upgrades

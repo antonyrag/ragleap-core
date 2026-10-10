@@ -1,0 +1,72 @@
+---
+- name: Check the deploy user name is safe
+  ansible.builtin.assert:
+    that:
+      - ragleap_base_deploy_user is match('^[a-z_][a-z0-9_-]*$')
+      - ragleap_base_deploy_user != 'root'
+    fail_msg: ragleap_base_deploy_user must be a lowercase account name and not root
+
+- name: Check the SSH public key looks like a key
+  ansible.builtin.assert:
+    that:
+      - ragleap_base_deploy_ssh_public_key is match('^(ssh|ecdsa-sha2|sk-ssh|sk-ecdsa-sha2)-[A-Za-z0-9@.-]+ [A-Za-z0-9+/=]+( .*)?$')
+    fail_msg: ragleap_base_deploy_ssh_public_key must be a full OpenSSH public key line (type, base64 data, optional comment)
+  when: ragleap_base_deploy_ssh_public_key | length > 0
+
+- name: Refresh the apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ ragleap_base_packages }}"
+    state: present
+
+- name: Create the deploy user
+  ansible.builtin.user:
+    name: "{{ ragleap_base_deploy_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+    create_home: true
+  register: ragleap_base_deploy_user_result
+
+- name: Create the deploy user's .ssh directory
+  ansible.builtin.file:
+    path: "{{ ragleap_base_deploy_user_result.home }}/.ssh"
+    state: directory
+    owner: "{{ ragleap_base_deploy_user }}"
+    group: "{{ ragleap_base_deploy_user }}"
+    mode: "0700"
+  when: ragleap_base_deploy_ssh_public_key | length > 0
+
+- name: Authorize the deploy user's SSH key
+  ansible.builtin.lineinfile:
+    path: "{{ ragleap_base_deploy_user_result.home }}/.ssh/authorized_keys"
+    line: "{{ ragleap_base_deploy_ssh_public_key }}"
+    create: true
+    owner: "{{ ragleap_base_deploy_user }}"
+    group: "{{ ragleap_base_deploy_user }}"
+    mode: "0600"
+  when: ragleap_base_deploy_ssh_public_key | length > 0
+
+- name: Allow passwordless sudo for the deploy user
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ ragleap_base_deploy_user }}"
+    content: "{{ ragleap_base_deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
+  when: ragleap_base_deploy_passwordless_sudo | bool
+
+- name: Enable automatic security updates
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+    owner: root
+    group: root
+    mode: "0644"
