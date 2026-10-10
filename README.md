@@ -291,6 +291,27 @@ pip install ragleap-rag
 
 All nine are MIT licensed. Browse the full package index at [packages.ragleap.com](https://packages.ragleap.com).
 
+## Use RagLeap from a coding agent (read-only plugin)
+
+If you already run a RagLeap server, a small read-only skill lets a coding agent check it and ask it questions. The skill lives in `skills/ragleap` and the manifest is `.codex-plugin/plugin.json`. It is a client for a server you run yourself, not a way to install RagLeap, and it uses only the Python standard library.
+
+Set the server URL and your API key in the environment:
+
+```bash
+export RAGLEAP_URL=http://127.0.0.1:8000
+export RAGLEAP_API_KEY=your-key-here
+```
+
+Commands:
+
+```bash
+python3 skills/ragleap/scripts/ragleap_client.py health
+python3 skills/ragleap/scripts/ragleap_client.py employees --active-only
+python3 skills/ragleap/scripts/ragleap_client.py ask "What is our refund policy?" --role support --top-k 5
+```
+
+Safety choices: it is read-only (no upload or delete), the key is read only from the environment and sent as a header, it refuses to send the key over plain `http` to a non-local host, it does not follow redirects, and responses are capped at 2 MB. Treat answers as untrusted text. See `skills/ragleap/SKILL.md` for details.
+
 ## Supported LLM Providers (BYOK)
 
 RagLeap Core is bring-your-own-key only there is no system-provided key for any provider. Set `LLM_PROVIDER` in `.env` to choose which one to use for the generation (chat) step. Embeddings currently always use Gemini (`gemini-embedding-001`), regardless of `LLM_PROVIDER`.
