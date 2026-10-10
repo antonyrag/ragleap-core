@@ -90,6 +90,40 @@ final class PyText {
         return head + lowered.substring(firstLower.length());
     }
 
+    /** Python str.strip() with no arguments: removes leading and trailing whitespace. */
+    static String strip(String s) {
+        int start = 0;
+        int end = s.length();
+        while (start < end && isSpace(s.charAt(start))) {
+            start++;
+        }
+        while (end > start && isSpace(s.charAt(end - 1))) {
+            end--;
+        }
+        return s.substring(start, end);
+    }
+
+    /** Python str.lower(): full Unicode lower-casing (edge cases are covered by the parity fixtures). */
+    static String lower(String s) {
+        return s.toLowerCase(Locale.ROOT);
+    }
+
+    /** Orders strings by Unicode code point, as Python does (Java compareTo orders by UTF-16 unit). */
+    static int compareCodePoints(String a, String b) {
+        int i = 0;
+        int j = 0;
+        while (i < a.length() && j < b.length()) {
+            int x = a.codePointAt(i);
+            int y = b.codePointAt(j);
+            if (x != y) {
+                return Integer.compare(x, y);
+            }
+            i += Character.charCount(x);
+            j += Character.charCount(y);
+        }
+        return Integer.compare(a.length() - i, b.length() - j);
+    }
+
     /** Keeps at most max code points. */
     static String truncateCodePoints(String s, int max) {
         if (s.codePointCount(0, s.length()) <= max) {
