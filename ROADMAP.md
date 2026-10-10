@@ -88,10 +88,10 @@ Also open: rotating a previously-exposed `GEMINI_API_KEY` ([#155](../../issues/1
 
 ## Phase 8 — Ecosystem expansion (planned)
 
-The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Nothing in this phase has shipped code yet — statuses below are honest planning labels, not commitments with dates. The canonical, most-current version of this list lives in the [wiki Roadmap](https://github.com/antonyrag/ragleap-core/wiki/Roadmap); this section mirrors it for repo-local visibility.
+The longer-term package roadmap beyond `ragleap-rag` and `ragleap-graph`. Some packages in this phase have shipped (marked [x] below); the rest have not — statuses below are honest planning labels, not commitments with dates. The canonical, most-current version of this list lives in the [wiki Roadmap](https://github.com/antonyrag/ragleap-core/wiki/Roadmap); this section mirrors it for repo-local visibility.
 
 - [x] `ragleap-vectorstores` — SHIPPED v0.5.1. Pluggable vector backends beyond what already ships inside `ragleap-rag` core (6 backends today) — Chroma, LanceDB, Redis (RediSearch/Redis Stack), Upstash Vector, and OpenSearch
-- [x] `ragleap-tools` — SHIPPED (v0.4.0). Stateless tools, sandboxed file ops, document search, web and GitHub search, and image description, all BYOK (code execution, HTTP fetch and business-system connectors deliberately deferred to their own security-focused design passes)
+- [x] `ragleap-tools` — SHIPPED (v0.4.1). Stateless tools, sandboxed file ops, document search, web and GitHub search, and image description, all BYOK, with a response-size cap and a hard total deadline on every network provider (code execution, HTTP fetch and business-system connectors deliberately deferred to their own security-focused design passes)
 - [x] `ragleap-integrations` — SHIPPED v0.1.0: MCP client only (Streamable HTTP, owner-configured allowlist). Curated native connectors and channel integrations are NOT built yet; connectors need a read-only audit and a design pass first
 - [ ] `ragleap-agents` (AFTER) — role-based crews, tool-calling, human-in-the-loop approval gates
 - [ ] `ragleap-flows` (AFTER) — low-code orchestration + HITL checkpoints, bootstrapped from the existing n8n integration
