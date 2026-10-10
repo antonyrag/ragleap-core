@@ -31,11 +31,18 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   becomes an explicit `done`; `Agent` still validates, taints and gates every proposal.
   The owner sets the base URL: there is no address guard, so never build it from
   untrusted input.
+- `scripts/live_runner.py` (in the repository, not in the wheel): runs 20 labeled tasks
+  against a real OpenAI-compatible provider in json and native mode, with request
+  pacing and a hard request cap, and writes a report. Every approval is rejected and
+  `send_message` only appends to an in-memory list, so nothing is ever sent. Keys are
+  read by environment-variable name and never printed or logged; results are written
+  to `~/ragleap-live-runs` unless `--out` is given.
 
 ### Verified
 
-- 92 tests pass on Python 3.10, 3.11 and 3.12 (sandbox): 57 with a scripted model and
-  35 for the adapter against a real local HTTP server (127.0.0.1, no external network).
+- 98 tests pass on Python 3.10, 3.11 and 3.12 (sandbox): 57 with a scripted model, 35 for
+  the adapter against a real local HTTP server (127.0.0.1, no external network), and 6 for
+  the live runner against a deterministic fake model (12 of 12 runner mutations caught).
   Mutation-checked: each new behaviour above makes at least one test fail when removed
   (the one survivor, dropping `from None` on the retry-exhausted error, cannot leak:
   the chained exception holds only a status).
@@ -44,6 +51,7 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Whether repair actually helps with any real model: it has not been measured.
 - The adapter has not been run against any real provider, in either mode.
+- `scripts/live_runner.py` has only been run against a fake model; no real provider run has been made yet.
 
 ## [0.1.0] - 2026-10-09
 
