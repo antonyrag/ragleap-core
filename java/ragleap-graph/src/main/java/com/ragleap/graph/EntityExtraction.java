@@ -113,6 +113,26 @@ public final class EntityExtraction {
         return extractQueryEntities(query, 10, null);
     }
 
+    /** Normalizes a list of entity names to unique lower-case graph keys, keeping the order. */
+    public static List<String> normalizeEntityList(List<String> names) {
+        List<String> out = new ArrayList<>();
+        if (names == null) {
+            return out;
+        }
+        Set<String> seen = new HashSet<>();
+        for (String name : names) {
+            String norm = normalizeEntityName(name);
+            if (norm.isEmpty()) {
+                continue;
+            }
+            String key = PyText.lower(norm);
+            if (seen.add(key)) {
+                out.add(key);
+            }
+        }
+        return out;
+    }
+
     private static List<String> findAll(Pattern pattern, String text) {
         List<String> out = new ArrayList<>();
         Matcher m = pattern.matcher(text);
