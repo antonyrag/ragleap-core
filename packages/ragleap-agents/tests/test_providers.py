@@ -38,7 +38,7 @@ class Srv:
 
             def do_POST(self):
                 n = int(self.headers.get("Content-Length", 0))
-                outer.requests.append({"path": self.path, "auth": self.headers.get("Authorization"),
+                outer.requests.append({"path": self.path, "auth": self.headers.get("Authorization"), "ua": self.headers.get("User-Agent"),
                                        "body": json.loads(self.rfile.read(n) or b"{}")})
                 item = outer.script.pop(0) if outer.script else (500, {}, {})
                 status, hdrs, body = item[:3]
@@ -292,3 +292,20 @@ def test_the_summary_prompt_prefix_matches_what_agent_sends():
         return replies.pop(0)
     Agent(llm, [tool], Policy(tools={"calc": TRUSTED})).run("q")
     assert seen[-1].startswith(SUMMARY_PROMPT_PREFIX) and not seen[0].startswith(SUMMARY_PROMPT_PREFIX)
+
+
+# ---- user agent ----
+
+def test_the_default_user_agent_is_not_urllibs_and_can_be_overridden(srv):
+    from ragleap_agents.providers import DEFAULT_USER_AGENT
+    s = srv([(200, {}, completion("a")), (200, {}, completion("b"))])
+    make(s)("p")
+    make(s, user_agent="my-app/1.0")("p")
+    assert s.requests[0]["ua"] == DEFAULT_USER_AGENT and "urllib" not in DEFAULT_USER_AGENT
+    assert s.requests[1]["ua"] == "my-app/1.0"
+
+
+@pytest.mark.parametrize("ua", ["", "  ", "a\r\nX-Evil: 1", "a\nb"])
+def test_a_bad_user_agent_is_refused(ua):
+    with pytest.raises(ValueError):
+        openai_compatible("https://example.com/v1", KEY, "m", user_agent=ua)
