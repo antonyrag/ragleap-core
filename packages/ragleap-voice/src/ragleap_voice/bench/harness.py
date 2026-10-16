@@ -12,10 +12,17 @@ import time
 import wave
 from datetime import datetime, timezone
 
-from .metrics import char_errors, word_errors
+from .metrics import char_errors, normalizer_version, word_errors
 
 ROW_FIELDS = ("id", "language", "reference", "hypothesis", "ref_words", "word_errors",
               "ref_chars", "char_errors", "audio_s", "latency_s", "error")
+
+
+class ResultRows(list):
+    """List of result rows from run_stt that carries normalizer_version metadata."""
+    def __init__(self, iterable=(), normalizer_version="1"):
+        super().__init__(iterable)
+        self.normalizer_version = normalizer_version
 
 
 def _audio_seconds(path):
@@ -29,9 +36,11 @@ def _audio_seconds(path):
 def run_stt(engine, items, clock=time.perf_counter, numbers=False):
     """numbers=True uses the optional number step of the normalizer; record
     metrics.normalizer_version(numbers) in the run's metadata when you do."""
-    rows = []
+    version = normalizer_version(numbers)
+    rows = ResultRows(normalizer_version=version)
     for it in items:
         row = {k: None for k in ROW_FIELDS}
+        row["_normalizer_version"] = version
         row.update(id=it.id, language=it.language, reference=it.reference,
                    hypothesis="", error="", audio_s=_audio_seconds(it.path))
         t0 = clock()
@@ -92,14 +101,45 @@ def environment_info(**extra):
 def write_results(out_dir, engine_name, rows, meta):
     out = pathlib.Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    meta = dict(meta) if meta else {}
+    if "normalizer_version" not in meta:
+        version = getattr(rows, "normalizer_version", None)
+        if not version and rows:
+            for r in rows:
+                if isinstance(r, dict):
+                    version = r.get("_normalizer_version") or r.get("normalizer_version")
+                    if version:
+                        break
+        meta["normalizer_version"] = version or normalizer_version(False)
     stamp = meta.get("utc_time", "run").replace(":", "").replace("-", "")
     stem = engine_name + "_" + stamp
     csv_path, json_path = out / (stem + ".csv"), out / (stem + ".json")
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=ROW_FIELDS)
+        w = csv.DictWriter(f, fieldnames=ROW_FIELDS, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
+    clean_rows = []
+    for r in rows:
+        if isinstance(r, dict) and "_normalizer_version" in r:
+            clean_rows.append({k: v for k, v in r.items() if k != "_normalizer_version"})
+        else:
+            clean_rows.append(r)
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({"engine": engine_name, "meta": meta, "summary": summarize(rows),
-                   "rows": rows}, f, ensure_ascii=False, indent=2)
+                   "rows": clean_rows}, f, ensure_ascii=False, indent=2)
     return str(csv_path), str(json_path)
+
+
+def read_results(path):
+    """Read a benchmark JSON result file produced by write_results.
+
+    Missing 'normalizer_version' in meta (older result files) defaults to "1".
+    """
+    path = pathlib.Path(path)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if isinstance(data, dict):
+        meta = data.setdefault("meta", {})
+        if isinstance(meta, dict) and "normalizer_version" not in meta:
+            meta["normalizer_version"] = "1"
+    return data

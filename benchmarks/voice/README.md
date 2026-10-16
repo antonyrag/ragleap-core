@@ -17,6 +17,7 @@ Measurements for ragleap-voice and the script that produced them. Nothing here i
 - Engine: faster-whisper 1.1.1, model `Systran/faster-whisper-large-v3` at revision `edaa852ec7` (MIT), fp16, beam 5, temperature 0, language given.
 - Hardware: Tesla T4 (15 GB), Google Colab. Run on 2026-10-11. Harness commit on main: `6d9fbecd0c`.
 - Metrics: corpus-level WER and CER (total errors over total reference units), one shared normalizer (`ragleap_voice.bench.metrics`, version `1`: the default, without the number step). CER counts Unicode code points. RTF is time spent divided by audio length (below 1 is faster than real time); the first call is a warm-up and is not timed.
+- Result files: JSON result files written by `write_results` record the normalizer version in `meta.normalizer_version` ("1" by default, "1+numbers-en.1" with `numbers=True`). Older result files without this field mean version "1" and are loaded as such by `read_results`.
 
 ## Limits (read before quoting any number)
 

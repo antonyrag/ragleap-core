@@ -5,6 +5,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
+- `ragleap_voice.bench`: benchmark JSON result files produced by `write_results` now automatically record `meta["normalizer_version"]` ("1" by default, "1+numbers-en.1" when `run_stt` is called with `numbers=True`). Added `read_results` to load benchmark result files, which defaults missing `normalizer_version` in older result files to "1".
 - `ragleap_voice.bench`: optional number step in the WER/CER normalizer (`numbers=True` on `normalize`, `wer`, `cer`, `word_errors`, `char_errors` and `run_stt`). English number words become digits ("four seven two nine" -> "4729", "one hundred twenty" -> "120"), thousands separators between digits are dropped and decimal digits of any script (Devanagari, Tamil, ...) become ASCII. Off by default, so already published numbers are unchanged. `normalizer_version(numbers)` names the settings ("1" by default, "1+numbers-en.1" with the step); record it next to any number measured with the step. Not covered: decimals, ordinals, currency words, years read in pairs, and spelled-out numbers in languages other than English.
 
 ## [0.0.1] - first release (date set at tagging)

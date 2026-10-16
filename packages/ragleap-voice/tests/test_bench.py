@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 from ragleap_voice.bench import (cer, edit_distance, environment_info, load_manifest,  # noqa: E402
-                                 normalize, run_stt, summarize, wer, write_results)
+                                 normalize, read_results, run_stt, summarize, wer, write_results)
 
 
 def _wav(path, seconds=1):
@@ -102,7 +102,8 @@ def test_write_results_roundtrip(tmp_path):
     rows = run_stt(lambda p, l: "hello", items)
     meta = environment_info(engine_version="fake-0")
     csv_path, json_path = write_results(tmp_path / "out", "fake", rows, meta)
-    data = json.loads(pathlib.Path(json_path).read_text(encoding="utf-8"))
+    data = read_results(json_path)
     assert data["engine"] == "fake" and len(data["rows"]) == 2
     assert data["meta"]["engine_version"] == "fake-0"
+    assert data["meta"]["normalizer_version"] == "1"
     assert pathlib.Path(csv_path).read_text(encoding="utf-8").startswith("id,language")
