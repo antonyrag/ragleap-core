@@ -34,3 +34,11 @@ third-party material used only for benchmarking.
 - google/flan-t5-large (Google), Apache-2.0 per the model card (checked 2026-10-13). Planned dependency of Indic
   Parler-TTS (its config loads this repository's tokenizer at run time); tokenizer files only (5 files), locked at
   revision 0613663d0d48, not yet reviewed.
+
+## Candidate models and their training data (measurement only; licences of the data not reviewed)
+
+These models are listed in `models.toml` as unverified candidates. They are not in the default path and are not vendored. The licence of each model's weights is the one stated on its model card. The training datasets below are taken from the cards; their licences have not been reviewed, and nothing here is legal advice.
+
+- `Axiveri/NaijaVox-2.0` (Apache-2.0 per its card). Training datasets named on the card: google/fleurs (yo_ng, ha_ng, ig_ng), benjaminogbonna/nigerian_accented_english_dataset, asr-nigerian-pidgin/nigerian-pidgin-1.0, Tundragoon/IroyinSpeech, google/WaxalNLP (ha, ig, yo, pcm), benjaminogbonna/nigerian_common_voice_dataset, vpetukhov/bible_tts_hausa. The card says each dataset remains under its own licence.
+- `Sunbird/asr-whisper-51-african-languages`, now `Sunbird/SunflowerASR-51-african-languages` (Apache-2.0 per its card). The card lists 29 source collections, among them Mozilla Common Voice, Google FLEURS, Google Waxal, the ASR Africa Data Efficiency Benchmark, African Next Voices, African Voices, NaijaVoices, Shunya Labs and KYAGABA; the full list and per-source licences are on the card and have not been reviewed. One Waxal Amharic set was listed as CC BY-SA 4.0 on its Hugging Face page (share-alike): it needs a legal read before any use for training.
+- Both models were evaluated on FLEURS test clips (CC-BY-4.0, attribution recorded above) that their cards list as training data, so measured numbers are possibly contaminated.

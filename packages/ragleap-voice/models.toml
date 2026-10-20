@@ -105,3 +105,42 @@ capabilities = []
 min_hardware = "unknown"
 status = "unverified"
 default = false
+
+# Candidate (2026-10-19): fine-tune of Whisper large-v3 for Yoruba, Hausa, Igbo, Nigerian Pidgin and Nigerian English.
+# Licence is the model card's; the repository ships no code files, so both licence fields carry it.
+# Training data includes google/fleurs and other datasets with their own licences (see THIRD_PARTY_NOTICES.md): not reviewed.
+# Measured on FLEURS test clips that its card lists as training data: possibly contaminated (benchmarks/voice/README.md).
+# languages lists only languages seen in the card and measured; sample audio and images in the repository are not part of a lock.
+[[model]]
+name = "naijavox-2"
+kind = "stt"
+source_url = "https://huggingface.co/Axiveri/NaijaVox-2.0"
+revision = "22b94de94e59419cc9d6e25e6eaeceb1f1c42d00"
+sha256 = ""
+code_license = "Apache-2.0"
+weights_license = "Apache-2.0"
+languages = ["yo", "ha", "ig", "pcm", "en"]
+capabilities = []
+min_hardware = "unknown"
+status = "unverified"
+default = false
+
+# Candidate (2026-10-19): Whisper large-v3 adapted for 51 African languages. Gated (access mode auto). The Hub now reports the
+# name Sunbird/SunflowerASR-51-african-languages; the repository we downloaded was Sunbird/asr-whisper-51-african-languages.
+# The language token must be forced from the card's table; the model does not detect the language.
+# Training data: 29 source collections with their own licences (see THIRD_PARTY_NOTICES.md): not reviewed.
+# Measured on FLEURS test clips that its card lists among its sources: possibly contaminated (benchmarks/voice/README.md).
+# languages lists only the languages seen in the card and measured here; the card claims 51.
+[[model]]
+name = "sunflowerasr-51-african-languages"
+kind = "stt"
+source_url = "https://huggingface.co/Sunbird/SunflowerASR-51-african-languages"
+revision = "4583c9dd251c422a4325fb0a0a509a3828097be2"
+sha256 = ""
+code_license = "Apache-2.0"
+weights_license = "Apache-2.0"
+languages = ["sw", "am", "yo"]
+capabilities = []
+min_hardware = "unknown"
+status = "unverified"
+default = false

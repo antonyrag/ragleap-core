@@ -1,0 +1,45 @@
+name: velero-test
+
+# Backup and restore test: Velero with a RustFS S3 stand-in on a throwaway kind cluster, using the ragleap-ops chart.
+# Manual (workflow_dispatch, with version inputs) or when a PR changes this file or the test script. Not a required check.
+on:
+  workflow_dispatch:
+    inputs:
+      velero_version:
+        description: 'Velero version (a very new release can be compared against the previous one)'
+        required: false
+        default: 'v1.18.3'
+      aws_plugin_version:
+        description: 'velero-plugin-for-aws version'
+        required: false
+        default: 'v1.14.0'
+      s3_image:
+        description: 'S3 stand-in image'
+        required: false
+        default: 'rustfs/rustfs@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b'
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/velero-test.yml
+      - .github/scripts/velero-test.sh
+
+permissions:
+  contents: read
+
+jobs:
+  velero-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Tool versions
+        run: |
+          kubectl version --client
+          helm version --short
+          kind version || echo "kind is not preinstalled; the test script downloads v0.24.0"
+      - name: Back up, delete and restore with Velero
+        env:
+          VELERO_VERSION: ${{ inputs.velero_version || 'v1.18.3' }}
+          AWS_PLUGIN_VERSION: ${{ inputs.aws_plugin_version || 'v1.14.0' }}
+          S3_IMAGE: ${{ inputs.s3_image || 'rustfs/rustfs@sha256:9ca9559533b537d10482fe923288b676ad08f92a7069d9a17327fbae3cab688b' }}
+        run: bash .github/scripts/velero-test.sh

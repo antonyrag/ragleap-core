@@ -5,6 +5,16 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-19
+### Changed
+- Project links in the package metadata (Homepage, Repository, Issues) and the roadmap link in the
+  README now point at https://github.com/ragleap/ragleap-core, the repository's new home in the
+  ragleap organization. Metadata only, no code change. (The 0.5.1 project page on PyPI still shows
+  the old owner; GitHub redirects the old links.)
+### Verified
+- The only commit touching this package since the 0.5.1 tag is that link update, so the code is
+  identical to 0.5.1 apart from the version string.
+
 ## [0.5.1] - 2026-09-21
 ### Fixed
 - REAL BUG in v0.5.0, reproduced with the published v0.5.0 wheel on Python
