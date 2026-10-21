@@ -35,6 +35,7 @@ spec:
           image: {{ .Values.voice.image }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: {{ .Values.voice.runAsUser }}
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
           {{- with .Values.voice.resources }}

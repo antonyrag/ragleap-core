@@ -21,6 +21,9 @@ app:
   image: ghcr.io/ragleap/ragleap-app:0.11.0
   imagePullSecret: ghcr-pull-secret
   port: 8000
+  # Numeric UID of the image's ragleap user (the Dockerfile creates it with --uid 10001).
+  # runAsNonRoot cannot be verified against a named user, so the containers need a number.
+  runAsUser: 10001
   # Optional container resources. Empty by default (no behaviour change).
   # CPU-percentage autoscaling needs resources.requests.cpu to be set.
   resources: {}
@@ -43,6 +46,9 @@ voice:
   image: ghcr.io/ragleap/ragleap-app:0.11.0
   imagePullSecret: ghcr-pull-secret
   port: 8765
+  # Numeric UID of the image's ragleap user (the Dockerfile creates it with --uid 10001).
+  # runAsNonRoot cannot be verified against a named user, so the containers need a number.
+  runAsUser: 10001
   # Optional container resources. Empty by default (no behaviour change).
   # CPU-percentage autoscaling needs resources.requests.cpu to be set.
   resources: {}

@@ -5,6 +5,17 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-21
+
+### Fixed
+
+- The `app` and `voice` containers could not be created: they set `runAsNonRoot: true` without a numeric user, and the image declares a named user (`USER ragleap`), so the kubelet refused with "container has runAsNonRoot and image has non-numeric user (ragleap)". They now set `runAsUser: 10001`, the UID the Dockerfile gives that user. In the chart it is a value (`app.runAsUser`, `voice.runAsUser`); the raw `k8s/` manifests carry the number. Found by running the chart's `app` and `voice` pods on kind with the `ghcr.io/ragleap/ragleap-app:0.11.0` image on 2026-10-21; earlier CI runs scaled these pods to zero, so the problem had not been seen.
+
+### Known limitations
+
+- The chart does not create the Secret `ragleap-app-env`, which both pods read through `envFrom`. Create it yourself, or the pods stay in `CreateContainerConfigError`.
+- Whether the pods then start and become Ready was not verified when this entry was written; see the repository's `ops-app-pods-test` workflow for the diagnostic.
+
 ## [0.6.0] - 2026-10-20
 
 ### Changed

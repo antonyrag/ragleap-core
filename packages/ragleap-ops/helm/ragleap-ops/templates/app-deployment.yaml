@@ -35,6 +35,7 @@ spec:
           image: {{ .Values.app.image }}
           securityContext:
             runAsNonRoot: true
+            runAsUser: {{ .Values.app.runAsUser }}
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
           {{- with .Values.app.resources }}
