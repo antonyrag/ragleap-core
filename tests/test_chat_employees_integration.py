@@ -8,12 +8,27 @@ import os
 import sys
 from unittest.mock import patch, MagicMock
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from core import chat
+from core import budget, chat
 from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
 from core.employees.defaults import DEFAULT_ROLES
+
+
+@pytest.fixture(autouse=True)
+def _reset_budget_role():
+    """chat.ask() sets a process-wide budget role ContextVar and never clears it.
+
+    Left set, the last role asked for here leaks into later tests: they write it
+    into the usage ledger (core/budget.record_usage reads the same ContextVar),
+    and tests that assert on the ledger's roles then fail
+    (tests/test_office_org.py::test_org_chart_grouping_fields_and_open_task_counts).
+    """
+    yield
+    budget.set_role(None)
 
 
 # ---------------------------------------------------------------------------
