@@ -146,3 +146,19 @@ Every error message says what to do next. No error is swallowed and turned into 
 4. **Whisper's `model.bin`** needs the justified exception to the pickle-format rule (a separate design) before it can be locked.
 5. **Isolation by default.** Is "required for conflicting or model-code engines, optional otherwise" the right line?
 6. **Extras names and entry point group.** `ragleap_voice.engines` and extras named after engines: acceptable?
+
+## 13. Requirements from measurements and from ragleap-phone (added 2026-10-21)
+
+Everything here is **planned**. Sources are the sections of `benchmarks/voice/README.md` named in each item, and `packages/ragleap-phone/docs/design/phase0-interface.md`.
+
+1. **A voice-activity gate in front of every recogniser.** In the noise pilot, Whisper large-v3 wrote "Thank you." for silent audio. A recogniser given silence can invent speech, so the streaming API (section 3) must not pass non-speech frames to an engine, and must report the gate's decision. The gate must be configurable, must say in `notes` when it dropped audio, and must never be a silent fallback. Which gate to use is open: the Silero licence was not verified.
+2. **Input level is a first-class concern.** More than half of the English FLEURS clips in the noise pilot were recorded very quietly. One denoiser returned silence for the quietest, and the denoiser comparison only became meaningful after scaling every clip to the same level. The core should resample and level-check input in one documented place, and report the level in `notes` when it is far below a speech range. Whether the core normalises level itself or leaves it to the caller is open.
+3. **Denoising is an optional stage, off by default.** In the noise pilot, neither RNNoise nor DeepFilterNet3 lowered the word error rate of Whisper large-v3 in any of 30 comparisons, and 22 were worse (white noise and babble at 10 and 5 dB, a simulated telephone channel, three languages, default settings). The API may offer a denoising stage as an optional extra, but must not enable it by default, and its documentation must link to that evidence. Other engines under noise are not yet measured.
+3a. **Engines that are robust on their own are the first route** to "strong speech recognition under noise". Only Whisper large-v3 has been measured under noise so far.
+4. **Telephone audio.** The simulated telephone path (8 kHz mu-law, then back to 16 kHz) cost the three languages between 1.0 and 2.7 percentage points of word error with babble at 10 dB, with overlapping intervals (Whisper large-v3, no denoiser, noise pilot). Engines declare the sample rates they accept, the core resamples with a stated method, and the resampler is part of the benchmark setup, not hidden inside an engine. ragleap-phone's audio contract (8 kHz frames, 20 ms) depends on this.
+5. **Engines load once and stay resident.** Loading a 5.75 GiB model per call took 25 to 40 seconds in the noise-engine run, which is unusable for conversation. `load()` runs once per process, `run()` many times, and `close()` frees memory. Isolated workers (section 8) keep their model between requests.
+6. **Empty and filler outputs are flagged.** An output that is empty, or equals a known filler phrase on low-energy audio, gets a `notes` entry instead of being returned as if it were speech.
+
+### Open question added
+
+7. **An OpenAI-compatible HTTP endpoint** (`/v1/audio/transcriptions` and `/v1/audio/speech`) as an optional extra, so existing applications, including the older voice channel in this repository, can switch from a paid service by changing one base URL. Does it belong in 0.1.0, or in a later release? It must default to listening on localhost only.
