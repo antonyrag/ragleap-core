@@ -1,0 +1,33 @@
+name: ops-app-pods-test
+
+# DIAGNOSTIC EXPERIMENT: can the ragleap-ops chart's app and voice pods pull the private ghcr.io/ragleap/ragleap-app image
+# with the workflow token and become Ready on a throwaway kind cluster? The job is green whatever the outcome:
+# read the VERDICT line in the log. Manual (workflow_dispatch) or when a PR changes this file or the script.
+# Not a required check.
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/ops-app-pods-test.yml
+      - .github/scripts/ops-app-pods-test.sh
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  ops-app-pods-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Tool versions
+        run: |
+          kubectl version --client
+          helm version --short
+          kind version || echo "kind is not preinstalled; the test script downloads v0.24.0"
+      - name: Run the chart's app and voice pods with the ragleap image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/ops-app-pods-test.sh
