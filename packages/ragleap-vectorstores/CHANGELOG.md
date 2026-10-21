@@ -6,6 +6,7 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- `UpstashBackend.insert_chunk()`: caller metadata can no longer overwrite the stored `document_id`, `document_name`, `chunk_index`, `token_count` or `text` (a key with one of those names used to replace the real value). Behavior change only for metadata that used those key names; other keys are stored as before.
 - `UpstashBackend.list_documents()` now counts all chunks of a document: it follows the `range()` cursor until the prefix scan ends. Before, a single call capped `chunk_count` at 1000. Costs one extra `range()` request per further 1000 chunks of a listed document.
 
 ## [0.5.2] - 2026-10-19

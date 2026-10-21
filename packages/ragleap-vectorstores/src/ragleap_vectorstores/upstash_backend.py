@@ -186,8 +186,11 @@ class UpstashBackend(VectorBackend):
             "chunk_index": chunk_index,
             "token_count": token_count or 0,
             "text": text,
-            **(metadata or {}),
         }
+        # Extra caller metadata is added AFTER the stored fields and can never replace them: a key named "text" or
+        # "document_id" used to overwrite the real value, which broke search results and document deletes.
+        for key, value in (metadata or {}).items():
+            payload_metadata.setdefault(key, value)
         with self._lock:
             self._index.upsert(
                 vectors=[{"id": vec_id, "vector": embedding, "metadata": payload_metadata}],
