@@ -1,6 +1,8 @@
 """
 Tests for /chat role wiring (issue #134): _build_system_prompt,
-_augment_query_with_reminder, and the ask() integration of both.
+_augment_query_with_reminder, the ask() integration of both, and the
+/chat + /chat/stream HTTP routes themselves (see the route section at the
+bottom of this file).
 
 No real DB, embedding, or LLM calls — all collaborators are patched.
 """
@@ -9,9 +11,16 @@ import sys
 from unittest.mock import patch, MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
+
+# core/api.py's module-level setup reads DATABASE_URL at import time (it does
+# not connect); importing it here is what lets the route tests below drive the
+# real app instead of calling the endpoint functions by hand.
+os.environ.setdefault("DATABASE_URL", "postgresql://ragleap:ragleap@localhost:5433/ragleap_core")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from core import api as core_api
 from core import budget, chat
 from core.employees import skills as employee_skills
 from core.employees import memory as employee_memory
@@ -334,3 +343,175 @@ def test_sensitive_role_triggers_reflection():
         chat.ask("question", role=sensitive_role)
 
     mock_gen.return_value.check_grounding.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# 7. Route-level tests: the HTTP surface of /chat and /chat/stream
+#
+# The tests above drive chat.ask() directly. These drive the real FastAPI app
+# through a TestClient instead, so what is pinned is the route: the query
+# parameters it accepts, the role it forwards, the JSON body it returns, and
+# what a caller sees when the model call fails.
+#
+# TestClient is not used as a context manager, so the app's lifespan never
+# runs: no scheduler is started and no database connection is opened.
+# ---------------------------------------------------------------------------
+
+_ASK_RESULT = {
+    "answer": "The office is open 9-5.",
+    "sources": ["handbook.pdf"],
+    "chunks_used": 2,
+    "chunks_sent": 2,
+    "detected_language": "en",
+    "provider_used": "gemini",
+    "usage": {"prompt_tokens": 120, "completion_tokens": 12, "total_tokens": 132},
+    "role_memory_ids": ["mem-1"],
+}
+
+
+@pytest.fixture
+def client(monkeypatch):
+    """TestClient over the real app, with API-key auth switched off.
+
+    RAGLEAP_API_KEY is read from the module global on every request, so a
+    deployment that has it set in .env does not turn these tests into 401s.
+    """
+    monkeypatch.setattr(core_api, "RAGLEAP_API_KEY", "")
+    return TestClient(core_api.app)
+
+
+def test_chat_route_forwards_role_to_ask(client, monkeypatch):
+    calls = {}
+
+    def fake_ask(question, **kwargs):
+        calls["question"] = question
+        calls["kwargs"] = kwargs
+        return dict(_ASK_RESULT)
+
+    monkeypatch.setattr(core_api, "ask", fake_ask)
+
+    response = client.post(
+        "/chat",
+        params={"question": "What are your hours?", "role": "hr_manager", "top_k": 3},
+    )
+
+    assert response.status_code == 200
+    assert calls["question"] == "What are your hours?"
+    assert calls["kwargs"]["role"] == "hr_manager"
+    assert calls["kwargs"]["top_k"] == 3
+    body = response.json()
+    assert body["answer"] == "The office is open 9-5."
+    assert body["sources"] == ["handbook.pdf"]
+    assert body["role_memory_ids"] == ["mem-1"]
+
+
+def test_chat_route_without_role_forwards_none(client, monkeypatch):
+    """Pre-#133 behaviour: no role parameter means no role context."""
+    calls = {}
+
+    def fake_ask(question, **kwargs):
+        calls["kwargs"] = kwargs
+        return dict(_ASK_RESULT)
+
+    monkeypatch.setattr(core_api, "ask", fake_ask)
+
+    response = client.post("/chat", params={"question": "What are your hours?"})
+
+    assert response.status_code == 200
+    assert calls["kwargs"]["role"] is None
+
+
+def test_chat_route_rejects_a_blank_question_before_the_model_is_called(client, monkeypatch):
+    def fake_ask(*args, **kwargs):
+        raise AssertionError("ask() must not be reached for an invalid question")
+
+    monkeypatch.setattr(core_api, "ask", fake_ask)
+
+    response = client.post("/chat", params={"question": "   "})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Question cannot be empty."
+
+
+def test_chat_route_rejects_a_question_over_the_length_limit(client, monkeypatch):
+    monkeypatch.setattr(core_api, "ask", lambda *args, **kwargs: pytest.fail("ask() must not be reached"))
+
+    response = client.post("/chat", params={"question": "x" * (core_api.MAX_QUESTION_LENGTH + 1)})
+
+    assert response.status_code == 400
+    assert "too long" in response.json()["detail"]
+
+
+def test_chat_route_reports_a_failed_model_call_as_500_without_leaking_it(client, monkeypatch):
+    def fake_ask(*args, **kwargs):
+        raise RuntimeError("provider rejected key sk-live-abc123")
+
+    monkeypatch.setattr(core_api, "ask", fake_ask)
+
+    response = client.post("/chat", params={"question": "What are your hours?", "role": "hr_manager"})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Chat failed. See server logs for details."
+    assert "sk-live-abc123" not in response.text
+
+
+def test_chat_stream_route_forwards_role_and_streams_the_text(client, monkeypatch):
+    calls = {}
+
+    def fake_ask_stream(question, **kwargs):
+        calls["question"] = question
+        calls["kwargs"] = kwargs
+        yield "The office "
+        yield "is open 9-5."
+
+    monkeypatch.setattr(core_api, "ask_stream", fake_ask_stream)
+
+    response = client.post(
+        "/chat/stream",
+        params={"question": "What are your hours?", "role": "hr_manager"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/plain")
+    assert response.text == "The office is open 9-5."
+    assert calls["question"] == "What are your hours?"
+    assert calls["kwargs"]["role"] == "hr_manager"
+
+
+def test_chat_stream_route_without_role_forwards_none(client, monkeypatch):
+    calls = {}
+
+    def fake_ask_stream(question, **kwargs):
+        calls["kwargs"] = kwargs
+        yield "ok"
+
+    monkeypatch.setattr(core_api, "ask_stream", fake_ask_stream)
+
+    response = client.post("/chat/stream", params={"question": "hi"})
+
+    assert response.status_code == 200
+    assert calls["kwargs"]["role"] is None
+
+
+def test_chat_stream_route_ends_with_an_error_line_instead_of_crashing(client, monkeypatch):
+    """A failure mid-stream cannot become a 500 — the status line is already on
+    the wire — so the route ends the body with its error line."""
+    def fake_ask_stream(question, **kwargs):
+        yield "partial answer"
+        raise RuntimeError("provider exploded")
+
+    monkeypatch.setattr(core_api, "ask_stream", fake_ask_stream)
+
+    response = client.post("/chat/stream", params={"question": "What are your hours?"})
+
+    assert response.status_code == 200
+    assert response.text == "partial answer\n[Error: the request could not be completed]"
+
+
+def test_chat_stream_route_rejects_a_blank_question_before_streaming(client, monkeypatch):
+    monkeypatch.setattr(core_api, "ask_stream", lambda *args, **kwargs: pytest.fail("ask_stream() must not be reached"))
+
+    response = client.post("/chat/stream", params={"question": ""})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Question cannot be empty."
