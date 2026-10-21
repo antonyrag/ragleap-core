@@ -280,6 +280,14 @@ paging_case("list_paging_null_cursor", [J(200, {"result": {"nextCursor": None, "
 paging_case("list_paging_namespace", [J(200, rngc("c1", "d1:0")), J(200, rngc("", "d1:1"))], ctor={"namespace": "ns1"})
 
 
+case("insert_chunk_metadata_collisions", [
+    op("init_schema", 8),
+    op("insert_chunk", "doc1", "a.txt", 3, "real", 7, [0.1, 0.2],
+       {"text": "EVIL", "document_id": "evil", "document_name": "x", "chunk_index": 99, "token_count": 0, "page": 2}),
+    op("insert_chunk", "d", "n", 1, "t", None, [0.5], {"token_count": 5, "lang": "en"}),
+], INIT + [J(200, OK_UPSERT)] * 2)
+
+
 def classify(e):
     if isinstance(e, (UpstashError, KeyError, json.JSONDecodeError)):
         return {"error": "RemoteError"}

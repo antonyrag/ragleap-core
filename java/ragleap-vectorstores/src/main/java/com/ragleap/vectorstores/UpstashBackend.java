@@ -281,7 +281,11 @@ public final class UpstashBackend implements VectorBackend, AutoCloseable {
         merged.put("token_count", tokenCount == null ? 0 : tokenCount);
         merged.put("text", text);
         if (metadata != null) {
-            merged.putAll(metadata);   // caller keys win, like Python's ** merge
+            for (Map.Entry<String, Object> e : metadata.entrySet()) {
+                if (!merged.containsKey(e.getKey())) {   // stored fields win, like the fixed Python's setdefault
+                    merged.put(e.getKey(), e.getValue());
+                }
+            }
         }
         var arr = MAPPER.createArrayNode();
         ObjectNode v = arr.addObject();

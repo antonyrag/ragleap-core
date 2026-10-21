@@ -36,13 +36,13 @@ fake HTTP server that records every request; the Java backend runs the same 29 s
 server and must send identical requests (method, path, query, body, auth) and return identical results. Ten
 deliberate breaks of the Java code were each caught by the tests.
 
-**Not live-verified:** no real OpenSearch server was used. Python was pinned at commit `bb4d2dc`.
+**Not live-verified:** no real OpenSearch server was used. Python was pinned at commit `9c122d2`.
 
 ```bash
 # regenerate fixtures (needs the pinned Python package and a venv with opensearch-py 3.2.0, upstash-vector 0.8.0, redis-py 8.0.1 and numpy)
-VS_PIN=bb4d2dc python parity/gen_fixtures_opensearch.py
-VS_PIN=bb4d2dc python parity/gen_fixtures_upstash.py
-VS_PIN=bb4d2dc python parity/gen_fixtures_redis.py
+VS_PIN=9c122d2 python parity/gen_fixtures_opensearch.py
+VS_PIN=9c122d2 python parity/gen_fixtures_upstash.py
+VS_PIN=9c122d2 python parity/gen_fixtures_redis.py
 RAGLEAP_VS_PARITY_DIR=/root/fixtures-vs mvn -B test
 ```
 
@@ -73,15 +73,14 @@ search.
 - Failures throw `SQLException`; a wrong dimension or a hybrid index throws `IllegalStateException`.
 
 Copied from Python on purpose (possible Python issues, not fixed here): `deleteDocument` deletes by the prefix `<id>:`, so a document id that
-contains a colon can collide with another document's chunks; caller metadata keys override the stored `text` and
-`document_id`.
+contains a colon can collide with another document's chunks.
 
 ### How it was verified
 
 Recorded-request parity against the real Python `UpstashBackend`, the real upstash-vector 0.8.0 SDK and a real SQLite
-registry: 41 scripted scenarios (85 requests). 39 are compared request by request and result by result (82 requests); one (url with a trailing slash) is checked by a raw-socket test that reads the literal request line;
+registry: 42 scripted scenarios (88 requests). 40 are compared request by request and result by result (85 requests); one (url with a trailing slash) is checked by a raw-socket test that reads the literal request line;
 one is skipped because Python's own HTTP client rejects it (a tab in the namespace). Fifteen deliberate breaks of the
-Java code were each caught by the tests. **Not live-verified:** no real Upstash index was used. Four more deliberate breaks cover the cursor paging, each caught by the tests.
+Java code were each caught by the tests. **Not live-verified:** no real Upstash index was used. Four more deliberate breaks cover the cursor paging and two more the metadata merge order, each caught by the tests.
 
 ## Redis
 
