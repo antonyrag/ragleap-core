@@ -251,8 +251,36 @@ Limits (read before quoting any number):
 - One recogniser (Whisper large-v3), three languages, 30 clips per language: intervals are wide, and the Russian clean RNNoise cell shows how a few clips move a result.
 - Read speech with synthetic noise. Babble speakers come from the same corpus and may repeat the test speakers. The telephone path is a simulation (8 kHz mu-law), not a real call.
 - Default denoiser settings, no tuning. DeepFilterNet is designed for 48 kHz audio and received 16 kHz speech upsampled to 48 kHz.
-- Not measured: IndicConformer or any other engine under noise, spontaneous speech, real recordings, latency of the denoisers inside a call.
+- Not measured in this section: other engines under noise (two are measured without a denoiser in the next section), spontaneous speech, real recordings, latency of the denoisers inside a call.
 - The per-clip results are in the Colab session only (`noise_pilot_levelfixed_clips.csv`) and are not committed.
+
+## Two engines under noise without a denoiser: SunflowerASR and IndicConformer (first run)
+
+Question: how much does each engine lose under noise and over a simulated telephone channel, with no denoiser in front? Scripts: `colab_noise_engines_download.py` and `colab_noise_engines_measure.py`, run in that order on 2026-10-21 on a Tesla T4. Each file has a header docstring that was added after the run; the code is otherwise as run.
+
+Setup: the same clips, five conditions, level fix and scoring as the noise pilot above: FLEURS `test` (CC-BY-4.0), the first 30 clips per language (Swahili sw_ke, Amharic am_et, Hindi hi_in, Tamil ta_in), babble from clips 30 to 59 of the same language, every clip scaled to -23 dBFS RMS, normalizer version `1`, 95% bootstrap intervals (2000 resamples of clips, seed 1234). Differences are condition minus clean on the same clips. SunflowerASR (revision `4583c9dd251c422a4325fb0a0a509a3828097be2`, Apache-2.0 per its card) was pulled with `ragleap-voice models pull` and verified before use, and loaded from that folder with `local_files_only=True` and no token in the environment; `HF_HUB_OFFLINE` was not set. Greedy decoding with the language token forced from the card (`swa` 50318, `amh` 50334), fp16, batch of 8, `max_new_tokens` 220. IndicConformer-600M (revision `2a77d305038dfc502fd9464e7d028b90381976cb`, MIT per its card) was downloaded at the pinned revision (not locked), RNNT decoding, 25 s chunks; it runs its own repository code, which ran in a session with no token. `transformers` 5.18.0, `torch` 2.11.0+cu130, harness on main at `dd1849d97f`.
+
+| Engine, language | Clean WER (interval) | White noise 10 dB | Babble 10 dB | Babble 5 dB | Telephone |
+|---|---|---|---|---|---|
+| SunflowerASR, Swahili | 8.9% (6.9 to 11.2) | 20.7%, +11.8 [+6.6, +18.2] | 21.6%, +12.6 [+5.6, +21.6] | 49.3%, +40.4 [+24.9, +57.9] | 28.5%, +19.6 [+9.4, +31.5] |
+| SunflowerASR, Amharic | 32.9% (25.9 to 39.8) | 39.0%, +6.1 [+3.9, +8.3] | 42.5%, +9.6 [+3.9, +16.5] | 48.9%, +16.0 [+9.8, +23.6] | 47.8%, +14.9 [+8.5, +22.4] |
+| IndicConformer, Hindi | 10.0% (6.9 to 13.8) | 13.3%, +3.3 [+1.4, +5.4] | 15.8%, +5.8 [+1.3, +13.6] | 33.3%, +23.3 [+12.9, +36.8] | 16.3%, +6.3 [+3.1, +10.1] |
+| IndicConformer, Tamil | 25.6% (19.4 to 33.2) | 28.1%, +2.5 [-3.3, +7.1] | 29.6%, +4.0 [-4.3, +10.9] | 46.9%, +21.4 [+11.2, +33.6] | 35.1%, +9.5 [+2.9, +17.1] |
+
+What it shows:
+
+- No engine was immune. In all four engine and language pairs, babble at 5 dB and the telephone path raised the word error rate with the interval entirely above zero (+16 to +40 points at 5 dB, +6 to +20 points over the telephone path). Two Tamil cells (white noise and babble at 10 dB) are inconclusive: their intervals include zero.
+- The engines fail differently. IndicConformer returned an empty output for 7 of its 300 decodes (4 in Hindi and 3 in Tamil, all under noise). SunflowerASR returned no empty output in 300. Neither produced any of the filler phrases the script looks for ("thank you", "thanks for watching", "you", "."), a short list that does not detect other kinds of invented text.
+- The engines ran on different languages, so these numbers do not rank them. Each engine is compared with its own clean baseline only. The Whisper results above are not comparable: different languages, a different library and different decoding.
+- The SunflowerASR model card says it was trained with added noise and 8 kHz augmentation. These results neither confirm nor refute that: Swahili still lost 40 points at 5 dB, from the lowest clean baseline in the table.
+
+Limits (read before quoting any number):
+
+- 30 clips per language: wide intervals. FLEURS is read speech with synthetic noise; babble speakers come from the same corpus and may repeat the test speakers; the telephone path is a simulation (8 kHz mu-law), not a call. Consecutive clips repeat speakers and sentences, so the intervals are probably too narrow.
+- SunflowerASR's card lists FLEURS among its training data (see the section on fine-tuned candidates): possibly contaminated, especially the clean baseline. Whether IndicConformer saw FLEURS-like data has not been checked.
+- No denoiser was tested with these engines. The finding that two denoisers did not help Whisper large-v3 says nothing about them.
+- Default clean figures here (30 clips, level-fixed) differ slightly from the earlier 60-clip tables (for example SunflowerASR Amharic 32.9% here against 28.8% there): different clip counts and a level fix.
+- The per-clip results are in the Colab session only (`noise_engines_clips.csv`) and are not committed.
 
 ## Reproduce
 
