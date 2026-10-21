@@ -265,10 +265,10 @@ class RedisBackend(VectorBackend):
             results.append({
                 "chunk_id": key,
                 "text": doc.text if isinstance(doc.text, str) else doc.text,
-                # RediSearch's vector "score" here is a COSINE DISTANCE
-                # (0 = identical), same convention live-verified for
-                # Chroma - so similarity_score = 1 - distance, consistently.
-                "similarity_score": round(1.0 - float(doc.score), 4),
+                # RediSearch\'s vector "score" here is a COSINE DISTANCE: 0 = identical, 1 = orthogonal,
+                # 2 = opposite (live-verified on Redis Stack 7.4.7). 1 - distance would be the raw cosine in
+                # [-1, 1], so it is mapped onto [0, 1] like the other backends: 1 - distance / 2.
+                "similarity_score": round(max(0.0, min(1.0, 1.0 - float(doc.score) / 2.0)), 4),
                 "document_id": doc.document_id,
                 "document_name": doc.document_name,
                 "chunk_index": int(doc.chunk_index),

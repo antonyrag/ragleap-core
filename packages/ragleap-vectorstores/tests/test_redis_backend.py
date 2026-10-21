@@ -234,3 +234,21 @@ def test_default_key_prefix_isolates_different_indexes(tmp_path):
                 inst._client.ft(inst.index_name).dropindex(delete_documents=True)
             except Exception:
                 pass
+
+
+def test_search_dense_scores_are_on_the_zero_to_one_scale(backend):
+    """RediSearch returns a cosine DISTANCE in [0, 2]. The similarity is mapped to [0, 1] like the other backends
+    (identical 1.0, orthogonal 0.5, opposite 0.0), not left as the raw cosine in [-1, 1]."""
+    import time
+
+    backend.insert_document("scale", "scale.txt", {})
+    for i, vec in enumerate([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]]):
+        backend.insert_chunk("scale", "scale.txt", i, "chunk %d" % i, 1, vec, {})
+    by_index = {}
+    for _ in range(50):
+        results = backend.search_dense([1.0, 0.0, 0.0], top_k=3)
+        by_index = {r["chunk_index"]: r["similarity_score"] for r in results}
+        if len(by_index) == 3:
+            break
+        time.sleep(0.1)
+    assert by_index == {0: 1.0, 1: 0.5, 2: 0.0}
