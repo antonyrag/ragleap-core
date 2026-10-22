@@ -14,6 +14,8 @@ Owner-granted file access (off unless COMPUTER_CONTROL=true): the owner lists fo
 file on the host that only this runner can read; the app and the API cannot create or change a
 grant. POST /files runs a fixed reader in a fresh no-network container with ONE granted folder
 mounted read-only. GET /grants lists grant names and modes, never host paths.
+POST /stage (grants with purpose "knowledge" only) copies allowed documents from the read-only folder into a
+staging volume that the app mounts read-only, so the app can ingest them without touching the host.
 """
 import hmac
 import http.client
@@ -112,7 +114,8 @@ def run_in_sandbox(code, mode="python"):
     return _run_spec(build_spec(code, mode))
 
 
-def _run_spec(spec):
+def _run_spec(spec, timeout=None):
+    limit = timeout or TIMEOUT_SECONDS
     cid = None
     try:
         st, body = _docker("POST", "/containers/create", spec)
@@ -129,10 +132,10 @@ def _run_spec(spec):
             if not state.get("Running"):
                 break
             elapsed = time.time() - start
-            if elapsed > TIMEOUT_SECONDS and not killed:
+            if elapsed > limit and not killed:
                 _docker("POST", f"/containers/{cid}/kill")
                 killed = True
-            if elapsed > TIMEOUT_SECONDS + 5:
+            if elapsed > limit + 5:
                 break
             time.sleep(0.2)
         _, logs = _docker("GET", f"/containers/{cid}/logs?stdout=1&stderr=1")
@@ -405,6 +408,318 @@ def file_op(payload):
     return 200, {"ok": False, "error": msg[:200]}
 
 
+# ---------------------------------------------------------------------------
+# Folder staging for automatic ingestion. Only grants with purpose "knowledge" are staged, and only
+# when computer control is on. A fixed copier copies allowed files from the read-only granted folder
+# into a named staging volume; the app mounts that volume read-only and never sees a host path.
+# ---------------------------------------------------------------------------
+STAGING_VOLUME = "ragleap_core_staging"
+STAGE_TIMEOUT = 120
+STAGE_MAX_FILE = 25 * 1024 * 1024
+STAGE_MAX_COPIES = 200
+STAGE_MAX_FILES = 5000
+STAGE_MAX_BYTES = 500 * 1024 * 1024
+STAGE_EXTENSIONS = (".csv", ".docx", ".eml", ".epub", ".htm", ".html", ".json", ".md", ".odp", ".ods", ".odt",
+                    ".parquet", ".pdf", ".pptx", ".rtf", ".sql", ".srt", ".tsv", ".txt", ".vtt", ".xls", ".xlsx",
+                    ".xml", ".xsl", ".xslt", ".yaml", ".yml", ".zip")
+
+# Runs INSIDE a no-network container as uid 65534, like the reader. Symlinks are never followed or copied,
+# protected names are skipped, and every path is built from names found in the granted folder.
+_STAGER_TEMPLATE = r"""
+import hashlib, json, os, stat, sys, time
+DN = set(__NAMES__)
+DP = tuple(__PREFIXES__)
+DS = tuple(__SUFFIXES__)
+EXTS = tuple(__EXTS__)
+BASE = os.path.realpath(os.environ.get("RL_DATA", "/data"))
+ROOT = os.environ.get("RL_STAGING", "/staging")
+GRANT = os.environ.get("GRANT", "")
+MAXF = int(os.environ.get("MAXF", "26214400"))
+MAXC = int(os.environ.get("MAXC", "200"))
+MAXN = int(os.environ.get("MAXN", "5000"))
+MAXT = int(os.environ.get("MAXT", "524288000"))
+SCAN_MAX, DEPTH_MAX, REL_MAX = 200000, 20, 300
+OUT = os.path.join(ROOT, GRANT)
+MAN = os.path.join(ROOT, ".manifests")
+os.umask(0o022)
+
+def denied(n):
+    n = n.lower()
+    return n in DN or n.startswith(DP) or n.endswith(DS)
+
+def stop(msg, code=3):
+    sys.stdout.write(json.dumps({"error": msg}))
+    sys.exit(code)
+
+if not GRANT or "/" in GRANT or GRANT.startswith("."):
+    stop("bad grant name", 2)
+skipped = {"extension": 0, "too_large": 0, "denied": 0, "symlink": 0, "special": 0, "too_long": 0, "unreadable": 0}
+try:
+    prev = {}
+    try:
+        with open(os.path.join(MAN, GRANT + ".json"), "r", encoding="utf-8") as f:
+            for e in json.load(f).get("files", []):
+                prev[e["path"]] = e
+    except Exception:
+        prev = {}
+    cands, seen, truncated, stack = [], 0, False, [("", 0)]
+    while stack and not truncated:
+        rel_dir, depth = stack.pop()
+        try:
+            entries = sorted(os.scandir(os.path.join(BASE, rel_dir) if rel_dir else BASE), key=lambda x: x.name)
+        except OSError:
+            skipped["unreadable"] += 1
+            continue
+        for e in entries:
+            seen += 1
+            if seen > SCAN_MAX:
+                truncated = True
+                break
+            if denied(e.name):
+                skipped["denied"] += 1
+                continue
+            if e.is_symlink():
+                skipped["symlink"] += 1
+                continue
+            rel = rel_dir + "/" + e.name if rel_dir else e.name
+            try:
+                if e.is_dir(follow_symlinks=False):
+                    if depth < DEPTH_MAX:
+                        stack.append((rel, depth + 1))
+                    continue
+                if not e.is_file(follow_symlinks=False):
+                    skipped["special"] += 1
+                    continue
+                st = e.stat(follow_symlinks=False)
+            except OSError:
+                skipped["unreadable"] += 1
+                continue
+            if len(rel) > REL_MAX:
+                skipped["too_long"] += 1
+            elif not e.name.lower().endswith(EXTS):
+                skipped["extension"] += 1
+            elif st.st_size > MAXF:
+                skipped["too_large"] += 1
+            else:
+                cands.append((rel, st.st_size, int(st.st_mtime)))
+    os.makedirs(OUT, mode=0o755, exist_ok=True)
+
+    def copy_one(rel):
+        src, dest, tmp = os.path.join(BASE, rel), os.path.join(OUT, rel), None
+        try:
+            fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        except OSError:
+            skipped["unreadable"] += 1
+            return None
+        try:
+            st = os.fstat(fd)
+            if not stat.S_ISREG(st.st_mode):
+                skipped["special"] += 1
+                return None
+            os.makedirs(os.path.dirname(dest), mode=0o755, exist_ok=True)
+            tmp = os.path.join(os.path.dirname(dest), ".stage-%d.tmp" % os.getpid())
+            h, n = hashlib.sha256(), 0
+            with os.fdopen(fd, "rb", closefd=False) as fin, open(tmp, "wb") as fout:
+                while True:
+                    chunk = fin.read(1 << 20)
+                    if not chunk:
+                        break
+                    n += len(chunk)
+                    if n > MAXF:
+                        raise ValueError("file grew while copying")
+                    h.update(chunk)
+                    fout.write(chunk)
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, dest)
+            return {"path": rel, "size": n, "mtime": int(st.st_mtime), "sha256": h.hexdigest()}
+        except (OSError, ValueError):
+            if tmp:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+            skipped["unreadable"] += 1
+            return None
+        finally:
+            os.close(fd)
+
+    cands.sort()
+    keep, copies, total, pending = {}, 0, 0, 0
+    for rel, size, mtime in cands:
+        old, dest = prev.get(rel), os.path.join(OUT, rel)
+        staged = os.path.isfile(dest) and not os.path.islink(dest)
+        if len(keep) >= MAXN or total + size > MAXT:
+            truncated = True
+        elif old and staged and old.get("size") == size and old.get("mtime") == mtime and os.path.getsize(dest) == size:
+            keep[rel] = old
+            total += size
+        elif copies >= MAXC:
+            pending += 1
+            if old and staged:
+                keep[rel] = old
+                total += old.get("size", 0)
+        else:
+            ent = copy_one(rel)
+            if ent:
+                keep[rel] = ent
+                total += ent["size"]
+                copies += 1
+    removed = 0
+    for root, dirs, files in os.walk(OUT, topdown=False, followlinks=False):
+        for fn in files:
+            p = os.path.join(root, fn)
+            if os.path.relpath(p, OUT).replace(os.sep, "/") not in keep:
+                try:
+                    os.unlink(p)
+                    removed += 1
+                except OSError:
+                    pass
+        for d in dirs:
+            dp = os.path.join(root, d)
+            try:
+                if os.path.islink(dp):
+                    os.unlink(dp)
+                elif not os.listdir(dp):
+                    os.rmdir(dp)
+            except OSError:
+                pass
+    os.makedirs(MAN, mode=0o755, exist_ok=True)
+    doc = {"grant": GRANT, "generated_at": int(time.time()), "files": [keep[k] for k in sorted(keep)],
+           "skipped": skipped, "pending": pending, "truncated": truncated}
+    tmpm = os.path.join(MAN, "." + GRANT + ".tmp")
+    with open(tmpm, "w", encoding="utf-8") as f:
+        json.dump(doc, f, ensure_ascii=False)
+    os.chmod(tmpm, 0o644)
+    os.replace(tmpm, os.path.join(MAN, GRANT + ".json"))
+    sys.stdout.write(json.dumps({"op": "stage", "grant": GRANT, "files": len(keep), "copied": copies, "removed": removed,
+                                 "bytes": total, "pending": pending, "truncated": truncated, "skipped": skipped}))
+except OSError as e:
+    stop("could not stage: " + e.__class__.__name__)
+"""
+STAGER = (_STAGER_TEMPLATE
+          .replace("__NAMES__", json.dumps(sorted(DENY_NAMES)))
+          .replace("__PREFIXES__", json.dumps(list(DENY_PREFIXES)))
+          .replace("__SUFFIXES__", json.dumps(list(DENY_SUFFIXES)))
+          .replace("__EXTS__", json.dumps(list(STAGE_EXTENSIONS))))
+
+# Removes staged folders and manifests of grants that are gone, expired or no longer "knowledge".
+PRUNER = r"""
+import json, os, shutil, sys
+KEEP = set(json.loads(os.environ.get("KEEP", "[]")))
+ROOT = os.environ.get("RL_STAGING", "/staging")
+removed = []
+try:
+    for name in sorted(os.listdir(ROOT)):
+        if name == ".manifests" or name in KEEP:
+            continue
+        p = os.path.join(ROOT, name)
+        if os.path.islink(p) or os.path.isfile(p):
+            os.unlink(p)
+        else:
+            shutil.rmtree(p, ignore_errors=True)
+        removed.append(name[:40])
+    man = os.path.join(ROOT, ".manifests")
+    if os.path.isdir(man):
+        for fn in sorted(os.listdir(man)):
+            if not fn.endswith(".json") or fn[:-5] not in KEEP:
+                try:
+                    os.unlink(os.path.join(man, fn))
+                except OSError:
+                    pass
+    sys.stdout.write(json.dumps({"op": "prune", "removed": removed}))
+except OSError as e:
+    sys.stdout.write(json.dumps({"error": "could not prune: " + e.__class__.__name__}))
+    sys.exit(3)
+"""
+# A new empty named volume belongs to root; this one fixed step makes its top folder writable (sticky) for the
+# unprivileged copier. It runs as the owner of the folder with every capability dropped.
+PREPARE = "import os;os.chmod('/staging',0o1777)"
+
+
+def _staging_mount():
+    return {"Type": "volume", "Source": STAGING_VOLUME, "Target": "/staging", "ReadOnly": False,
+            "VolumeOptions": {"NoCopy": True}}
+
+
+def build_stage_spec(grant):
+    """build_spec() plus ONE read-only bind mount of the granted folder and the staging volume. The caller
+    chooses nothing except which grant (by name), and the grant decides the folder."""
+    spec = build_spec("")
+    spec["Cmd"] = ["python", "-I", "-B", "-c", STAGER]
+    spec["Env"] = ["GRANT=" + grant["name"], "MAXF=%d" % STAGE_MAX_FILE, "MAXC=%d" % STAGE_MAX_COPIES,
+                   "MAXN=%d" % STAGE_MAX_FILES, "MAXT=%d" % STAGE_MAX_BYTES]
+    host = spec["HostConfig"]
+    host["Mounts"] = [{"Type": "bind", "Source": grant["path"], "Target": "/data", "ReadOnly": True}, _staging_mount()]
+    host["Ulimits"] = [{"Name": "nofile", "Soft": 64, "Hard": 64},
+                       {"Name": "fsize", "Soft": STAGE_MAX_FILE + 1048576, "Hard": STAGE_MAX_FILE + 1048576}]
+    return spec
+
+
+def build_prune_spec(keep):
+    spec = build_spec("")
+    spec["Cmd"] = ["python", "-I", "-B", "-c", PRUNER]
+    spec["Env"] = ["KEEP=" + json.dumps(sorted(keep))]
+    spec["HostConfig"]["Mounts"] = [_staging_mount()]
+    return spec
+
+
+def build_prepare_spec():
+    spec = build_spec("")
+    spec["Cmd"] = ["python", "-I", "-B", "-c", PREPARE]
+    spec["Env"] = []
+    spec["User"] = "0:0"
+    spec["HostConfig"]["Mounts"] = [_staging_mount()]
+    return spec
+
+
+def _summary(res):
+    """(parsed dict or None, error text or None) from one finished container."""
+    try:
+        parsed = json.loads(res.get("stdout") or "")
+    except ValueError:
+        parsed = None
+    if isinstance(parsed, dict) and "error" not in parsed and res.get("exit_code") == 0 \
+            and not res.get("timed_out") and not res.get("oom"):
+        return parsed, None
+    if res.get("timed_out"):
+        return None, "timed out"
+    if res.get("oom"):
+        return None, "out of memory"
+    if isinstance(parsed, dict) and parsed.get("error"):
+        return None, str(parsed["error"])[:200]
+    return None, "failed (exit %s)" % res.get("exit_code")
+
+
+def stage_op(payload):
+    """Returns (http_status, body). Stages every active knowledge grant, or just the one named."""
+    if not computer_control_on():
+        return 403, {"error": "computer control is off"}
+    if not isinstance(payload, dict):
+        return 400, {"error": "body must be a JSON object"}
+    name = payload.get("grant")
+    if name is not None and not isinstance(name, str):
+        return 400, {"error": "grant must be a name"}
+    knowledge = [g for g in active_grants() if g["purpose"] == "knowledge"]
+    targets = knowledge if name is None else [g for g in knowledge if g["name"] == name]
+    if name is not None and not targets:
+        return 404, {"error": "unknown, expired or not a knowledge grant"}
+    prep = _run_spec(build_prepare_spec(), timeout=30)
+    if prep.get("exit_code") != 0 or prep.get("timed_out"):
+        print(json.dumps({"audit": "stage", "ok": False, "step": "prepare"}), flush=True)
+        return 200, {"ok": False, "error": "the staging volume is not ready"}
+    results, ok = [], True
+    for g in targets:
+        parsed, err = _summary(_run_spec(build_stage_spec(g), timeout=STAGE_TIMEOUT))
+        ok = ok and parsed is not None
+        print(json.dumps({"audit": "stage", "grant": g["name"], "ok": parsed is not None,
+                          "files": (parsed or {}).get("files"), "copied": (parsed or {}).get("copied")}), flush=True)
+        results.append(dict(parsed, ok=True) if parsed else {"grant": g["name"], "ok": False, "error": err})
+    pruned, err = _summary(_run_spec(build_prune_spec([g["name"] for g in knowledge]), timeout=60))
+    ok = ok and pruned is not None
+    return 200, {"ok": ok, "results": results, "pruned": (pruned or {}).get("removed", []),
+                 **({} if pruned else {"prune_error": err})}
+
+
 _lock = threading.Lock()
 
 
@@ -451,8 +766,24 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             _lock.release()
 
+    def _stage(self, length):
+        try:
+            payload = json.loads(self.rfile.read(length))
+        except Exception:
+            return self._reply(400, {"error": "body must be JSON"})
+        if not _lock.acquire(blocking=False):
+            return self._reply(429, {"error": "busy"})
+        try:
+            code, obj = stage_op(payload)
+        except Exception as e:
+            print(f"stage failed: {e}", flush=True)
+            code, obj = 500, {"error": "sandbox error"}
+        finally:
+            _lock.release()      # released before replying, so a client's next call is never refused as busy
+        self._reply(code, obj)
+
     def do_POST(self):
-        if self.path not in ("/run", "/files"):
+        if self.path not in ("/run", "/files", "/stage"):
             return self._reply(404, {"error": "not found"})
         if not self._authorized():
             return self._reply(401, {"error": "unauthorized"})
@@ -464,6 +795,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._reply(413, {"error": "bad body size"})
         if self.path == "/files":
             return self._files(length)
+        if self.path == "/stage":
+            return self._stage(length)
         try:
             payload = json.loads(self.rfile.read(length))
             if not isinstance(payload, dict) or ("code" in payload) == ("shell" in payload):

@@ -43,6 +43,10 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8000}:8000"
+    volumes:
+      # Documents copied from folders the owner granted for knowledge (read-only here; only the
+      # sandbox runner's fixed copier writes to it). Empty unless folder staging is used.
+      - ragleap_core_staging:/staging:ro
 
   voice:
     profiles: ["voice", "full"]
@@ -152,3 +156,5 @@ volumes:
   ragleap_core_neo4j_data:
   ragleap_core_redis_data:
   ragleap_core_ollama:
+  ragleap_core_staging:
+    name: ragleap_core_staging
