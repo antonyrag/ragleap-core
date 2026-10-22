@@ -126,3 +126,18 @@ def test_init_schema_idempotent(backend):
     backend.init_schema(dimensions=3)
     results = backend.search_dense([0.1, 0.2, 0.3], top_k=5)
     assert len(results) == 3
+
+
+def test_search_dense_scores_are_on_the_zero_to_one_scale(tmp_path):
+    """Regression: the cosine DISTANCE of LanceDB runs from 0 (identical) to 2 (opposite). The similarity is mapped
+    to [0, 1] like the other backends (identical 1.0, orthogonal 0.5, opposite 0.0), not left as the raw cosine in
+    [-1, 1]."""
+    from ragleap_vectorstores.lancedb_backend import LanceDBBackend
+
+    backend = LanceDBBackend(uri=str(tmp_path / "lance_scale"))
+    backend.init_schema(dimensions=3)
+    backend.insert_document("scale", "scale.txt", {})
+    for i, vec in enumerate([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]]):
+        backend.insert_chunk("scale", "scale.txt", i, "chunk %d" % i, 1, vec, {})
+    results = backend.search_dense([1.0, 0.0, 0.0], top_k=3)
+    assert {r["chunk_index"]: r["similarity_score"] for r in results} == {0: 1.0, 1: 0.5, 2: 0.0}

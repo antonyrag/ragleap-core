@@ -33,7 +33,7 @@ Design notes:
 - similarity_score: Upstash's query() score is ALREADY a normalized
   similarity in [0, 1] where 1 = identical (live-verified: an exact-match
   query returned score 1.0) - unlike Chroma/Redis, which return a
-  distance requiring `1 - distance` conversion. Used directly here, no
+  distance requiring `1 - distance / 2` conversion. Used directly here, no
   conversion needed.
 - Chunk data (text, document_id, document_name, chunk_index, token_count)
   is stored natively in Upstash's metadata dict per vector - no SQLite

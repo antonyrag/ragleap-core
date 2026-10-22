@@ -29,7 +29,7 @@ most OpenSearch k-NN tutorials show:
   the real relationship is `score = (1 + cosine_similarity) / 2`, i.e.
   OpenSearch maps a similarity in [-1, 1] onto a score in [0, 1]. This
   mirrors Upstash's "already normalized, don't reconvert" case rather
-  than Chroma/Redis's "1 - distance" case - documented here so it isn't
+  than Chroma/Redis's distance-based case (1 - distance / 2) - documented here so it isn't
   silently double-converted later.
 
 Design notes:
@@ -280,7 +280,7 @@ class OpenSearchBackend(VectorBackend):
                 # space_type="cosinesimil" with engine="lucene" is
                 # (1 + cosine_similarity) / 2, already normalized into
                 # [0, 1] - used directly, same as Upstash, NOT converted
-                # via "1 - distance" the way Chroma/Redis are.
+                # via "1 - distance / 2" the way Chroma/Redis are.
                 "similarity_score": round(float(hit["_score"]), 4),
                 "document_id": src.get("document_id"),
                 "document_name": src.get("document_name"),

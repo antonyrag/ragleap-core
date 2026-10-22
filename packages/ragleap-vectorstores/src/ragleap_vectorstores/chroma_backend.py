@@ -19,7 +19,7 @@ Design notes:
   {"document_id": "d1", "tag": "x"} raises ValueError ("Expected where to
   have exactly one operator"). Multiple equality conditions must be
   wrapped in {"$and": [...]}. _build_where() below handles this.
-- similarity_score is derived as (1 - distance). Verified live with
+- similarity_score is derived as 1 - distance / 2 (clamped to [0, 1]; the cosine distance runs from 0 to 2). Verified live with
   "hnsw:space": "cosine" (the default configured here): querying with an
   embedding identical to a stored one returns a distance ~0, consistent
   with Chroma's documented cosine distance = 1 - cosine_similarity.
@@ -158,7 +158,7 @@ class ChromaBackend(VectorBackend):
             results.append({
                 "chunk_id": chunk_id,
                 "text": text,
-                "similarity_score": round(1.0 - float(distance), 4),
+                "similarity_score": round(max(0.0, min(1.0, 1.0 - float(distance) / 2.0)), 4),
                 "document_id": meta.get("document_id"),
                 "document_name": meta.get("document_name"),
                 "chunk_index": meta.get("chunk_index"),

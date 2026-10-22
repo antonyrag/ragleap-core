@@ -13,7 +13,7 @@ Design notes:
   small SQLite sidecar is still used, but only for the document
   registry (filename, uploaded_at, metadata), since LanceDB tables have
   no native "parent document" concept.
-- similarity_score is derived as (1 - distance) using explicit
+- similarity_score is derived as 1 - distance / 2 (clamped to [0, 1]; the cosine distance runs from 0 to 2) using explicit
   .metric("cosine") on every query - live-verified: querying with an
   embedding identical to a stored one returns a distance ~0 under
   cosine metric, consistent with cosine distance = 1 - cosine_similarity.
@@ -181,7 +181,7 @@ class LanceDBBackend(VectorBackend):
             results.append({
                 "chunk_id": r.get("id"),
                 "text": r.get("text"),
-                "similarity_score": round(1.0 - float(r.get("_distance", 0.0)), 4),
+                "similarity_score": round(max(0.0, min(1.0, 1.0 - float(r.get("_distance", 0.0)) / 2.0)), 4),
                 "document_id": r.get("document_id"),
                 "document_name": r.get("document_name"),
                 "chunk_index": r.get("chunk_index"),
