@@ -5,11 +5,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-22
+
+### Upgrade note
+- Score thresholds: `FAISSBackend` and `PineconeBackend` now return `similarity_score` on the 0 to 1 scale (see Changed). If you filter or alert on those scores, re-check your thresholds.
+
+### Added
+- `demonroute` is now in the provider base-URL table (`https://api.demonroute.com/v1`).
+
 ### Changed
 - Behavior change: `FAISSBackend` and `PineconeBackend` now return `similarity_score` on the same [0, 1] scale as the other backends, `(x + 1) / 2` of the raw cosine (identical 1.0, orthogonal 0.5, opposite 0.0). Before, they returned the raw cosine in [-1, 1], so a caller filtering on `similarity_score` behaved differently per backend (issue 577). Scores of existing stored data are not affected; only the returned values change.
 
 ### Fixed
 - `ingest_batch()` now keeps the `metadata` of `file` items (it was silently dropped; the url, image, audio and video items already kept it). `aingest()` accepts an optional `metadata` argument for this.
+
+### Verified
+- The FAISS score change is tested with a real FAISS index (identical 1.0, orthogonal 0.5, opposite 0.0); the Pinecone change with the mocked client, not against a real Pinecone account.
+- The `ingest_batch()` metadata fix has new tests that fail on the previous code.
 
 ## [0.13.0] - 2026-10-03
 ### Security
