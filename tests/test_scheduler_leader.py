@@ -2,6 +2,7 @@
 one test uses the real database when DATABASE_URL is set."""
 import asyncio
 import os
+import time
 
 import pytest
 
@@ -144,8 +145,15 @@ def test_with_the_real_database_a_second_connection_cannot_lead():
         cur.execute("SELECT pg_try_advisory_lock(%s)", (sl.LOCK_KEY,))
         assert cur.fetchone()[0] is False
         sl.release()
-        cur.execute("SELECT pg_try_advisory_lock(%s)", (sl.LOCK_KEY,))
-        assert cur.fetchone()[0] is True
+        # Closing a connection does not free its lock at once: the server ends the session a moment later.
+        got = False
+        for _ in range(50):
+            cur.execute("SELECT pg_try_advisory_lock(%s)", (sl.LOCK_KEY,))
+            got = cur.fetchone()[0]
+            if got:
+                break
+            time.sleep(0.1)
+        assert got is True
         cur.execute("SELECT pg_advisory_unlock(%s)", (sl.LOCK_KEY,))
     finally:
         other.close()
