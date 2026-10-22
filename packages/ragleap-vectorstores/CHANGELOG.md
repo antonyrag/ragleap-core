@@ -5,11 +5,19 @@ loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-22
+
+### Upgrade note
+- Score thresholds: `RedisBackend`, `ChromaBackend` and `LanceDBBackend` now return `similarity_score` on the 0 to 1 scale (see Fixed). If you filter or alert on those scores, re-check your thresholds.
+
 ### Fixed
 - `ChromaBackend.search_dense()` and `LanceDBBackend.search_dense()` now return `similarity_score` on the same 0 to 1 scale as the other backends: `1 - distance / 2` (clamped), so identical vectors score 1.0, orthogonal 0.5 and opposite 0.0. Before they returned `1 - distance`, the raw cosine in [-1, 1] (0.0 for orthogonal, -1.0 for opposite), the same inconsistency as issues 577 and the Redis fix. Behavior change: returned scores change; stored data is not affected. Docstrings that described the old convention were updated.
 - `RedisBackend.search_dense()` now returns `similarity_score` on the same 0 to 1 scale as the other backends: `1 - distance / 2` (clamped), so identical vectors score 1.0, orthogonal 0.5 and opposite 0.0. Before it returned `1 - distance`, the raw cosine in [-1, 1] (0.0 for orthogonal, -1.0 for opposite; live-verified on Redis Stack 7.4.7), so a caller filtering on `similarity_score` behaved differently per backend (same kind of inconsistency as issue 577). Behavior change: returned scores change; stored data is not affected.
 - `UpstashBackend.insert_chunk()`: caller metadata can no longer overwrite the stored `document_id`, `document_name`, `chunk_index`, `token_count` or `text` (a key with one of those names used to replace the real value). Behavior change only for metadata that used those key names; other keys are stored as before.
 - `UpstashBackend.list_documents()` now counts all chunks of a document: it follows the `range()` cursor until the prefix scan ends. Before, a single call capped `chunk_count` at 1000. Costs one extra `range()` request per further 1000 chunks of a listed document.
+
+### Verified
+- The Redis score fix was checked live on a Redis Stack 7.4.7 container and runs in CI against redis-stack; the Chroma and LanceDB fixes against real embedded instances; the two Upstash fixes with mock-based tests only (no real Upstash index); the OpenSearch and Upstash module changes in the score fix are comment edits.
 
 ## [0.5.2] - 2026-10-19
 ### Changed
