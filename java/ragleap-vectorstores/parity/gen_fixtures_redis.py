@@ -275,6 +275,16 @@ case("delete_del_error", [
 ], INIT + [FT(1, (P + "d1:0", [("text", "x")])), E("READONLY You can't write against a read only replica")])
 
 
+case("search_score_edge_values", [op("init_schema", 8), op("search_dense", [0.5, 0.5], 8, None)], INIT + [FT(
+    5,
+    hit(P + "e:0", "a", "nan", "e", "n", "0"),
+    hit(P + "e:1", "b", "inf", "e", "n", "1"),
+    hit(P + "e:2", "c", "-inf", "e", "n", "2"),
+    hit(P + "e:3", "d", "2.0000002", "e", "n", "3"),
+    hit(P + "e:4", "e", "-0.0000001", "e", "n", "4"),
+)])
+
+
 def classify(e):
     if isinstance(e, RedisError):
         return {"error": "RemoteError"}

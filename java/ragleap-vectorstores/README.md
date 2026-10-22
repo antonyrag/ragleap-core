@@ -36,13 +36,13 @@ fake HTTP server that records every request; the Java backend runs the same 29 s
 server and must send identical requests (method, path, query, body, auth) and return identical results. Ten
 deliberate breaks of the Java code were each caught by the tests.
 
-**Not live-verified:** no real OpenSearch server was used. Python was pinned at commit `9c122d2`.
+**Not live-verified:** no real OpenSearch server was used. Python was pinned at commit `de9d55b`.
 
 ```bash
 # regenerate fixtures (needs the pinned Python package and a venv with opensearch-py 3.2.0, upstash-vector 0.8.0, redis-py 8.0.1 and numpy)
-VS_PIN=9c122d2 python parity/gen_fixtures_opensearch.py
-VS_PIN=9c122d2 python parity/gen_fixtures_upstash.py
-VS_PIN=9c122d2 python parity/gen_fixtures_redis.py
+VS_PIN=de9d55b python parity/gen_fixtures_opensearch.py
+VS_PIN=de9d55b python parity/gen_fixtures_upstash.py
+VS_PIN=de9d55b python parity/gen_fixtures_redis.py
 RAGLEAP_VS_PARITY_DIR=/root/fixtures-vs mvn -B test
 ```
 
@@ -93,7 +93,7 @@ RedisBackend backend = new RedisBackend("redis://localhost:6379/0");
 creates an HNSW cosine index over hashes. Chunks are hashes (text, metadata, float32 vector, little-endian); the
 document registry (filename and upload time) is a local SQLite file, by default
 `~/.ragleap_vectorstores/redis_documents.sqlite3`. The default key prefix derives from the index name, so two indexes
-never share keys. Scores are `1 - cosine distance`; no sparse search. Commands go over a small built-in RESP2 client
+never share keys. Scores are `1 - distance / 2` (clamped), on the same 0 to 1 scale as the other backends; no sparse search. Commands go over a small built-in RESP2 client
 (no vendor SDK, no connection pool, one socket); urls are `redis://` or `rediss://` with optional user, password and
 database.
 
@@ -112,9 +112,8 @@ of a document.
 ### How it was verified
 
 Recorded-command parity against the real Python `RedisBackend`, the real redis-py 8.0.1 client (forced to RESP2) and
-a real SQLite registry: 24 scripted scenarios (72 commands, arguments compared byte for byte, including the float32
-vector bytes). Fifteen deliberate breaks of the Java code were each caught by the tests. **Not live-verified:** no real
-Redis Stack was used (the Python docstring says it was verified against redis-py 7.3.0; parity here ran against 8.0.1).
+a real SQLite registry: 25 scripted scenarios (75 commands, arguments compared byte for byte, including the float32
+vector bytes). Eighteen deliberate breaks of the Java code were each caught by the tests. **Live check:** the gated `RedisLiveTest` (env `RAGLEAP_VS_LIVE_REDIS_URL`, skipped in CI) was run once on 2026-10-21 against a throwaway Redis Stack 7.4.7 (index create and reuse, insert, search, `document_id` filter, list, delete and the score scale all worked); no other Redis version was tried. The Python docstring says it was verified against redis-py 7.3.0; parity here ran against 8.0.1.
 
 ## Not ported yet
 

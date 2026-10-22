@@ -191,6 +191,16 @@ public final class RedisBackend implements VectorBackend, AutoCloseable {
         return Double.parseDouble(t.replace("_", ""));
     }
 
+    /** Python min(a, b) for floats: returns b only when b < a, so a NaN b is ignored. */
+    static double pyMin(double a, double b) {
+        return b < a ? b : a;
+    }
+
+    /** Python max(a, b) for floats: returns b only when b > a, so a NaN b is ignored. */
+    static double pyMax(double a, double b) {
+        return b > a ? b : a;
+    }
+
     private static String str(Object o) {
         if (o instanceof byte[] b) {
             return new String(b, StandardCharsets.UTF_8);
@@ -346,8 +356,9 @@ public final class RedisBackend implements VectorBackend, AutoCloseable {
             String docName = need(f, "document_name");
             String chunkIndex = need(f, "chunk_index");
             try {
-                // RediSearch returns a cosine DISTANCE (0 = identical): similarity = 1 - distance
-                out.add(new SearchResult(key, text, OpenSearchBackend.round4(1.0 - pyFloat(score)), docId, docName,
+                // RediSearch returns a cosine DISTANCE (0 identical, 1 orthogonal, 2 opposite): mapped to a 0 to 1
+                // similarity like the other backends, 1 - distance / 2, clamped like the fixed Python
+                out.add(new SearchResult(key, text, OpenSearchBackend.round4(pyMax(0.0, pyMin(1.0, 1.0 - pyFloat(score) / 2.0))), docId, docName,
                         OpenSearchBackend.pyInt(chunkIndex).intValue()));
             } catch (NumberFormatException e) {
                 throw new SQLException("FT.SEARCH document with a non-numeric score or chunk_index", e);

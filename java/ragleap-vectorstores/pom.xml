@@ -13,7 +13,7 @@
     <description>
         Java port of ragleap-vectorstores: extra vector store backends for ragleap-rag, talking to
         each store over its REST API with no vendor SDK. Work in progress: OpenSearch, Upstash and Redis so far
-        (none live-verified). Independently versioned from the Python package
+        (Redis was live-checked once against Redis Stack 7.4.7; OpenSearch and Upstash are not live-verified). Independently versioned from the Python package
         (see https://pypi.org/project/ragleap-vectorstores/).
     </description>
     <url>https://github.com/ragleap/ragleap-core</url>

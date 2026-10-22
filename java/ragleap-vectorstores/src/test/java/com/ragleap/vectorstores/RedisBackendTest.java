@@ -52,6 +52,16 @@ class RedisBackendTest {
     }
 
     @Test
+    void pyMinAndMaxFollowPythonIncludingNaN() {
+        assertEquals(1.0, RedisBackend.pyMin(1.0, Double.NaN));
+        assertEquals(0.5, RedisBackend.pyMin(1.0, 0.5));
+        assertEquals(1.0, RedisBackend.pyMin(1.0, 2.0));
+        assertEquals(0.0, RedisBackend.pyMax(0.0, Double.NaN));
+        assertEquals(0.0, RedisBackend.pyMax(0.0, Double.NEGATIVE_INFINITY));
+        assertEquals(0.7, RedisBackend.pyMax(0.0, 0.7));
+    }
+
+    @Test
     void respRequestIsAnArrayOfBulkStrings() {
         assertEquals("*2\r\n$4\r\nPING\r\n$3\r\n\u00e9a\r\n",
                 new String(RespClient.encode("PING", "\u00e9a"), StandardCharsets.UTF_8));
