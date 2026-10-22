@@ -60,8 +60,12 @@ fi
 echo "== creating kind cluster"
 kind create cluster --name "$CL" --wait 180s
 kubectl create namespace "$NS"
-kubectl -n "$NS" create secret docker-registry ghcr-pull-secret \
-  --docker-server=ghcr.io --docker-username="$GITHUB_ACTOR" --docker-password="$GHCR_TOKEN"
+# The pull secret is built from the Docker config that 'docker login' wrote above, so the token is never a command argument.
+DOCKER_CFG="$HOME/.docker/config.json"
+[ -f "$DOCKER_CFG" ] || stop "docker login did not write $DOCKER_CFG"
+grep -q '"auth"' "$DOCKER_CFG" || stop "the Docker config has no inline auth (a credential helper is in use), so a pull secret cannot be built from it"
+kubectl -n "$NS" create secret generic ghcr-pull-secret --type=kubernetes.io/dockerconfigjson \
+  --from-file=.dockerconfigjson="$DOCKER_CFG"
 # The chart's app and voice pods read envFrom secret ragleap-app-env, which the chart does NOT create.
 # A placeholder with no real keys is supplied so the pods can be created at all.
 kubectl -n "$NS" create secret generic ragleap-app-env --from-literal=EXPERIMENT_PLACEHOLDER=1
