@@ -374,3 +374,15 @@ CREATE TABLE IF NOT EXISTS app_settings (
     is_secret BOOLEAN NOT NULL DEFAULT false,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Folder ingest (core/folder_ingest.py): documents that came from a folder the owner granted for knowledge, and the
+-- owner's approval of the first sync of each grant. Existing installs apply this file again (it is idempotent).
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_grant TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_path TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_hash TEXT;
+CREATE INDEX IF NOT EXISTS documents_source_idx ON documents (source_grant, source_path);
+CREATE TABLE IF NOT EXISTS folder_ingest_approvals (
+    grant_name TEXT PRIMARY KEY,
+    approved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    approved_files INTEGER
+);

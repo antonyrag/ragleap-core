@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import hmac
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -40,6 +40,7 @@ from core import settings as core_settings
 from core import vector_dims as core_vector_dims
 from core import setup_status
 from core import observability
+from core import folder_ingest
 from core import queue
 from core.employees.sensitivity import is_sensitive_role
 
@@ -86,6 +87,13 @@ async def _run_due_triggers_job():
     except Exception as e:
         logger.error("Error in proactive triggers job: %s", e)
 
+async def _folder_ingest_job():
+    """Stage and ingest the folders granted for knowledge. run_cycle never raises; it blocks (copies, embeddings)."""
+    try:
+        await asyncio.to_thread(folder_ingest.run_cycle)
+    except Exception as e:
+        logger.error("Error in folder ingest job: %s", e)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
@@ -99,6 +107,9 @@ async def lifespan(app: FastAPI):
     scheduler.add_job(scheduler_leader.leader_only(_sync_job), "interval", minutes=5)
     scheduler.add_job(scheduler_leader.leader_only(_run_due_triggers_job), "interval", minutes=1,
                       max_instances=1, coalesce=True)
+    if folder_ingest.enabled():
+        scheduler.add_job(scheduler_leader.leader_only(_folder_ingest_job), "interval",
+                          minutes=folder_ingest.interval_minutes(), max_instances=1, coalesce=True)
     scheduler.start()
     logger.info("Background sync scheduler started.")
     yield
@@ -1006,6 +1017,26 @@ def office_file_grants():
     """Folder grants and the file-access switches for the dashboard Files tab (names only, never host paths)."""
     from core import file_access
     return file_access.overview()
+
+
+@app.get("/folder-ingest")
+def folder_ingest_status():
+    """Folder auto-ingest: switches, the last cycle per granted folder, and which folders wait for approval."""
+    return folder_ingest.status()
+
+
+class FolderApproveRequest(BaseModel):
+    grant: str
+
+
+@app.post("/folder-ingest/approve")
+async def folder_ingest_approve(req: FolderApproveRequest, background_tasks: BackgroundTasks):
+    """The owner accepts the first sync of a staged folder (embeddings can cost money). Ingestion starts at once."""
+    code, body = await asyncio.to_thread(folder_ingest.approve_grant, req.grant)
+    if code != 200:
+        raise HTTPException(status_code=code, detail=body["error"])
+    background_tasks.add_task(folder_ingest.run_cycle, False)
+    return body
 
 
 @app.get("/org")

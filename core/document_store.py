@@ -22,16 +22,29 @@ def list_documents(limit: int = 100) -> list:
     conn = _connect()
     try:
         cur = conn.cursor()
-        cur.execute(
-            "SELECT d.id, d.filename, d.uploaded_at, COUNT(c.id) "
-            "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
-            "GROUP BY d.id, d.filename, d.uploaded_at ORDER BY d.uploaded_at DESC LIMIT %s",
-            (limit,))
-        rows = cur.fetchall()
+        try:
+            cur.execute(
+                "SELECT d.id, d.filename, d.uploaded_at, COUNT(c.id), d.source_grant, d.source_path "
+                "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
+                "GROUP BY d.id, d.filename, d.uploaded_at, d.source_grant, d.source_path "
+                "ORDER BY d.uploaded_at DESC LIMIT %s",
+                (limit,))
+            rows = cur.fetchall()
+        except Exception as e:
+            if e.__class__.__name__ != "UndefinedColumn":
+                raise
+            conn.rollback()      # the folder-ingest columns are not in this database yet
+            cur.execute(
+                "SELECT d.id, d.filename, d.uploaded_at, COUNT(c.id) "
+                "FROM documents d LEFT JOIN chunks c ON c.document_id = d.id "
+                "GROUP BY d.id, d.filename, d.uploaded_at ORDER BY d.uploaded_at DESC LIMIT %s",
+                (limit,))
+            rows = [tuple(r) + (None, None) for r in cur.fetchall()]
     finally:
         conn.close()
-    return [{"id": str(r[0]), "filename": r[1],
-             "uploaded_at": r[2].isoformat() if r[2] else None, "chunks": int(r[3])} for r in rows]
+    return [{"id": str(r[0]), "filename": r[1], "uploaded_at": r[2].isoformat() if r[2] else None,
+             "chunks": int(r[3]),
+             "source": {"grant": r[4], "path": r[5]} if r[4] else None} for r in rows]
 
 
 def delete_document(document_id: str) -> bool:

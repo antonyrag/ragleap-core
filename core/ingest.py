@@ -22,9 +22,12 @@ def _get_connection():
     return psycopg2.connect(DATABASE_URL)
 
 
-def ingest_document(filename: str, text: str) -> dict:
+def ingest_document(filename: str, text: str, source=None) -> dict:
     """
     Chunk, embed, and store a document's text in the database.
+
+    source: optional {"grant", "path", "hash"} for a document that came from a granted folder
+    (core/folder_ingest.py); stored in the same INSERT so a document never exists without it.
 
     Returns: {"document_id": str, "chunks_stored": int}
     """
@@ -41,10 +44,17 @@ def ingest_document(filename: str, text: str) -> dict:
     try:
         cur = conn.cursor()
 
-        cur.execute(
-            "INSERT INTO documents (id, filename) VALUES (%s, %s)",
-            (document_id, filename),
-        )
+        if source:
+            cur.execute(
+                "INSERT INTO documents (id, filename, source_grant, source_path, source_hash) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (document_id, filename, source["grant"], source["path"], source["hash"]),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO documents (id, filename) VALUES (%s, %s)",
+                (document_id, filename),
+            )
 
         stored = 0
         for chunk in chunks:
