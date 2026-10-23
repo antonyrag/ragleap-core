@@ -58,7 +58,7 @@ openpyxl==3.1.5
 opentelemetry-api==1.45.1
 packaging==26.3
 pandas==3.0.6
-pillow==12.3.0
+pillow==13.0.0
 platformdirs==4.13.0
 pluggy==1.6.0
 psycopg2-binary==2.9.13
@@ -73,7 +73,7 @@ Pygments==2.21.0
 PyJWT==2.15.1
 pymongo==4.19.0
 PyMySQL==1.2.3
-pypdf==6.20.1
+pypdf==6.21.1
 pytest-asyncio==1.4.0
 pytest==9.1.1
 python-dateutil==2.9.0.post0
