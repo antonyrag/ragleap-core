@@ -445,7 +445,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.package == 'ragleap-voice')
     runs-on: ubuntu-latest
     environment:
-      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi-voice' }}
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'pypi' }}
     permissions:
       id-token: write
     defaults:
