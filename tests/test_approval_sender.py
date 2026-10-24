@@ -115,6 +115,34 @@ def test_telegram_without_secret_can_be_opted_out_for_local_testing():
         assert tg._verify_webhook_secret("") is True
 
 
+def _twilio_signature(token, url, params):
+    from base64 import b64encode
+    import hashlib
+    import hmac
+
+    full_url = url
+    for key in sorted(params):
+        full_url += key + params[key]
+    digest = hmac.new(token.encode("utf-8"), full_url.encode("utf-8"), hashlib.sha1).digest()
+    return b64encode(digest).decode("utf-8")
+
+
+def test_twilio_signature_accepts_a_correct_signature():
+    params = {"Body": "hello", "From": "whatsapp:+919876543210"}
+    with patch.object(wa, "TWILIO_AUTH_TOKEN", "token"):
+        assert wa._verify_twilio_signature(
+            "https://example.com/hook", params,
+            _twilio_signature("token", "https://example.com/hook", params),
+        ) is True
+
+
+def test_twilio_signature_rejects_a_non_ascii_header_without_raising():
+    """A non-ASCII signature is a 403 path, not a TypeError/500."""
+    with patch.object(wa, "TWILIO_AUTH_TOKEN", "token"):
+        assert wa._verify_twilio_signature("https://example.com/hook", {"Body": "hi"}, "sig-né") is False
+        assert wa._verify_twilio_signature("https://example.com/hook", {"Body": "hi"}, "подпись") is False
+
+
 def test_telegram_with_secret_still_compares_strictly():
     with _env(), patch.object(tg, "TELEGRAM_WEBHOOK_SECRET", "s3cret"):
         assert tg._verify_webhook_secret("s3cret") is True
