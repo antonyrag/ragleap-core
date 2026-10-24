@@ -168,7 +168,7 @@ if [ -n "${GHCR_TOKEN:-}" ]; then
     --from-file=.dockerconfigjson="$DOCKER_CFG"
   kubectl -n ops-test create secret generic ragleap-app-env --from-literal=EXPERIMENT_PLACEHOLDER=1
   APPS_ON=1
-  OPS_ARGS=()
+  OPS_ARGS=(--set app.runAsUser=0 --set voice.runAsUser=0)
 else
   record "NOT EXERCISED  ragleap-ops: app and voice pods (GHCR_TOKEN not set, so they are scaled to zero)"
 fi
