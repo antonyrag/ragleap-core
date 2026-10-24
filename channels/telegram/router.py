@@ -38,7 +38,13 @@ def _verify_webhook_secret(received_secret: str) -> bool:
         return False
     if not received_secret:
         return False
-    return hmac.compare_digest(received_secret, TELEGRAM_WEBHOOK_SECRET)
+    # Compare bytes: hmac.compare_digest raises TypeError on `str` operands that
+    # contain non-ASCII characters, which turned a hostile header into a 500 on
+    # the authentication boundary instead of a plain rejection. Same spelling as
+    # the API-key check in core/api.py.
+    return hmac.compare_digest(
+        received_secret.encode("utf-8"), TELEGRAM_WEBHOOK_SECRET.encode("utf-8")
+    )
 
 
 def send_telegram_message(chat_id, message_text: str) -> bool:

@@ -115,6 +115,19 @@ def test_telegram_without_secret_can_be_opted_out_for_local_testing():
         assert tg._verify_webhook_secret("") is True
 
 
+def test_telegram_non_ascii_secret_is_rejected_not_a_crash():
+    """A non-ASCII header must be a 403 path, not a TypeError/500."""
+    with _env(), patch.object(tg, "TELEGRAM_WEBHOOK_SECRET", "s3cret"):
+        assert tg._verify_webhook_secret("sécret") is False
+        assert tg._verify_webhook_secret("ключ") is False
+
+
+def test_telegram_non_ascii_configured_secret_still_matches():
+    with _env(), patch.object(tg, "TELEGRAM_WEBHOOK_SECRET", "sécret"):
+        assert tg._verify_webhook_secret("sécret") is True
+        assert tg._verify_webhook_secret("s3cret") is False
+
+
 def test_telegram_with_secret_still_compares_strictly():
     with _env(), patch.object(tg, "TELEGRAM_WEBHOOK_SECRET", "s3cret"):
         assert tg._verify_webhook_secret("s3cret") is True
