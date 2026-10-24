@@ -52,7 +52,10 @@ def _verify_twilio_signature(url: str, params: dict, signature: str) -> bool:
         hmac.new(TWILIO_AUTH_TOKEN.encode("utf-8"), full_url.encode("utf-8"), hashlib.sha1).digest()
     ).decode("utf-8")
 
-    return hmac.compare_digest(computed, signature)
+    # Compare bytes: hmac.compare_digest raises TypeError on `str` operands with
+    # non-ASCII characters, so a hostile signature header produced a 500 on the
+    # authentication boundary instead of a plain rejection.
+    return hmac.compare_digest(computed.encode("utf-8"), signature.encode("utf-8"))
 
 
 def unsigned_allowed() -> bool:
